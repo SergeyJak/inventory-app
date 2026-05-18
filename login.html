@@ -86,8 +86,8 @@
     <div class="error" id="err"></div>
     <label for="username">Имя пользователя</label>
     <input type="text" id="username" placeholder="admin" autocomplete="username" />
-    <label for="password">Пароль (не требуется)</label>
-    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" disabled />
+    <label for="password">Пароль</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
     <button id="btn" onclick="doLogin()">Войти</button>
   </div>
 
@@ -103,10 +103,11 @@
 
     async function doLogin() {
       const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
       const err      = document.getElementById('err');
       const btn      = document.getElementById('btn');
 
-      if (!username) { showError('Введи имя пользователя'); return; }
+      if (!username || !password) { showError('Введи имя и пароль'); return; }
 
       btn.disabled    = true;
       btn.textContent = 'Вхожу…';
@@ -116,7 +117,7 @@
         const res  = await fetch('/api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username }),
+          body: JSON.stringify({ username, password }),
         });
         const data = await res.json();
         if (!res.ok) { showError(data.error || 'Неверные данные'); return; }

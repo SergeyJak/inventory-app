@@ -101,13 +101,14 @@ function requireAdmin(req, res, next) {
 
 // ── LOGIN ────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
-  const { username } = req.body || {};
-  if (!username) {
-    return res.status(400).json({ error: 'Username required' });
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password required' });
   }
   const user = USERS.find(u => u.username === username);
-  if (!user) return res.status(401).json({ error: 'User not found' });
-  // ⚠️  PASSWORD CHECK DISABLED FOR TESTING
+  if (!user || !user.hash) return res.status(401).json({ error: 'Invalid credentials' });
+  const ok = await bcrypt.compare(password, user.hash);
+  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign(
     { username: user.username, role: user.role },
     JWT_SECRET,
