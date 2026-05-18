@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Учёт товаров</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- IMPORT MODAL -->
+<div id="import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <h3 style="margin:0 0 12px">📥 Импорт данных из старой версии</h3>
+    <p style="color:#64748b;font-size:0.88rem;margin-bottom:16px">
+      <strong>Шаг 1:</strong> Открой старый файл через <code>file://</code> в браузере<br>
+      <strong>Шаг 2:</strong> Нажми F12 → Консоль (Console)<br>
+      <strong>Шаг 3:</strong> Скопируй и выполни эту команду:
+    </p>
+    <pre id="copy-cmd" style="background:#1e293b;color:#7dd3fc;padding:12px;border-radius:8px;font-size:0.82rem;overflow-x:auto;cursor:pointer" onclick="copyCmd()" title="Нажми чтобы скопировать">copy(JSON.stringify({p:JSON.parse(localStorage.inv_products||'[]'),t:JSON.parse(localStorage.inv_transactions||'[]'),a:JSON.parse(localStorage.inv_andrey_returns||'[]')}))</pre>
+    <p style="color:#64748b;font-size:0.88rem;margin:12px 0 6px"><strong>Шаг 4:</strong> Вставь скопированный результат сюда:</p>
+    <textarea id="import-json" rows="6" style="width:100%;border:1.5px solid #cbd5e1;border-radius:8px;padding:10px;font-size:0.83rem;font-family:monospace;box-sizing:border-box" placeholder='{"p":[...],"t":[...],"a":[]}'></textarea>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="doImport()" class="btn-primary">✅ Импортировать</button>
+      <button onclick="document.getElementById('import-modal').style.display='none'" class="btn-secondary">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="migrate-banner" style="display:none;background:#fefce8;border-bottom:2px solid #fde047;padding:12px 24px;align-items:center;gap:16px;flex-wrap:wrap">
+  <span style="font-weight:600;">📦 Хотите перенести данные из старой версии (file://)?</span>
+  <button onclick="document.getElementById('import-modal').style.display='flex'" class="btn-primary" style="padding:7px 18px;font-size:0.88rem">📥 Импортировать</button>
+  <button onclick="document.getElementById('migrate-banner').style.display='none'" class="btn-secondary" style="padding:7px 14px;font-size:0.88rem">✖ Не надо</button>
+</div>
+
+<header>
+  <h1>📦 Учёт товаров</h1>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="header-user" style="color:#64748b;font-size:0.88rem;font-weight:500"></span>
+    <button onclick="logout()" class="btn-secondary" style="padding:5px 14px;font-size:0.83rem">&#x2192; Выйти</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="dashboard">📊 Дашборд</button>
+  <button class="tab-btn" data-tab="sales">💰 Продажи</button>
+  <button class="tab-btn" data-tab="restock">📥 Поступления</button>
+  <button class="tab-btn" data-tab="products">🏷️ Товары</button>
+  <button class="tab-btn" data-tab="history">📋 История</button>
+  <button class="tab-btn" data-tab="annual">📅 Отчётность</button>
+</nav>
+
+<!-- ===== DASHBOARD ===== -->
+<section id="tab-dashboard" class="tab-content active">
+  <div class="dash-sub-tabs">
+    <button class="dash-tab-btn active" data-dash="main">📊 Сводка</button>
+    <button class="dash-tab-btn" data-dash="andrey">💸 Вернуть Андрею</button>
+  </div>
+
+  <div id="dash-main">
+  <h2>Общая сводка</h2>
+  <div class="stats-grid">
+    <div class="stat-card"><span class="stat-label">Товаров в каталоге</span><span class="stat-value" id="stat-products">0</span></div>
+    <div class="stat-card profit"><span class="stat-label">💰 Прибыль с продаж</span><span class="stat-value" id="stat-profit">0.00 €</span><span class="stat-sub" id="stat-profit-pct" style="font-size:0.8rem;color:#16a34a"></span></div>
+    <div class="stat-card"><span class="stat-label">💳 Выручка (что заплатили)</span><span class="stat-value" id="stat-revenue">0.00 €</span></div>
+    <div class="stat-card"><span class="stat-label">📦 Себестоимость проданного</span><span class="stat-value" id="stat-cost">0.00 €</span></div>
+    <div class="stat-card"><span class="stat-label">🏷️ Стоимость остатков</span><span class="stat-value" id="stat-stock-value">0.00 €</span></div>
+    <div class="stat-card"><span class="stat-label">📦 Продано штук</span><span class="stat-value" id="stat-sold-qty">0</span></div>
+  </div>
+  <h3 style="margin-top:32px">Остатки по товарам</h3>
+  <table id="stock-table">
+    <thead><tr><th>Тип</th><th>Цвет</th><th>Цена закупки</th><th>Цена продажи</th><th>Остаток (шт.)</th><th>Стоимость остатка</th><th>Маржа</th></tr></thead>
+    <tbody id="stock-tbody"></tbody>
+  </table>
+  </div>
+
+  <div id="dash-andrey" style="display:none">
+    <h2>Вернуть Андрею <small style="font-size:0.75rem;font-weight:400;color:#64748b">(себестоимость + ½ маржи)</small></h2>
+    <div class="stats-grid" style="margin-bottom:24px">
+      <div class="stat-card" style="border-left:4px solid #f59e0b"><span class="stat-label">Начислено всего</span><span class="stat-value" id="andrey-total" style="color:#b45309">0.00 €</span></div>
+      <div class="stat-card" style="border-left:4px solid #86efac"><span class="stat-label">Уже вернул</span><span class="stat-value" id="andrey-paid" style="color:#16a34a">0.00 €</span></div>
+      <div class="stat-card" style="border-left:4px solid #f87171;background:#fff7f7"><span class="stat-label">Осталось вернуть</span><span class="stat-value" id="andrey-remaining" style="color:#dc2626;font-size:1.5rem">0.00 €</span></div>
+      <div class="stat-card" style="border-left:4px solid #93c5fd"><span class="stat-label">Из остатков</span><span class="stat-value" id="andrey-stock-total" style="color:#1d4ed8">0.00 €</span></div>
+      <div class="stat-card" style="border-left:4px solid #c4b5fd"><span class="stat-label">Из продаж</span><span class="stat-value" id="andrey-sold-total" style="color:#7c3aed">0.00 €</span></div>
+    </div>
+    <div class="form-card admin-only" style="margin-bottom:28px">
+      <h3>Зафиксировать возврат</h3>
+      <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-row" style="flex:1;min-width:160px;margin:0"><label>Сумма (€)</label><input type="number" id="andrey-ret-amount" placeholder="0.00" min="0.01" step="0.01" /></div>
+        <div class="form-row" style="flex:1;min-width:160px;margin:0"><label>Дата</label><input type="date" id="andrey-ret-date" /></div>
+        <div class="form-row" style="flex:2;min-width:200px;margin:0"><label>Комментарий</label><input type="text" id="andrey-ret-note" placeholder="напр., наликом" /></div>
+        <button onclick="recordAndreyReturn()" id="andrey-ret-btn" class="btn-primary" disabled style="white-space:nowrap">✅ Записать возврат</button>
+      </div>
+    </div>
+    <p class="viewer-notice" style="display:none;color:#64748b;font-size:0.88rem;margin-top:6px">🔒 Фиксация возвратов доступна только админу.</p>
+    <h3 style="margin-top:8px">📦 Остатки (ещё не проданы)</h3>
+    <table id="andrey-table">
+      <thead><tr><th>Тип</th><th>Цвет</th><th>Партия</th><th>Закупка</th><th>Продажа</th><th>Вернуть за шт. (+ ½ маржи)</th><th>Остаток (шт.)</th><th>Сумма возврата Андрею</th></tr></thead>
+      <tbody id="andrey-tbody"></tbody>
+    </table>
+    <h3 style="margin-top:32px">💰 Продано (возврат из выручки)</h3>
+    <table id="andrey-sold-table">
+      <thead><tr><th>Товар</th><th>Продано (шт.)</th><th>Себестоимость</th><th>Маржа</th><th>Вернуть (+ ½ маржи)</th></tr></thead>
+      <tbody id="andrey-sold-tbody"></tbody>
+    </table>
+    <h3 style="margin-top:32px">📝 История возвратов Андрею</h3>
+    <table id="andrey-returns-table">
+      <thead><tr><th>Дата</th><th>Сумма</th><th>Комментарий</th><th></th></tr></thead>
+      <tbody id="andrey-returns-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===== PRODUCTS ===== -->
+<section id="tab-products" class="tab-content">
+  <h2>Каталог товаров</h2>
+  <div class="form-card admin-only">
+    <h3 id="product-form-title">Добавить товар</h3>
+    <input type="hidden" id="edit-product-id" />
+    <div class="form-row">
+      <label>Тип модели</label>
+      <select id="p-type">
+        <option value="Лайт 2">Лайт 2</option>
+        <option value="Мини 3">Мини 3</option>
+        <option value="Мини Про">Мини Про</option>
+        <option value="Миди">Миди</option>
+        <option value="Max">Max</option>
+        <option value="Street">Street</option>
+        <option value="Прочее">Прочее</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Цвет</label>
+      <select id="p-color">
+        <option value="Розовый">🌸 Розовый</option>
+        <option value="Коралловый">🪸 Коралловый</option>
+        <option value="Зелёный">🌿 Зелёный</option>
+        <option value="Голубой">🩵 Голубой</option>
+        <option value="Чёрный">🖤 Чёрный</option>
+        <option value="Серый">🩶 Серый</option>
+        <option value="Бирюзовый">💎 Бирюзовый</option>
+        <option value="Фиолетовый">💜 Фиолетовый</option>
+        <option value="Золотой">✨ Золотой</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Цена закупки (€)</label><input type="number" id="p-buy" placeholder="0.00" min="0" step="0.01" /></div>
+    <div class="form-row"><label>Цена продажи (€)</label><input type="number" id="p-sell" placeholder="0.00" min="0" step="0.01" /></div>
+    <div class="form-row"><label>Начальный остаток (шт.)</label><input type="number" id="p-stock" placeholder="0" min="0" step="1" /></div>
+    <div class="form-row"><label>Дата поступления</label><input type="date" id="p-date" /></div>
+    <div class="form-actions">
+      <button onclick="saveProduct()" class="btn-primary" id="save-product-btn" disabled>💾 Сохранить</button>
+      <button onclick="cancelProductEdit()" class="btn-secondary" id="cancel-product-btn" style="display:none">Отмена</button>
+    </div>
+  </div>
+  <table id="products-table">
+    <thead><tr><th>Тип</th><th>Цвет</th><th>Закупка</th><th>Продажа</th><th>Остаток</th><th>Дата поступления</th><th>Маржа</th><th>Действия</th></tr></thead>
+    <tbody id="products-tbody"></tbody>
+  </table>
+</section>
+
+<!-- ===== SALES ===== -->
+<section id="tab-sales" class="tab-content">
+  <h2>Зафиксировать продажу</h2>
+  <div class="form-card admin-only">
+    <div class="form-row"><label>Товар</label><select id="sale-product"></select></div>
+    <div class="form-row"><label>Количество (шт.)</label><input type="number" id="sale-qty" placeholder="1" min="1" step="1" /></div>
+    <div class="form-row"><label>Цена продажи за шт. (€)</label><input type="number" id="sale-price" placeholder="0.00" min="0" step="0.01" /></div>
+    <div class="form-row"><label>Дата продажи</label><input type="date" id="sale-date" /></div>
+    <div class="sale-preview" id="sale-preview"></div>
+    <div class="form-actions"><button onclick="recordSale()" class="btn-primary" id="record-sale-btn" disabled>✅ Продать</button></div>
+  </div>
+</section>
+
+<!-- ===== RESTOCK ===== -->
+<section id="tab-restock" class="tab-content">
+  <h2>Поступление товара</h2>
+  <div class="form-card admin-only">
+    <div class="form-row"><label>Товар</label><select id="restock-product"></select></div>
+    <div class="form-row"><label>Количество (шт.)</label><input type="number" id="restock-qty" placeholder="1" min="1" step="1" /></div>
+    <div class="form-row"><label>Цена закупки за шт. (€)</label><input type="number" id="restock-price" placeholder="0.00" min="0" step="0.01" /></div>
+    <div class="form-row"><label>Дата поступления</label><input type="date" id="restock-date" /></div>
+    <div class="form-actions"><button onclick="recordRestock()" class="btn-primary" id="record-restock-btn" disabled>📥 Принять</button></div>
+  </div>
+</section>
+
+<!-- ===== HISTORY ===== -->
+<section id="tab-history" class="tab-content">
+  <h2>История операций</h2>
+  <div class="history-toolbar">
+    <select id="history-filter">
+      <option value="all">Все операции</option>
+      <option value="sale">Только продажи</option>
+      <option value="restock">Только поступления</option>
+    </select>
+    <button onclick="clearHistory()" class="btn-danger admin-only">🗑️ Очистить историю</button>
+  </div>
+  <table id="history-table">
+    <thead><tr><th>Дата</th><th>Операция</th><th>Тип / Цвет</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Прибыль</th></tr></thead>
+    <tbody id="history-tbody"></tbody>
+  </table>
+</section>
+
+<!-- ===== ANNUAL REPORT ===== -->
+<section id="tab-annual" class="tab-content">
+  <h2>📅 Годовой отчёт</h2>
+  <div class="stats-grid" id="annual-stats" style="margin-bottom:28px"></div>
+  <table id="annual-table">
+    <thead><tr><th style="width:36px"></th><th>Год</th><th>Продано (шт.)</th><th>Выручка</th><th>Себестоимость</th><th>Прибыль</th><th>Маржа %</th></tr></thead>
+    <tbody id="annual-tbody"></tbody>
+  </table>
+</section>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

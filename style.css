@@ -1,0 +1,128 @@
+/* ========== RESET & BASE ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+/* ========== HEADER ========== */
+header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); color: #fff; padding: 18px 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: space-between; }
+header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.03em; }
+
+/* ========== TABS ========== */
+.tabs { display: flex; background: #fff; border-bottom: 2px solid #e2e8f0; padding: 0 24px; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.tab-btn { background: none; border: none; border-bottom: 3px solid transparent; padding: 14px 20px; font-size: 0.93rem; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s, border-color 0.2s; white-space: nowrap; margin-bottom: -2px; }
+.tab-btn:hover { color: #0f3460; }
+.tab-btn.active { color: #0f3460; border-bottom-color: #0f3460; }
+
+/* ========== DASHBOARD SUB-TABS ========== */
+.dash-sub-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0; }
+.dash-tab-btn { background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 9px 18px; font-size: 0.9rem; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s, border-color 0.2s; }
+.dash-tab-btn:hover { color: #b45309; }
+.dash-tab-btn.active { color: #b45309; border-bottom-color: #b45309; }
+
+/* ========== CONTENT ========== */
+.tab-content { display: none; padding: 28px 32px; max-width: 1100px; margin: 0 auto; animation: fadeIn 0.2s ease; }
+.tab-content.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+h2 { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; margin-bottom: 20px; }
+h3 { font-size: 1.05rem; font-weight: 600; color: #334155; margin-bottom: 14px; }
+
+/* ========== STATS GRID ========== */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 12px; }
+.stat-card { background: #fff; border-radius: 12px; padding: 20px 18px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); border-left: 4px solid #cbd5e1; transition: transform 0.15s; }
+.stat-card:hover { transform: translateY(-2px); }
+.stat-card.profit { border-left-color: #22c55e; }
+.stat-label { font-size: 0.78rem; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-value { font-size: 1.6rem; font-weight: 700; color: #0f3460; }
+.stat-card.profit .stat-value { color: #16a34a; }
+
+/* ========== TABLES ========== */
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.08); font-size: 0.9rem; }
+thead tr { background: #1a1a2e; color: #e2e8f0; }
+th { padding: 12px 14px; text-align: left; font-weight: 600; font-size: 0.82rem; letter-spacing: 0.03em; text-transform: uppercase; }
+td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f8fafc; }
+.tag-sale { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+.tag-restock { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+.tag-low-stock { background: #fef2f2; color: #dc2626; font-weight: 600; }
+.margin-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.82rem; font-weight: 700; background: #f0fdf4; color: #15803d; }
+.margin-eur { font-weight: 500; opacity: 0.75; font-size: 0.78rem; }
+.lot-tag { display: inline-block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 6px; padding: 1px 6px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; margin: 1px 2px; }
+tr.lot-sub-row td { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+tr.lot-sub-row:last-child td { border-bottom: 2px solid #cbd5e1; }
+.btn-lot-edit { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; border-radius: 6px; padding: 3px 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; margin-right: 3px; transition: background 0.2s; }
+.btn-lot-edit:hover { background: #dcfce7; }
+.btn-lot-delete { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 6px; padding: 3px 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.btn-lot-delete:hover { background: #fee2e2; }
+
+/* ========== TYPE ROW COLORS ========== */
+.viewer-mode .admin-only    { display: none !important; }
+.viewer-mode .viewer-notice { display: block !important; }
+tr.trow-lite2   > td { background: #f0f9ff; }
+tr.trow-mini3   > td { background: #f0fdf4; }
+tr.trow-minipro > td { background: #fdf4ff; }
+tr.trow-midi    > td { background: #fffbeb; }
+tr.trow-max     > td { background: #fff1f2; }
+tr.trow-street  > td { background: #f8fafc; }
+tr.trow-prochee > td { background: #fff7ed; }
+tr.lot-sub-row.trow-lite2   > td { background: #e0f2fe; }
+tr.lot-sub-row.trow-mini3   > td { background: #dcfce7; }
+tr.lot-sub-row.trow-minipro > td { background: #fae8ff; }
+tr.lot-sub-row.trow-midi    > td { background: #fef9c3; }
+tr.lot-sub-row.trow-max     > td { background: #ffe4e6; }
+tr.lot-sub-row.trow-street  > td { background: #f1f5f9; }
+tr.lot-sub-row.trow-prochee > td { background: #fed7aa; }
+.andrey-min-price { font-weight: 700; color: #b45309; background: #fffbeb; }
+tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; padding: 10px 8px; }
+
+/* ========== FORM CARD ========== */
+.form-card { background: #fff; border-radius: 12px; padding: 24px 28px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 24px; max-width: 560px; }
+.form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.form-row label { font-size: 0.85rem; font-weight: 600; color: #475569; }
+.form-row input, .form-row select { border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 9px 12px; font-size: 0.95rem; transition: border-color 0.2s, box-shadow 0.2s; outline: none; background: #fff; color: #1a1a2e; }
+.form-row input:focus, .form-row select:focus { border-color: #0f3460; box-shadow: 0 0 0 3px rgba(15,52,96,0.1); }
+.form-row small { color: #94a3b8; font-size: 0.78rem; }
+.form-actions { display: flex; gap: 10px; margin-top: 6px; }
+
+/* ========== BUTTONS ========== */
+.btn-primary { background: #0f3460; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+.btn-primary:hover { background: #16213e; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { background: #94a3b8; cursor: not-allowed; transform: none; opacity: 0.6; }
+.btn-secondary { background: #f1f5f9; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 22px; font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.btn-secondary:hover { background: #e2e8f0; }
+.btn-danger { background: #fef2f2; color: #dc2626; border: 1.5px solid #fca5a5; border-radius: 8px; padding: 8px 16px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.btn-danger:hover { background: #fee2e2; }
+.btn-edit { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; padding: 5px 10px; font-size: 0.82rem; font-weight: 600; cursor: pointer; margin-right: 4px; transition: background 0.2s; }
+.btn-edit:hover { background: #dbeafe; }
+.btn-delete { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 6px; padding: 5px 10px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.btn-delete:hover { background: #fee2e2; }
+
+/* ========== SALE PREVIEW ========== */
+.sale-preview { background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px 16px; font-size: 0.9rem; color: #166534; font-weight: 600; margin-bottom: 8px; display: none; }
+
+/* ========== HISTORY TOOLBAR ========== */
+.history-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; }
+.history-toolbar select { border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 0.9rem; color: #334155; outline: none; cursor: pointer; }
+
+/* ========== EMPTY STATE ========== */
+.empty-row td { text-align: center; color: #94a3b8; padding: 28px; font-style: italic; }
+
+/* ========== TOAST ========== */
+#toast { position: fixed; bottom: 28px; right: 28px; background: #1a1a2e; color: #fff; padding: 12px 22px; border-radius: 10px; font-size: 0.92rem; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.25); opacity: 0; transform: translateY(10px); transition: opacity 0.3s, transform 0.3s; pointer-events: none; z-index: 9999; max-width: 320px; }
+#toast.show { opacity: 1; transform: translateY(0); }
+#toast.success { border-left: 4px solid #22c55e; }
+#toast.error   { border-left: 4px solid #ef4444; }
+#toast.info    { border-left: 4px solid #3b82f6; }
+
+/* ========== ANNUAL REPORT ========== */
+.annual-year-row { cursor: pointer; background: #f8fafc; font-size: 1rem; }
+.annual-year-row:hover > td { background: #e0f2fe; }
+.annual-year-row td { padding: 12px 14px; font-weight: 500; }
+.annual-arrow { display: inline-block; transition: transform 0.2s; color: #64748b; font-size: 0.75rem; }
+.annual-sub-table { width: 100%; border-collapse: collapse; background: #f0f9ff; }
+.annual-sub-table th { background: #dbeafe; padding: 7px 14px; font-size: 0.78rem; text-transform: uppercase; color: #1d4ed8; font-weight: 600; }
+.annual-sub-table td { padding: 8px 14px; border-top: 1px solid #bfdbfe; font-size: 0.88rem; color: #334155; }
+.annual-sub-table tr:hover td { background: #eff6ff; }
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 640px) { .tab-content { padding: 16px; } .form-card { padding: 16px; } .stats-grid { grid-template-columns: 1fr 1fr; } header h1 { font-size: 1.2rem; } }

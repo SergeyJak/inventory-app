@@ -1,0 +1,830 @@
+// ========== AUTH ==========
+function getToken()     { return localStorage.getItem('inv_token'); }
+function getRole()      { return localStorage.getItem('inv_role'); }
+function authHeaders()  {
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() };
+}
+function logout() {
+  localStorage.removeItem('inv_token');
+  localStorage.removeItem('inv_role');
+  localStorage.removeItem('inv_username');
+  location.href = '/login.html';
+}
+
+// ========== STORAGE (server-backed) ==========
+const _cache = { products: [], transactions: [], andreyReturns: [] };
+
+function loadProducts()        { return _cache.products; }
+function loadTransactions()    { return _cache.transactions; }
+function loadAndreyReturns()   { return _cache.andreyReturns; }
+
+function saveProducts(data) {
+  _cache.products = data;
+  _persist('products', data);
+}
+function saveTransactions(data) {
+  _cache.transactions = data;
+  _persist('transactions', data);
+}
+function saveAndreyReturns(data) {
+  _cache.andreyReturns = data;
+  _persist('andreyReturns', data);
+}
+
+function _persist(key, data) {
+  fetch('/api/save', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ key, data }),
+  }).catch(err => console.error('Save error:', err));
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function pLabel(p) { return `${p.productType} / ${p.color}`; }
+
+// ========== FIFO LOT HELPERS ==========
+function migrateToLots() {
+  const products = loadProducts();
+  let changed = false;
+  products.forEach(p => {
+    if (!p.lots) {
+      p.lots = (p.stock > 0)
+        ? [{ qty: p.stock, buyPrice: p.buyPrice || 0, date: p.arrivalDate || '' }]
+        : [];
+      changed = true;
+    }
+  });
+  if (changed) saveProducts(products);
+}
+
+function getStock(p)      { return (p.lots || []).reduce((s, l) => s + l.qty, 0); }
+function getStockValue(p) { return (p.lots || []).reduce((s, l) => s + l.qty * l.buyPrice, 0); }
+function getNextLotPrice(p) {
+  const lots = (p.lots || []).filter(l => l.qty > 0);
+  return lots.length ? lots[0].buyPrice : 0;
+}
+
+function consumeFIFO(p, qty) {
+  let remaining = qty;
+  let costTotal = 0;
+  const newLots = [];
+  for (const lot of (p.lots || [])) {
+    if (remaining <= 0) { newLots.push(lot); continue; }
+    if (lot.qty <= remaining) {
+      costTotal += lot.qty * lot.buyPrice;
+      remaining -= lot.qty;
+    } else {
+      costTotal += remaining * lot.buyPrice;
+      newLots.push({ ...lot, qty: lot.qty - remaining });
+      remaining = 0;
+    }
+  }
+  p.lots = newLots;
+  return costTotal;
+}
+
+function previewFIFOCost(p, qty) {
+  let remaining = qty;
+  let cost = 0;
+  for (const lot of (p.lots || [])) {
+    if (remaining <= 0) break;
+    const take = Math.min(lot.qty, remaining);
+    cost += take * lot.buyPrice;
+    remaining -= take;
+  }
+  return cost;
+}
+
+function typeClass(type) {
+  const map = {
+    'Лайт 2':    'trow-lite2',
+    'Мини 3':    'trow-mini3',
+    'Мини Про':  'trow-minipro',
+    'Миди':      'trow-midi',
+    'Max':       'trow-max',
+    'Street':    'trow-street',
+    'Прочее':    'trow-prochee',
+  };
+  return map[type] || '';
+}
+
+function renderProductRows(p, colCount) {
+  const lots     = (p.lots || []).filter(l => l.qty > 0);
+  const stock    = getStock(p);
+  const stockVal = getStockValue(p);
+  const arrival  = p.arrivalDate
+    ? new Date(p.arrivalDate + 'T12:00:00').toLocaleDateString('ru-RU')
+    : '—';
+
+  function sClass(qty) { return qty <= 3 ? 'tag-low-stock' : ''; }
+  function sTxt(qty) {
+    return qty + (qty > 0 && qty <= 3 ? ' ⚠️' : '') + (qty === 0 ? ' ❌ нет' : '');
+  }
+
+  if (lots.length <= 1) {
+    const buy     = lots.length === 1 ? lots[0].buyPrice : (p.refBuyPrice || null);
+    const buyCell = buy !== null ? fmt(buy) : '<span style="color:#94a3b8">—</span>';
+    const margin  = buy !== null
+      ? marginBadge(buy, p.sellPrice)
+      : '<span class="margin-badge">— &nbsp;<span class="margin-eur">' + fmt(p.sellPrice) + '</span></span>';
+    if (colCount === 7) {
+      return '<tr class="' + typeClass(p.productType) + '">'
+        + '<td><strong>' + esc(p.productType) + '</strong></td>'
+        + '<td>' + esc(p.color) + '</td>'
+        + '<td>' + buyCell + '</td>'
+        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + '<td class="' + sClass(stock) + '">' + sTxt(stock) + '</td>'
+        + '<td>' + fmt(stockVal) + '</td>'
+        + '<td>' + margin + '</td>'
+        + '</tr>';
+    } else {
+      return '<tr class="' + typeClass(p.productType) + '">'
+        + '<td><strong>' + esc(p.productType) + '</strong></td>'
+        + '<td>' + esc(p.color) + '</td>'
+        + '<td>' + buyCell + '</td>'
+        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + '<td class="' + sClass(stock) + '">' + sTxt(stock) + '</td>'
+        + '<td>' + arrival + '</td>'
+        + '<td>' + margin + '</td>'
+        + '<td>' + (getRole() !== 'viewer'
+          ? '<button class="btn-edit" onclick="editProduct(\'' + p.id + '\')">✏️ Изм.</button>'
+            + ' <button class="btn-delete" onclick="deleteProduct(\'' + p.id + '\')">🗑️ Удал.</button>'
+          : '') + '</td>'
+        + '</tr>';
+    }
+  }
+
+  const span = lots.length;
+  return lots.map(function(l, i) {
+    const isFirst = i === 0;
+    const lVal    = l.qty * l.buyPrice;
+    const tCells  = isFirst
+      ? '<td rowspan="' + span + '"><strong>' + esc(p.productType) + '</strong></td>'
+        + '<td rowspan="' + span + '">' + esc(p.color) + '</td>'
+      : '';
+    if (colCount === 7) {
+      return '<tr class="lot-sub-row ' + typeClass(p.productType) + '">'
+        + tCells
+        + '<td><span class="lot-tag">П' + (i + 1) + '</span> ' + fmt(l.buyPrice) + '</td>'
+        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + '<td class="' + sClass(l.qty) + '">' + sTxt(l.qty) + '</td>'
+        + '<td>' + fmt(lVal) + '</td>'
+        + '<td>' + marginBadge(l.buyPrice, p.sellPrice) + '</td>'
+        + '</tr>';
+    } else {
+      const lotDate = l.date ? new Date(l.date + 'T12:00:00').toLocaleDateString('ru-RU') : '—';
+      const productBtns = isFirst && getRole() !== 'viewer'
+        ? '<button class="btn-edit" onclick="editProduct(\'' + p.id + '\')">✏️ Товар</button> '
+          + '<button class="btn-delete" onclick="deleteProduct(\'' + p.id + '\')">🗑️ Товар</button><br>'
+        : '';
+      const lotBtns = getRole() !== 'viewer'
+        ? '<button class="btn-lot-edit" onclick="editLot(\'' + p.id + '\',' + i + ')">✏️ Партию</button> '
+          + '<button class="btn-lot-delete" onclick="deleteLot(\'' + p.id + '\',' + i + ')">&#x2716; Лот</button>'
+        : '';
+      return '<tr class="lot-sub-row ' + typeClass(p.productType) + '">'
+        + tCells
+        + '<td><span class="lot-tag">П' + (i + 1) + '</span> ' + fmt(l.buyPrice) + '</td>'
+        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + '<td class="' + sClass(l.qty) + '">' + sTxt(l.qty) + '</td>'
+        + '<td>' + lotDate + '</td>'
+        + '<td>' + marginBadge(l.buyPrice, p.sellPrice) + '</td>'
+        + '<td>' + productBtns + lotBtns + '</td>'
+        + '</tr>';
+    }
+  }).join('');
+}
+
+// ========== TABS ==========
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'dashboard') renderDashboard();
+    if (btn.dataset.tab === 'products')  renderProducts();
+    if (btn.dataset.tab === 'sales')     populateProductSelect('sale-product');
+    if (btn.dataset.tab === 'restock')   populateProductSelect('restock-product');
+    if (btn.dataset.tab === 'history')   renderHistory('all');
+    if (btn.dataset.tab === 'annual')    renderAnnual();
+  });
+});
+
+document.querySelectorAll('.dash-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.dash-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const isAndrey = btn.dataset.dash === 'andrey';
+    document.getElementById('dash-main').style.display   = isAndrey ? 'none' : 'block';
+    document.getElementById('dash-andrey').style.display = isAndrey ? 'block' : 'none';
+    if (isAndrey) renderAndrey();
+    else renderDashboard();
+  });
+});
+
+// ========== TOAST ==========
+let toastTimer = null;
+function showToast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+// ========== FORMAT ==========
+function fmt(n)    { return Number(n).toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
+function fmtRaw(n) { return Number(n).toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function marginPct(buy, sell) {
+  if (!buy || Number(buy) === 0) return '—';
+  return ((Number(sell) - Number(buy)) / Number(buy) * 100).toFixed(1) + '%';
+}
+function marginBadge(buy, sell) {
+  const eur = Number(sell) - Number(buy);
+  const pct = marginPct(buy, sell);
+  return `<span class="margin-badge">${pct} &nbsp;<span class="margin-eur">${fmt(eur)}</span></span>`;
+}
+
+// ========== DASHBOARD ==========
+function renderDashboard() {
+  const products = loadProducts();
+  const txs  = loadTransactions();
+  const sales = txs.filter(t => t.type === 'sale');
+  const totalRevenue  = sales.reduce((s, t) => s + t.total, 0);
+  const totalCostSold = sales.reduce((s, t) => s + t.costTotal, 0);
+  const totalProfit   = sales.reduce((s, t) => s + t.profit, 0);
+  const soldQty       = sales.reduce((s, t) => s + t.qty, 0);
+  const stockValue    = products.reduce((s, p) => s + getStockValue(p), 0);
+
+  document.getElementById('stat-products').textContent    = products.length;
+  document.getElementById('stat-profit').textContent      = fmt(totalProfit);
+  document.getElementById('stat-profit-pct').textContent  = totalRevenue > 0
+    ? ((totalProfit / totalRevenue) * 100).toFixed(1) + '% от выручки' : '';
+  document.getElementById('stat-revenue').textContent     = fmt(totalRevenue);
+  document.getElementById('stat-cost').textContent        = fmt(totalCostSold);
+  document.getElementById('stat-stock-value').textContent = fmt(stockValue);
+  document.getElementById('stat-sold-qty').textContent    = soldQty;
+
+  const tbody = document.getElementById('stock-tbody');
+  if (!products.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Товаров пока нет. Добавьте их во вкладке «Товары».</td></tr>';
+    return;
+  }
+  const sorted = [...products].sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+  tbody.innerHTML = sorted.map(p => {
+    const stock    = getStock(p);
+    const stockVal = getStockValue(p);
+    const avgBuy   = stock > 0 ? stockVal / stock : (p.refBuyPrice || 0);
+    const buyCell  = avgBuy > 0 ? fmt(avgBuy) : '<span style="color:#94a3b8">—</span>';
+    const margin   = avgBuy > 0
+      ? marginBadge(avgBuy, p.sellPrice)
+      : `<span class="margin-badge">— &nbsp;<span class="margin-eur">${fmt(p.sellPrice)}</span></span>`;
+    return `<tr class="${typeClass(p.productType)}">
+      <td><strong>${esc(p.productType)}</strong></td>
+      <td>${esc(p.color)}</td>
+      <td>${buyCell}</td>
+      <td>${fmt(p.sellPrice)}</td>
+      <td class="${stock <= 3 ? 'tag-low-stock' : ''}">${stock}${stock > 0 && stock <= 3 ? ' ⚠️' : ''}${stock === 0 ? ' ❌ нет' : ''}</td>
+      <td>${fmt(stockVal)}</td>
+      <td>${margin}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ========== ANDREY VIEW ==========
+function renderAndrey() {
+  const products = loadProducts();
+  const sales    = loadTransactions().filter(t => t.type === 'sale');
+
+  const inStock = products.filter(p => getStock(p) > 0);
+  const sorted  = [...inStock].sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+  let stockTotal = 0;
+  const stockRows = [];
+  sorted.forEach(p => {
+    const lots = (p.lots || []).filter(l => l.qty > 0);
+    const span = lots.length;
+    lots.forEach((l, i) => {
+      const margin   = p.sellPrice - l.buyPrice;
+      const retPrice = l.buyPrice + margin / 2;
+      const rowTotal = l.qty * retPrice;
+      stockTotal += rowTotal;
+      const tCells = i === 0
+        ? `<td rowspan="${span}"><strong>${esc(p.productType)}</strong></td><td rowspan="${span}">${esc(p.color)}</td>`
+        : '';
+      stockRows.push(`<tr class="lot-sub-row">
+        ${tCells}
+        <td><span class="lot-tag">П${i + 1}</span></td>
+        <td>${fmt(l.buyPrice)}</td>
+        <td>${fmt(p.sellPrice)}</td>
+        <td class="andrey-min-price">${fmt(retPrice)} <span style="color:#94a3b8;font-size:0.78rem">(+${fmt(margin / 2)})</span></td>
+        <td>${l.qty} шт.</td>
+        <td><strong>${fmt(rowTotal)}</strong></td>
+      </tr>`);
+    });
+  });
+  if (!stockRows.length) {
+    stockRows.push('<tr class="empty-row"><td colspan="8">Нет остатков.</td></tr>');
+  } else {
+    stockRows.push(`<tr class="andrey-total-row"><td colspan="7" style="text-align:right;font-weight:700;padding-right:12px">Общая сумма:</td><td><strong>${fmt(stockTotal)}</strong></td></tr>`);
+  }
+  document.getElementById('andrey-tbody').innerHTML = stockRows.join('');
+
+  const soldMap = {};
+  sales.forEach(tx => {
+    if (!soldMap[tx.productLabel]) soldMap[tx.productLabel] = { label: tx.productLabel, qty: 0, costTotal: 0, profit: 0 };
+    soldMap[tx.productLabel].qty       += tx.qty;
+    soldMap[tx.productLabel].costTotal += tx.costTotal;
+    soldMap[tx.productLabel].profit    += tx.profit;
+  });
+  let soldTotal = 0;
+  const soldRows = Object.keys(soldMap).sort().map(k => {
+    const s         = soldMap[k];
+    const retAmount = s.costTotal + s.profit / 2;
+    soldTotal += retAmount;
+    return `<tr><td>${esc(s.label)}</td><td>${s.qty} шт.</td><td>${fmt(s.costTotal)}</td><td>${fmt(s.profit)}</td><td class="andrey-min-price"><strong>${fmt(retAmount)}</strong></td></tr>`;
+  });
+  if (!soldRows.length) {
+    soldRows.push('<tr class="empty-row"><td colspan="5">Продаж пока нет.</td></tr>');
+  } else {
+    soldRows.push(`<tr class="andrey-total-row"><td colspan="4" style="text-align:right;font-weight:700;padding-right:12px">Итого из продаж:</td><td><strong>${fmt(soldTotal)}</strong></td></tr>`);
+  }
+  document.getElementById('andrey-sold-tbody').innerHTML = soldRows.join('');
+
+  const returns = loadAndreyReturns();
+  const alreadyPaid = returns.reduce((s, r) => s + r.amount, 0);
+  const returnsRows = returns.map((r, i) => {
+    const d = new Date(r.date + 'T12:00:00').toLocaleDateString('ru-RU');
+    return `<tr><td>${d}</td><td style="font-weight:700;color:#16a34a">${fmt(r.amount)}</td><td>${esc(r.note || '—')}</td><td>${getRole() !== 'viewer' ? `<button class="btn-delete" onclick="deleteAndreyReturn(${i})">✖</button>` : ''}</td></tr>`;
+  });
+  if (!returnsRows.length) {
+    returnsRows.push('<tr class="empty-row"><td colspan="4">Возвратов пока не зафиксировано.</td></tr>');
+  } else {
+    returnsRows.push(`<tr class="andrey-total-row"><td colspan="1" style="font-weight:700">Итого возвращено:</td><td colspan="3" style="font-weight:700;color:#16a34a">${fmt(alreadyPaid)}</td></tr>`);
+  }
+  document.getElementById('andrey-returns-tbody').innerHTML = returnsRows.join('');
+
+  const grandTotal = stockTotal + soldTotal;
+  const remaining  = grandTotal - alreadyPaid;
+  document.getElementById('andrey-total').textContent       = fmt(grandTotal);
+  document.getElementById('andrey-paid').textContent        = fmt(alreadyPaid);
+  document.getElementById('andrey-remaining').textContent   = fmt(Math.max(remaining, 0));
+  document.getElementById('andrey-stock-total').textContent = fmt(stockTotal);
+  document.getElementById('andrey-sold-total').textContent  = fmt(soldTotal);
+}
+
+function recordAndreyReturn() {
+  const amount = parseFloat(document.getElementById('andrey-ret-amount').value);
+  const date   = document.getElementById('andrey-ret-date').value;
+  const note   = document.getElementById('andrey-ret-note').value.trim();
+  if (!amount || amount <= 0 || !date) return;
+  const returns = loadAndreyReturns();
+  returns.unshift({ id: genId(), amount, date, note });
+  saveAndreyReturns(returns);
+  document.getElementById('andrey-ret-amount').value = '';
+  document.getElementById('andrey-ret-date').value   = '';
+  document.getElementById('andrey-ret-note').value   = '';
+  document.getElementById('andrey-ret-btn').disabled = true;
+  showToast(`Возврат ${fmt(amount)} зафиксирован`);
+  renderAndrey();
+}
+
+function deleteAndreyReturn(idx) {
+  const returns = loadAndreyReturns();
+  if (!confirm(`Удалить запись о возврате ${fmt(returns[idx]?.amount)}?`)) return;
+  returns.splice(idx, 1);
+  saveAndreyReturns(returns);
+  renderAndrey();
+}
+
+// ========== PRODUCTS ==========
+function renderProducts() {
+  const products = loadProducts();
+  const tbody = document.getElementById('products-tbody');
+  if (!products.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Список пуст. Добавьте первый товар.</td></tr>';
+    return;
+  }
+  const sorted = [...products].sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+  tbody.innerHTML = sorted.map(p => renderProductRows(p, 8)).join('');
+}
+
+function saveProduct() {
+  const id          = document.getElementById('edit-product-id').value;
+  const productType = document.getElementById('p-type').value;
+  const color       = document.getElementById('p-color').value;
+  const buy         = parseFloat(document.getElementById('p-buy').value);
+  const sell        = parseFloat(document.getElementById('p-sell').value);
+  const stock       = parseInt(document.getElementById('p-stock').value);
+  const dateVal     = document.getElementById('p-date').value;
+
+  if (isNaN(sell) || sell < 0) return showToast('Укажите корректную цену продажи', 'error');
+
+  const products = loadProducts();
+  const label = `${productType} / ${color}`;
+
+  if (id) {
+    const idx = products.findIndex(p => p.id === id);
+    if (idx >= 0) {
+      products[idx].productType = productType;
+      products[idx].color       = color;
+      products[idx].sellPrice   = sell;
+      if (dateVal) products[idx].arrivalDate = dateVal;
+      if (!isNaN(buy) && buy > 0) {
+        const lots = products[idx].lots || [];
+        if (lots.length === 0)      products[idx].refBuyPrice = buy;
+        else if (lots.length === 1) lots[0].buyPrice = buy;
+      }
+    }
+    showToast(`«${label}» обновлён`);
+  } else {
+    if (isNaN(buy) || buy < 0) return showToast('Укажите корректную цену закупки', 'error');
+    if (!dateVal)              return showToast('Укажите дату поступления', 'error');
+    if (products.some(p => p.productType === productType && p.color.toLowerCase() === color.toLowerCase())) {
+      return showToast(`«${label}» уже есть в каталоге`, 'error');
+    }
+    const initialStock = (!isNaN(stock) && stock > 0) ? stock : 0;
+    const initialLots  = initialStock > 0 ? [{ qty: initialStock, buyPrice: buy, date: dateVal }] : [];
+    products.push({ id: genId(), productType, color, sellPrice: sell, arrivalDate: dateVal, lots: initialLots });
+    showToast(`«${label}» добавлен`);
+  }
+  saveProducts(products);
+  clearProductForm();
+  renderProducts();
+}
+
+function editProduct(id) {
+  const p = loadProducts().find(p => p.id === id);
+  if (!p) return;
+  const lots = (p.lots || []).filter(l => l.qty > 0);
+  document.getElementById('edit-product-id').value = p.id;
+  document.getElementById('p-type').value   = p.productType;
+  document.getElementById('p-color').value  = p.color;
+  document.getElementById('p-buy').value    = lots.length === 1 ? lots[0].buyPrice : (p.refBuyPrice || getNextLotPrice(p));
+  document.getElementById('p-sell').value   = p.sellPrice;
+  document.getElementById('p-stock').value  = getStock(p);
+  document.getElementById('p-date').value   = p.arrivalDate || '';
+  document.getElementById('product-form-title').textContent = 'Редактировать товар';
+  document.getElementById('cancel-product-btn').style.display = 'inline-block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  checkProductForm();
+}
+
+function cancelProductEdit() { clearProductForm(); }
+
+function clearProductForm() {
+  document.getElementById('edit-product-id').value = '';
+  document.getElementById('p-type').selectedIndex  = 0;
+  document.getElementById('p-color').selectedIndex = 0;
+  document.getElementById('p-buy').value    = '';
+  document.getElementById('p-sell').value   = '';
+  document.getElementById('p-stock').value  = '';
+  document.getElementById('p-date').value   = '';
+  document.getElementById('product-form-title').textContent = 'Добавить товар';
+  document.getElementById('cancel-product-btn').style.display = 'none';
+  checkProductForm();
+}
+
+function editLot(productId, lotIdx) {
+  const products = loadProducts();
+  const p = products.find(x => x.id === productId);
+  if (!p || !p.lots[lotIdx]) return;
+  const lot = p.lots[lotIdx];
+  const newPrice = parseFloat(prompt(`Партия ${lotIdx + 1} — новая цена закупки (текущая: ${lot.buyPrice}):`));
+  if (isNaN(newPrice) || newPrice <= 0) return;
+  p.lots[lotIdx].buyPrice = newPrice;
+  saveProducts(products);
+  renderProducts();
+  renderDashboard();
+  showToast(`Цена П${lotIdx + 1} обновлена: ${fmt(newPrice)}`);
+}
+
+function deleteLot(productId, lotIdx) {
+  const products = loadProducts();
+  const p = products.find(x => x.id === productId);
+  if (!p || !p.lots[lotIdx]) return;
+  const lot = p.lots[lotIdx];
+  if (!confirm(`Удалить П${lotIdx + 1}: ${lot.qty} шт. по ${fmt(lot.buyPrice)}?`)) return;
+  p.lots.splice(lotIdx, 1);
+  saveProducts(products);
+  renderProducts();
+  renderDashboard();
+  showToast(`П${lotIdx + 1} удалён`, 'info');
+}
+
+function deleteProduct(id) {
+  const products = loadProducts();
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`Удалить «${pLabel(p)}»?`)) return;
+  saveProducts(products.filter(x => x.id !== id));
+  showToast(`«${pLabel(p)}» удалён`, 'info');
+  renderProducts();
+}
+
+// ========== SALES ==========
+function populateProductSelect(selectId) {
+  const products = loadProducts();
+  const sorted = [...products].sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = sorted.length
+    ? sorted.map(p => `<option value="${p.id}">${esc(pLabel(p))} — остаток: ${getStock(p)} шт.</option>`).join('')
+    : '<option value="">— нет товаров —</option>';
+  if (selectId === 'sale-product') {
+    sel.onchange = () => { autoFillSalePrice(); updateSalePreview(); };
+    document.getElementById('sale-qty').oninput   = updateSalePreview;
+    document.getElementById('sale-price').oninput = updateSalePreview;
+    autoFillSalePrice();
+  }
+  if (selectId === 'restock-product') {
+    sel.onchange = () => {
+      const rp = loadProducts().find(x => x.id === sel.value);
+      if (rp && rp.refBuyPrice) {
+        const priceEl = document.getElementById('restock-price');
+        if (!priceEl.value) priceEl.value = rp.refBuyPrice;
+      }
+    };
+  }
+}
+
+function autoFillSalePrice() {
+  const sel = document.getElementById('sale-product');
+  if (!sel.value) return;
+  const p = loadProducts().find(x => x.id === sel.value);
+  if (p) document.getElementById('sale-price').value = p.sellPrice;
+  updateSalePreview();
+}
+
+function updateSalePreview() {
+  const preview = document.getElementById('sale-preview');
+  const sel     = document.getElementById('sale-product');
+  const qty     = parseInt(document.getElementById('sale-qty').value);
+  const price   = parseFloat(document.getElementById('sale-price').value);
+  if (!sel.value || isNaN(qty) || qty <= 0 || isNaN(price)) { preview.style.display = 'none'; return; }
+  const p = loadProducts().find(x => x.id === sel.value);
+  if (!p) { preview.style.display = 'none'; return; }
+  const total  = qty * price;
+  const cost   = previewFIFOCost(p, qty);
+  const profit = total - cost;
+  preview.style.display = 'block';
+  preview.innerHTML = `Выручка: <b>${fmt(total)}</b> &nbsp;|&nbsp; Себестоимость (FIFO): <b>${fmt(cost)}</b> &nbsp;|&nbsp; Прибыль: <b>${fmt(profit)}</b>`;
+}
+
+function recordSale() {
+  const sel     = document.getElementById('sale-product');
+  const qty     = parseInt(document.getElementById('sale-qty').value);
+  const price   = parseFloat(document.getElementById('sale-price').value);
+  const dateVal = document.getElementById('sale-date').value;
+  if (!sel.value)                return showToast('Выберите товар', 'error');
+  if (isNaN(qty)   || qty < 1)   return showToast('Укажите количество (мин. 1)', 'error');
+  if (isNaN(price) || price < 0) return showToast('Укажите цену продажи', 'error');
+  if (!dateVal)                  return showToast('Укажите дату продажи', 'error');
+  const products = loadProducts();
+  const p = products.find(x => x.id === sel.value);
+  if (!p) return showToast('Товар не найден', 'error');
+  if (getStock(p) < qty) return showToast(`Недостаточно товара. Остаток: ${getStock(p)} шт.`, 'error');
+  const total     = qty * price;
+  const costTotal = consumeFIFO(p, qty);
+  const profit    = total - costTotal;
+  saveProducts(products);
+  const txs = loadTransactions();
+  txs.unshift({ id: genId(), type: 'sale', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal, profit, date: dateVal + 'T12:00:00' });
+  saveTransactions(txs);
+  document.getElementById('sale-qty').value   = '';
+  document.getElementById('sale-price').value = '';
+  document.getElementById('sale-date').value  = '';
+  document.getElementById('sale-preview').style.display = 'none';
+  populateProductSelect('sale-product');
+  checkSaleForm();
+  showToast(`Продано ${qty} шт. «${pLabel(p)}» — прибыль ${fmt(profit)}`);
+}
+
+// ========== RESTOCK ==========
+function recordRestock() {
+  const sel     = document.getElementById('restock-product');
+  const qty     = parseInt(document.getElementById('restock-qty').value);
+  const price   = parseFloat(document.getElementById('restock-price').value);
+  const dateVal = document.getElementById('restock-date').value;
+  if (!sel.value)                 return showToast('Выберите товар', 'error');
+  if (isNaN(qty)   || qty < 1)    return showToast('Укажите количество', 'error');
+  if (isNaN(price) || price <= 0) return showToast('Укажите цену закупки', 'error');
+  if (!dateVal)                   return showToast('Укажите дату поступления', 'error');
+  const products = loadProducts();
+  const p = products.find(x => x.id === sel.value);
+  if (!p) return showToast('Товар не найден', 'error');
+  p.lots = p.lots || [];
+  p.lots.push({ qty, buyPrice: price, date: dateVal });
+  delete p.refBuyPrice;
+  saveProducts(products);
+  const total = qty * price;
+  const txs = loadTransactions();
+  txs.unshift({ id: genId(), type: 'restock', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal: 0, profit: 0, date: dateVal + 'T12:00:00' });
+  saveTransactions(txs);
+  document.getElementById('restock-qty').value   = '';
+  document.getElementById('restock-price').value = '';
+  document.getElementById('restock-date').value  = '';
+  populateProductSelect('restock-product');
+  checkRestockForm();
+  showToast(`Принято партия ${p.lots.length}: ${qty} шт. «${pLabel(p)}» по ${fmt(price)}`);
+}
+
+// ========== HISTORY ==========
+function renderHistory(filter) {
+  let txs = loadTransactions();
+  if (filter !== 'all') txs = txs.filter(t => t.type === filter);
+  const tbody = document.getElementById('history-tbody');
+  if (!txs.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Операций пока нет.</td></tr>'; return; }
+  tbody.innerHTML = txs.map(t => {
+    const d       = new Date(t.date);
+    const dateStr = d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+    const tag     = t.type === 'sale' ? '<span class="tag-sale">Продажа</span>' : '<span class="tag-restock">Поступление</span>';
+    return `<tr><td>${dateStr}</td><td>${tag}</td><td>${esc(t.productLabel || t.productName || '—')}</td><td>${t.qty}</td><td>${fmt(t.price)}</td><td>${fmt(t.total)}</td><td>${t.type === 'sale' ? fmt(t.profit) : '—'}</td></tr>`;
+  }).join('');
+}
+
+document.getElementById('history-filter').addEventListener('change', e => { renderHistory(e.target.value); });
+
+function clearHistory() {
+  if (!confirm('Очистить всю историю операций?')) return;
+  saveTransactions([]);
+  renderHistory('all');
+  showToast('История очищена', 'info');
+}
+
+// ========== ANNUAL REPORT ==========
+const MONTH_NAMES = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+function annualPct(revenue, profit) {
+  if (!revenue) return '<span style="color:#94a3b8">—</span>';
+  const pct   = (profit / revenue * 100).toFixed(1);
+  const color = profit >= 0 ? '#16a34a' : '#dc2626';
+  return `<span style="font-weight:700;color:${color}">${pct} %</span>`;
+}
+
+function renderAnnual() {
+  const sales = loadTransactions().filter(t => t.type === 'sale');
+  const byYear = {};
+  sales.forEach(tx => {
+    const d = new Date(tx.date);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    if (!byYear[year]) byYear[year] = { qty: 0, revenue: 0, cost: 0, profit: 0, months: {} };
+    const y = byYear[year];
+    y.qty += tx.qty || 0; y.revenue += tx.total || 0; y.cost += tx.costTotal || 0; y.profit += tx.profit || 0;
+    if (!y.months[month]) y.months[month] = { qty: 0, revenue: 0, cost: 0, profit: 0 };
+    const m = y.months[month];
+    m.qty += tx.qty || 0; m.revenue += tx.total || 0; m.cost += tx.costTotal || 0; m.profit += tx.profit || 0;
+  });
+  const years = Object.keys(byYear).map(Number).sort((a, b) => b - a);
+  const totProfit  = sales.reduce((s, t) => s + (t.profit   || 0), 0);
+  const totRevenue = sales.reduce((s, t) => s + (t.total    || 0), 0);
+  const totQty     = sales.reduce((s, t) => s + (t.qty      || 0), 0);
+  document.getElementById('annual-stats').innerHTML = `
+    <div class="stat-card"><span class="stat-label">Лет в статистике</span><span class="stat-value">${years.length}</span></div>
+    <div class="stat-card profit"><span class="stat-label">💰 Прибыль (всего)</span><span class="stat-value">${fmt(totProfit)}</span></div>
+    <div class="stat-card"><span class="stat-label">💳 Выручка (всего)</span><span class="stat-value">${fmt(totRevenue)}</span></div>
+    <div class="stat-card"><span class="stat-label">📦 Продано (всего)</span><span class="stat-value">${totQty} шт.</span></div>
+    <div class="stat-card"><span class="stat-label">📈 Средняя маржа</span><span class="stat-value">${annualPct(totRevenue, totProfit)}</span></div>`;
+  if (!years.length) { document.getElementById('annual-tbody').innerHTML = '<tr class="empty-row"><td colspan="7">Продаж пока нет.</td></tr>'; return; }
+  const rows = [];
+  years.forEach(year => {
+    const y = byYear[year];
+    const monthNums = Object.keys(y.months).map(Number).sort((a, b) => a - b);
+    const mRows = monthNums.map(mn => {
+      const m = y.months[mn];
+      return `<tr class="annual-month-row"><td></td><td>${MONTH_NAMES[mn]}</td><td>${m.qty} шт.</td><td>${fmt(m.revenue)}</td><td>${fmt(m.cost)}</td><td style="color:#16a34a;font-weight:600">${fmt(m.profit)}</td><td>${annualPct(m.revenue, m.profit)}</td></tr>`;
+    }).join('');
+    rows.push(`
+      <tr class="annual-year-row" onclick="toggleAnnualMonths(${year})">
+        <td><span id="annual-arrow-${year}" class="annual-arrow">▶</span></td>
+        <td><strong>${year}</strong></td>
+        <td>${y.qty} шт.</td>
+        <td>${fmt(y.revenue)}</td>
+        <td>${fmt(y.cost)}</td>
+        <td style="color:#16a34a;font-weight:700">${fmt(y.profit)}</td>
+        <td>${annualPct(y.revenue, y.profit)}</td>
+      </tr>
+      <tr id="annual-months-${year}" style="display:none">
+        <td colspan="7" style="padding:0">
+          <table class="annual-sub-table">
+            <thead><tr><th></th><th>Месяц</th><th>Продано</th><th>Выручка</th><th>Себестоимость</th><th>Прибыль</th><th>Маржа %</th></tr></thead>
+            <tbody>${mRows}</tbody>
+          </table>
+        </td>
+      </tr>`);
+  });
+  document.getElementById('annual-tbody').innerHTML = rows.join('');
+}
+
+function toggleAnnualMonths(year) {
+  const row   = document.getElementById('annual-months-' + year);
+  const arrow = document.getElementById('annual-arrow-' + year);
+  if (!row) return;
+  const isOpen = row.style.display !== 'none';
+  row.style.display    = isOpen ? 'none' : 'table-row';
+  arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
+}
+
+// ========== UTILS ==========
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ========== FORM VALIDATION ==========
+function checkProductForm() {
+  const buy  = parseFloat(document.getElementById('p-buy').value);
+  const sell = parseFloat(document.getElementById('p-sell').value);
+  const date = document.getElementById('p-date').value;
+  document.getElementById('save-product-btn').disabled = !(buy > 0 && sell > 0 && !!date);
+}
+function checkSaleForm() {
+  const prod  = document.getElementById('sale-product').value;
+  const qty   = parseFloat(document.getElementById('sale-qty').value);
+  const price = parseFloat(document.getElementById('sale-price').value);
+  const date  = document.getElementById('sale-date').value;
+  document.getElementById('record-sale-btn').disabled = !(!!prod && qty > 0 && price > 0 && !!date);
+}
+function checkRestockForm() {
+  const prod  = document.getElementById('restock-product').value;
+  const qty   = parseFloat(document.getElementById('restock-qty').value);
+  const price = parseFloat(document.getElementById('restock-price').value);
+  const date  = document.getElementById('restock-date').value;
+  document.getElementById('record-restock-btn').disabled = !(!!prod && qty > 0 && price > 0 && !!date);
+}
+['p-buy','p-sell','p-date','p-type','p-color'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', checkProductForm); el.addEventListener('change', checkProductForm);
+});
+['sale-product','sale-qty','sale-price','sale-date'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', checkSaleForm); el.addEventListener('change', checkSaleForm);
+});
+['restock-product','restock-qty','restock-price','restock-date'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', checkRestockForm); el.addEventListener('change', checkRestockForm);
+});
+function checkAndreyRetForm() {
+  const amount = parseFloat(document.getElementById('andrey-ret-amount').value);
+  const date   = document.getElementById('andrey-ret-date').value;
+  document.getElementById('andrey-ret-btn').disabled = !(amount > 0 && !!date);
+}
+['andrey-ret-amount','andrey-ret-date'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', checkAndreyRetForm); el.addEventListener('change', checkAndreyRetForm);
+});
+
+// ========== IMPORT FROM LOCALSTORAGE ==========
+function copyCmd() {
+  const cmd = document.getElementById('copy-cmd').textContent;
+  navigator.clipboard.writeText(cmd).then(() => showToast('Команда скопирована'));
+}
+async function migrateFromLocalStorage() {
+  document.getElementById('import-modal').style.display = 'flex';
+}
+async function doImport() {
+  const raw = document.getElementById('import-json').value.trim();
+  if (!raw) return showToast('Вставь JSON из консоли', 'error');
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (e) { return showToast('Неверный JSON: ' + e.message, 'error'); }
+  const products = parsed.p || [], transactions = parsed.t || [], andreyReturns = parsed.a || [];
+  try {
+    await Promise.all([
+      fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:'products',      data: products      }) }),
+      fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:'transactions',  data: transactions  }) }),
+      fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:'andreyReturns', data: andreyReturns }) }),
+    ]);
+    _cache.products = products; _cache.transactions = transactions; _cache.andreyReturns = andreyReturns;
+    document.getElementById('import-modal').style.display = 'none';
+    document.getElementById('migrate-banner').style.display = 'none';
+    migrateToLots(); renderDashboard();
+    showToast(`Импортировано: ${products.length} товаров, ${transactions.length} операций`);
+  } catch (e) { showToast('Ошибка сохранения: ' + e.message, 'error'); }
+}
+
+// ========== INIT ==========
+(async function init() {
+  if (!getToken()) { location.href = '/login.html'; return; }
+  try {
+    const res = await fetch('/api/data', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (res.status === 401) { localStorage.removeItem('inv_token'); location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    _cache.products      = d.products      || [];
+    _cache.transactions  = d.transactions  || [];
+    _cache.andreyReturns = d.andreyReturns || [];
+  } catch (e) {
+    console.error('Could not load data from server:', e);
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div style="background:#fef2f2;color:#dc2626;padding:12px 24px;font-weight:600;border-bottom:2px solid #fca5a5">'
+      + '⚠️ Сервер не запущен. Запусти: <code style="background:#fee2e2;padding:2px 6px;border-radius:4px">npm start</code>'
+      + '</div>');
+  }
+  if (getRole() === 'viewer') document.body.classList.add('viewer-mode');
+  const uname = localStorage.getItem('inv_username');
+  const headerUser = document.getElementById('header-user');
+  if (headerUser) headerUser.textContent = uname || '';
+  migrateToLots();
+  renderDashboard();
+})();

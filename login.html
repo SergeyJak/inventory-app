@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Вход — Учёт товаров</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 36px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+    }
+    .logo { font-size: 2.2rem; text-align: center; margin-bottom: 6px; }
+    h1 {
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 28px;
+    }
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    input {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 1rem;
+      color: #1e293b;
+      margin-bottom: 18px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #3b82f6; }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 4px;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #93c5fd; cursor: not-allowed; }
+    .error {
+      background: #fef2f2;
+      border: 1.5px solid #fca5a5;
+      color: #dc2626;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">📦</div>
+    <h1>Учёт товаров</h1>
+    <div class="error" id="err"></div>
+    <label for="username">Имя пользователя</label>
+    <input type="text" id="username" placeholder="admin" autocomplete="username" />
+    <label for="password">Пароль (не требуется)</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" disabled />
+    <button id="btn" onclick="doLogin()">Войти</button>
+  </div>
+
+  <script>
+    if (localStorage.getItem('inv_token')) location.href = '/';
+
+    document.getElementById('password').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+    document.getElementById('username').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('password').focus();
+    });
+
+    async function doLogin() {
+      const username = document.getElementById('username').value.trim();
+      const err      = document.getElementById('err');
+      const btn      = document.getElementById('btn');
+
+      if (!username) { showError('Введи имя пользователя'); return; }
+
+      btn.disabled    = true;
+      btn.textContent = 'Вхожу…';
+      err.style.display = 'none';
+
+      try {
+        const res  = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Неверные данные'); return; }
+        localStorage.setItem('inv_token',    data.token);
+        localStorage.setItem('inv_role',     data.role);
+        localStorage.setItem('inv_username', data.username);
+        location.href = '/';
+      } catch (e) {
+        showError('Сервер недоступен');
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Войти';
+      }
+    }
+
+    function showError(msg) {
+      const err = document.getElementById('err');
+      err.textContent   = '⚠️ ' + msg;
+      err.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
