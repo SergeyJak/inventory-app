@@ -12,11 +12,13 @@ function logout() {
 }
 
 // ========== STORAGE (server-backed) ==========
-const _cache = { products: [], transactions: [], andreyReturns: [] };
+const _cache = { products: [], transactions: [], andreyReturns: [], subAccounts: [], hostSubscriptions: [] };
 
 function loadProducts()        { return _cache.products; }
 function loadTransactions()    { return _cache.transactions; }
 function loadAndreyReturns()   { return _cache.andreyReturns; }
+function loadSubAccounts()     { return _cache.subAccounts; }
+function loadHostSubscriptions() { return _cache.hostSubscriptions; }
 
 function saveProducts(data) {
   _cache.products = data;
@@ -29,6 +31,14 @@ function saveTransactions(data) {
 function saveAndreyReturns(data) {
   _cache.andreyReturns = data;
   _persist('andreyReturns', data);
+}
+function saveSubAccounts(data) {
+  _cache.subAccounts = data;
+  _persist('subAccounts', data);
+}
+function saveHostSubscriptions(data) {
+  _cache.hostSubscriptions = data;
+  _persist('hostSubscriptions', data);
 }
 
 function _persist(key, data) {
@@ -206,6 +216,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'dashboard') renderDashboard();
     if (btn.dataset.tab === 'products')  renderProducts();
+    if (btn.dataset.tab === 'accounts')  renderAccounts();
     if (btn.dataset.tab === 'sales')     populateProductSelect('sale-product');
     if (btn.dataset.tab === 'restock')   populateProductSelect('restock-product');
     if (btn.dataset.tab === 'history')   renderHistory('all');
@@ -295,6 +306,8 @@ function renderDashboard() {
 }
 
 // ========== ANDREY VIEW ==========
+let andreyReturnsDateSort = 'desc';
+
 function renderAndrey() {
   const products = loadProducts();
   const sales    = loadTransactions().filter(t => t.type === 'sale');
@@ -355,9 +368,14 @@ function renderAndrey() {
 
   const returns = loadAndreyReturns();
   const alreadyPaid = returns.reduce((s, r) => s + r.amount, 0);
-  const returnsRows = returns.map((r, i) => {
+  const sortedReturns = [...returns].sort((a, b) => {
+    const diff = startDateTime(a.date) - startDateTime(b.date);
+    if (diff !== 0) return andreyReturnsDateSort === 'desc' ? -diff : diff;
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  });
+  const returnsRows = sortedReturns.map((r) => {
     const d = new Date(r.date + 'T12:00:00').toLocaleDateString('ru-RU');
-    return `<tr><td>${d}</td><td style="font-weight:700;color:#16a34a">${fmt(r.amount)}</td><td>${esc(r.note || '—')}</td><td>${getRole() !== 'viewer' ? `<button class="btn-delete" onclick="deleteAndreyReturn(${i})">✖</button>` : ''}</td></tr>`;
+    return `<tr><td>${d}</td><td style="font-weight:700;color:#16a34a">${fmt(r.amount)}</td><td>${esc(r.note || '-')}</td><td>${getRole() !== 'viewer' ? `<span class="accounts-actions"><button class="btn-delete" onclick="deleteAndreyReturn('${esc(r.id)}')">x</button></span>` : ''}</td></tr>`;
   });
   if (!returnsRows.length) {
     returnsRows.push('<tr class="empty-row"><td colspan="4">Возвратов пока не зафиксировано.</td></tr>');
@@ -391,14 +409,21 @@ function recordAndreyReturn() {
   renderAndrey();
 }
 
-function deleteAndreyReturn(idx) {
-  const returns = loadAndreyReturns();
-  if (!confirm(`Удалить запись о возврате ${fmt(returns[idx]?.amount)}?`)) return;
-  returns.splice(idx, 1);
-  saveAndreyReturns(returns);
+function toggleAndreyReturnsDateSort() {
+  andreyReturnsDateSort = andreyReturnsDateSort === 'desc' ? 'asc' : 'desc';
+  document.querySelectorAll('.andrey-return-sort-mark').forEach(mark => {
+    mark.textContent = andreyReturnsDateSort === 'desc' ? 'v' : '^';
+  });
   renderAndrey();
 }
 
+function deleteAndreyReturn(id) {
+  const returns = loadAndreyReturns();
+  const item = returns.find(r => r.id === id);
+  if (!item || !confirm(`Delete return ${fmt(item.amount)}?`)) return;
+  saveAndreyReturns(returns.filter(r => r.id !== id));
+  renderAndrey();
+}
 // ========== PRODUCTS ==========
 function renderProducts() {
   const products = loadProducts();
@@ -524,6 +549,390 @@ function deleteProduct(id) {
   renderProducts();
 }
 
+// ========== ACCOUNTS ==========
+let accountsView = 'subs';
+let subAccountsStartSort = 'desc';
+
+function getAccountHostKey(host) {
+  return (host.hostMail || host.id || '').toLowerCase();
+}
+
+function subMatchesHost(sub, host) {
+  const hostKey = getAccountHostKey(host);
+  const linked = (host.linkedAccounts || []).map(x => String(x).toLowerCase());
+  return linked.includes(String(sub.id).toLowerCase())
+    || linked.includes(String(sub.email || '').toLowerCase())
+    || String(sub.hostProvider || '').toLowerCase() === hostKey;
+}
+
+function formatAccountDate(value) {
+  if (!value) return '<span style="color:#94a3b8">-</span>';
+  const d = new Date(String(value).slice(0, 10) + 'T12:00:00');
+  if (!isNaN(d.getTime())) return d.toLocaleDateString('ru-RU');
+  const dotted = String(value).trim().match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+  if (dotted) {
+    const parsed = new Date(Number(dotted[3]), Number(dotted[2]) - 1, Number(dotted[1]));
+    return isNaN(parsed.getTime()) ? esc(value) : parsed.toLocaleDateString('ru-RU');
+  }
+  return esc(value);
+}
+
+function renewalClass(value) {
+  if (!value) return '';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const renewal = new Date(String(value).slice(0, 10) + 'T00:00:00');
+  if (isNaN(renewal.getTime())) return '';
+  const days = Math.ceil((renewal - today) / 86400000);
+  if (days < 0) return 'account-renewal-overdue';
+  if (days <= 14) return 'account-renewal-soon';
+  if (days <= 30) return 'account-renewal-watch';
+  return '';
+}
+
+function subPaymentClass(sub) {
+  const due = getSubPaymentDue(sub);
+  if (!due) return '';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.ceil((due - today) / 86400000);
+  if (days < 0) return 'account-payment-overdue';
+  if (days <= 14) return 'account-payment-soon';
+  return '';
+}
+
+function getSubPaymentDue(sub) {
+  const base = startDateTime(sub.startDate);
+  if (!base) return null;
+  const due = new Date(base);
+  due.setFullYear(due.getFullYear() + 1);
+  due.setHours(0, 0, 0, 0);
+  return due;
+}
+
+function isCancelledSub(sub) {
+  return ['cancelled', 'canceled', 'annulled', 'off'].includes(String(sub.status || '').toLowerCase());
+}
+
+function isNewUnassignedSub(sub) {
+  return !isCancelledSub(sub) && !String(sub.tel || '').trim() && !String(sub.startDate || '').trim();
+}
+
+function subFitsAccountsView(sub) {
+  if (accountsView === 'cancelled') return isCancelledSub(sub);
+  if (accountsView === 'new') return isNewUnassignedSub(sub);
+  return !isCancelledSub(sub) && !isNewUnassignedSub(sub);
+}
+
+function accountSearchBlob(host, subs) {
+  return [
+    host.hostMail, host.password, host.status, host.renewalDate,
+    ...subs.flatMap(s => [s.num, s.email, s.startDate, s.tel, s.name, s.hostProvider, s.status])
+  ].join(' ').toLowerCase();
+}
+
+function subAccountSearchBlob(sub) {
+  return [sub.num, sub.email, sub.startDate, sub.tel, sub.name, sub.hostProvider, sub.status].join(' ').toLowerCase();
+}
+
+function populateSubHostSelect(selected) {
+  const sel = document.getElementById('sub-host');
+  if (!sel) return;
+  const hosts = [...loadHostSubscriptions()].sort((a, b) => String(a.hostMail || '').localeCompare(String(b.hostMail || '')));
+  sel.innerHTML = hosts.length
+    ? hosts.map(h => `<option value="${esc(h.hostMail || h.id)}">${esc(h.hostMail || h.id)}</option>`).join('')
+    : '<option value="">No hosts</option>';
+  if (selected) sel.value = selected;
+}
+
+function setAccountsView(view) {
+  accountsView = ['subs', 'cancelled', 'new', 'hosts'].includes(view) ? view : 'subs';
+  document.querySelectorAll('.accounts-view-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.accountView === accountsView);
+  });
+  document.getElementById('sub-accounts-table').style.display = accountsView === 'hosts' ? 'none' : '';
+  document.getElementById('accounts-table').style.display = accountsView === 'hosts' ? '' : 'none';
+  renderAccounts();
+}
+
+function startDateTime(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 0;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])).getTime();
+  const dotted = raw.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+  if (dotted) return new Date(Number(dotted[3]), Number(dotted[2]) - 1, Number(dotted[1])).getTime();
+  const parsed = new Date(raw);
+  return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function toDateInputValue(value) {
+  const time = startDateTime(value);
+  if (!time) return '';
+  const d = new Date(time);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function normalizeStartDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const time = startDateTime(raw);
+  if (!time) return '';
+  const d = new Date(time);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}.${month}.${d.getFullYear()}`;
+}
+
+function sortSubsByStart(a, b) {
+  const diff = startDateTime(a.startDate) - startDateTime(b.startDate);
+  if (diff !== 0) return subAccountsStartSort === 'desc' ? -diff : diff;
+  return String(a.num || '').localeCompare(String(b.num || ''), undefined, { numeric: true })
+    || String(a.email || '').localeCompare(String(b.email || ''));
+}
+
+function toggleSubAccountsStartSort() {
+  subAccountsStartSort = subAccountsStartSort === 'desc' ? 'asc' : 'desc';
+  document.querySelectorAll('.sub-start-sort-mark').forEach(mark => {
+    mark.textContent = subAccountsStartSort === 'desc' ? '↓' : '↑';
+  });
+  renderAccounts();
+}
+
+function renderAccounts() {
+  const hosts = loadHostSubscriptions();
+  const subs = loadSubAccounts();
+  const q = (document.getElementById('accounts-search')?.value || '').trim().toLowerCase();
+  const tbody = document.getElementById('accounts-tbody');
+  if (!tbody) return;
+  populateSubHostSelect();
+  document.getElementById('accounts-summary').textContent = `${hosts.length} hosts / ${subs.length} accounts`;
+  renderSubAccountsTable(q);
+  if (accountsView !== 'hosts') return;
+  const rows = [];
+  [...hosts]
+    .sort((a, b) => String(a.renewalDate || '').localeCompare(String(b.renewalDate || '')) || String(a.hostMail || '').localeCompare(String(b.hostMail || '')))
+    .forEach(host => {
+      const linkedSubs = subs.filter(sub => subMatchesHost(sub, host));
+      if (q && !accountSearchBlob(host, linkedSubs).includes(q)) return;
+      const hostId = esc(host.id);
+      const renewal = renewalClass(host.renewalDate);
+      rows.push(`<tr class="account-host-row ${renewal}">
+        <td><button class="account-toggle" onclick="toggleAccountHost('${hostId}')" title="Toggle linked accounts">+</button></td>
+        <td><strong>${esc(host.hostMail || '-')}</strong></td>
+        <td><span class="account-status">${esc(host.status || '-')}</span></td>
+        <td>${formatAccountDate(host.renewalDate)}</td>
+        <td>${linkedSubs.length}</td>
+        <td><code>${esc(host.password || '')}</code></td>
+        <td><span class="accounts-actions"><button class="btn-edit" onclick="editHostSubscription('${hostId}')">Edit</button><button class="btn-delete" onclick="deleteHostSubscription('${hostId}')">Delete</button></span></td>
+      </tr>`);
+      rows.push(`<tr id="account-linked-${hostId}" class="account-linked-row" style="display:none"><td colspan="7">${renderLinkedSubAccounts(linkedSubs)}</td></tr>`);
+    });
+  tbody.innerHTML = rows.length ? rows.join('') : '<tr class="empty-row"><td colspan="7">No accounts found.</td></tr>';
+}
+
+function renderSubAccountsTable(q) {
+  const tbody = document.getElementById('sub-accounts-tbody');
+  if (!tbody) return;
+  const rows = [...loadSubAccounts()]
+    .filter(sub => !q || subAccountSearchBlob(sub).includes(q))
+    .filter(subFitsAccountsView)
+    .sort(sortSubsByStart)
+    .map(sub => {
+      const id = esc(sub.id);
+      return `<tr class="${subPaymentClass(sub)}">
+        <td>${esc(sub.num || '')}</td>
+        <td><strong>${esc(sub.email || '')}</strong></td>
+        <td>${esc(sub.tel || '')}</td>
+        <td>${esc(sub.name || '')}</td>
+        <td class="editable-start-date" data-sub-id="${id}" title="Double-click to edit">${formatAccountDate(sub.startDate)} <button class="date-edit-btn" onclick="editSubStartDate('${id}', this.closest('td'))" title="Edit date">Edit</button></td>
+        <td>${esc(sub.hostProvider || '')}</td>
+        <td><span class="account-status">${esc(sub.status || '')}</span></td>
+        <td>${subActionButtons(sub)}</td>
+      </tr>`;
+    });
+  tbody.innerHTML = rows.length ? rows.join('') : '<tr class="empty-row"><td colspan="8">No sub-accounts found.</td></tr>';
+}
+
+function renderLinkedSubAccounts(subs) {
+  if (!subs.length) return '<div class="account-empty-linked">No linked sub-accounts.</div>';
+  return `<table class="accounts-sub-table"><thead><tr><th>Num</th><th>Email</th><th>Phone</th><th>Name</th><th><button class="table-sort-btn" onclick="toggleSubAccountsStartSort()">Start <span class="sub-start-sort-mark">${subAccountsStartSort === 'desc' ? '↓' : '↑'}</span></button></th><th>Status</th><th>Actions</th></tr></thead><tbody>${[...subs].sort(sortSubsByStart).map(sub => {
+    const id = esc(sub.id);
+    return `<tr class="${subPaymentClass(sub)}">
+      <td>${esc(sub.num || '')}</td><td>${esc(sub.email || '')}</td><td>${esc(sub.tel || '')}</td><td>${esc(sub.name || '')}</td>
+      <td class="editable-start-date" data-sub-id="${id}" title="Double-click to edit">${formatAccountDate(sub.startDate)} <button class="date-edit-btn" onclick="editSubStartDate('${id}', this.closest('td'))" title="Edit date">Edit</button></td><td>${esc(sub.status || '')}</td>
+      <td>${subActionButtons(sub)}</td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+function subActionButtons(sub) {
+  const id = esc(sub.id);
+  return `<span class="accounts-actions"><button class="btn-edit" onclick="editSubAccount('${id}')">Edit</button><button class="btn-delete" onclick="deleteSubAccount('${id}')">Delete</button></span>`;
+}
+
+function toggleAccountHost(id) {
+  const row = document.getElementById('account-linked-' + id);
+  if (!row) return;
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+function editSubStartDate(id, cell) {
+  if (cell.querySelector('input')) return;
+  const sub = loadSubAccounts().find(s => s.id === id);
+  if (!sub) return;
+  const oldValue = sub.startDate || '';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'inline-date-input';
+  input.placeholder = 'dd.mm.yyyy';
+  input.value = normalizeStartDate(oldValue) || oldValue;
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.select();
+  input.focus();
+
+  let done = false;
+  function finish(save) {
+    if (done) return;
+    done = true;
+    if (save) {
+      const normalized = normalizeStartDate(input.value);
+      if (!normalized) {
+        showToast('Use date format dd.mm.yyyy', 'error');
+        done = false;
+        input.focus();
+        return;
+      }
+      sub.startDate = normalized;
+      saveSubAccounts(loadSubAccounts());
+      showToast('Start date updated');
+    }
+    renderAccounts();
+  }
+
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('change', () => finish(true));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') finish(true);
+    if (e.key === 'Escape') finish(false);
+  });
+}
+
+function saveHostSubscription() {
+  const id = document.getElementById('edit-host-id').value || genId();
+  const hosts = loadHostSubscriptions();
+  const host = {
+    id,
+    hostMail: document.getElementById('host-mail').value.trim(),
+    password: document.getElementById('host-password').value.trim(),
+    status: document.getElementById('host-status').value.trim(),
+    renewalDate: document.getElementById('host-renewal-date').value,
+    linkedAccounts: (hosts.find(h => h.id === id)?.linkedAccounts || [])
+  };
+  if (!host.hostMail) return showToast('Host email is required', 'error');
+  const idx = hosts.findIndex(h => h.id === id);
+  if (idx >= 0) hosts[idx] = host; else hosts.push(host);
+  saveHostSubscriptions(hosts);
+  clearHostForm();
+  renderAccounts();
+  showToast('Host subscription saved');
+}
+
+function editHostSubscription(id) {
+  const host = loadHostSubscriptions().find(h => h.id === id);
+  if (!host) return;
+  document.getElementById('edit-host-id').value = host.id;
+  document.getElementById('host-mail').value = host.hostMail || '';
+  document.getElementById('host-password').value = host.password || '';
+  document.getElementById('host-status').value = host.status || '';
+  document.getElementById('host-renewal-date').value = String(host.renewalDate || '').slice(0, 10);
+  document.getElementById('host-form-title').textContent = 'Edit host subscription';
+  document.getElementById('cancel-host-btn').style.display = 'inline-block';
+}
+
+function clearHostForm() {
+  ['edit-host-id','host-mail','host-password','host-status','host-renewal-date'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('host-form-title').textContent = 'Add host subscription';
+  document.getElementById('cancel-host-btn').style.display = 'none';
+}
+function cancelHostEdit() { clearHostForm(); }
+
+function deleteHostSubscription(id) {
+  const host = loadHostSubscriptions().find(h => h.id === id);
+  if (!host || !confirm(`Delete host ${host.hostMail || id}?`)) return;
+  saveHostSubscriptions(loadHostSubscriptions().filter(h => h.id !== id));
+  renderAccounts();
+}
+
+function saveSubAccount() {
+  const id = document.getElementById('edit-sub-id').value || genId();
+  const hostProvider = document.getElementById('sub-host').value;
+  const subs = loadSubAccounts();
+  const sub = {
+    id,
+    num: document.getElementById('sub-num').value.trim(),
+    email: document.getElementById('sub-email').value.trim(),
+    startDate: document.getElementById('sub-start-date').value,
+    tel: document.getElementById('sub-tel').value.trim(),
+    name: document.getElementById('sub-name').value.trim(),
+    hostProvider,
+    status: document.getElementById('sub-status').value.trim()
+  };
+  if (!sub.email) return showToast('Sub-account email is required', 'error');
+  const idx = subs.findIndex(s => s.id === id);
+  if (idx >= 0) subs[idx] = sub; else subs.push(sub);
+  saveSubAccounts(subs);
+  syncSubAccountLink(sub);
+  clearSubForm();
+  renderAccounts();
+  showToast('Sub-account saved');
+}
+
+function syncSubAccountLink(sub) {
+  const hosts = loadHostSubscriptions();
+  hosts.forEach(host => {
+    host.linkedAccounts = (host.linkedAccounts || []).filter(x => x !== sub.id && x !== sub.email);
+    if (String(host.hostMail || host.id) === String(sub.hostProvider)) host.linkedAccounts.push(sub.id);
+  });
+  saveHostSubscriptions(hosts);
+}
+
+function editSubAccount(id) {
+  const sub = loadSubAccounts().find(s => s.id === id);
+  if (!sub) return;
+  populateSubHostSelect(sub.hostProvider);
+  document.getElementById('edit-sub-id').value = sub.id;
+  document.getElementById('sub-num').value = sub.num || '';
+  document.getElementById('sub-email').value = sub.email || '';
+  document.getElementById('sub-start-date').value = String(sub.startDate || '').slice(0, 10);
+  document.getElementById('sub-tel').value = sub.tel || '';
+  document.getElementById('sub-name').value = sub.name || '';
+  document.getElementById('sub-status').value = sub.status || '';
+  document.getElementById('sub-form-title').textContent = 'Edit sub-account';
+  document.getElementById('cancel-sub-btn').style.display = 'inline-block';
+}
+
+function clearSubForm() {
+  ['edit-sub-id','sub-num','sub-email','sub-start-date','sub-tel','sub-name','sub-status'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('sub-form-title').textContent = 'Add sub-account';
+  document.getElementById('cancel-sub-btn').style.display = 'none';
+  populateSubHostSelect();
+}
+function cancelSubEdit() { clearSubForm(); }
+
+function deleteSubAccount(id) {
+  const sub = loadSubAccounts().find(s => s.id === id);
+  if (!sub || !confirm(`Delete sub-account ${sub.email || id}?`)) return;
+  saveSubAccounts(loadSubAccounts().filter(s => s.id !== id));
+  const hosts = loadHostSubscriptions();
+  hosts.forEach(host => { host.linkedAccounts = (host.linkedAccounts || []).filter(x => x !== id && x !== sub.email); });
+  saveHostSubscriptions(hosts);
+  renderAccounts();
+}
+
 // ========== SALES ==========
 function populateProductSelect(selectId) {
   const products = loadProducts();
@@ -631,9 +1040,16 @@ function recordRestock() {
 }
 
 // ========== HISTORY ==========
+let historyDateSort = 'desc';
+
 function renderHistory(filter) {
   let txs = loadTransactions();
   if (filter !== 'all') txs = txs.filter(t => t.type === filter);
+  txs = [...txs].sort((a, b) => {
+    const diff = new Date(a.date) - new Date(b.date);
+    if (diff !== 0) return historyDateSort === 'desc' ? -diff : diff;
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  });
   const tbody = document.getElementById('history-tbody');
   if (!txs.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Операций пока нет.</td></tr>'; return; }
   tbody.innerHTML = txs.map(t => {
@@ -644,7 +1060,21 @@ function renderHistory(filter) {
   }).join('');
 }
 
+function toggleHistoryDateSort() {
+  historyDateSort = historyDateSort === 'desc' ? 'asc' : 'desc';
+  document.querySelectorAll('.history-date-sort-mark').forEach(mark => {
+    mark.textContent = historyDateSort === 'desc' ? 'v' : '^';
+  });
+  renderHistory(document.getElementById('history-filter').value);
+}
+
 document.getElementById('history-filter').addEventListener('change', e => { renderHistory(e.target.value); });
+document.getElementById('accounts-search')?.addEventListener('input', renderAccounts);
+document.addEventListener('dblclick', e => {
+  const cell = e.target.closest('.editable-start-date');
+  if (!cell) return;
+  editSubStartDate(cell.dataset.subId, cell);
+});
 
 function clearHistory() {
   if (!confirm('Очистить всю историю операций?')) return;
@@ -814,6 +1244,8 @@ async function doImport() {
     _cache.products      = d.products      || [];
     _cache.transactions  = d.transactions  || [];
     _cache.andreyReturns = d.andreyReturns || [];
+    _cache.subAccounts = d.subAccounts || [];
+    _cache.hostSubscriptions = d.hostSubscriptions || [];
   } catch (e) {
     console.error('Could not load data from server:', e);
     document.body.insertAdjacentHTML('afterbegin',

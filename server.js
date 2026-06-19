@@ -30,6 +30,8 @@ const FILES = {
   products:      path.join(DATA_DIR, 'products.json'),
   transactions:  path.join(DATA_DIR, 'transactions.json'),
   andreyReturns: path.join(DATA_DIR, 'andrey-returns.json'),
+  subAccounts: path.join(DATA_DIR, 'sub-accounts.json'),
+  hostSubscriptions: path.join(DATA_DIR, 'host-subscriptions.json'),
 };
 if (!USE_MONGO) {
   Object.values(FILES).forEach(f => {
@@ -39,7 +41,14 @@ if (!USE_MONGO) {
 
 // ── MONGODB STORAGE ──────────────────────────────────────────
 let db = null;
-const COLL = { products: 'products', transactions: 'transactions', andreyReturns: 'andreyReturns' };
+const COLL = {
+  products: 'products',
+  transactions: 'transactions',
+  andreyReturns: 'andreyReturns',
+  subAccounts: 'subAccounts',
+  hostSubscriptions: 'hostSubscriptions',
+};
+const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
 
 async function connectMongo() {
   const client = new MongoClient(process.env.MONGODB_URI);
@@ -51,17 +60,21 @@ async function connectMongo() {
 // ── STORAGE ABSTRACTION ──────────────────────────────────────
 async function dbGetAll() {
   if (USE_MONGO) {
-    const [products, transactions, andreyReturns] = await Promise.all([
+    const [products, transactions, andreyReturns, subAccounts, hostSubscriptions] = await Promise.all([
       db.collection(COLL.products).find({}, { projection: { _id: 0 } }).toArray(),
       db.collection(COLL.transactions).find({}, { projection: { _id: 0 } }).toArray(),
       db.collection(COLL.andreyReturns).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
     ]);
-    return { products, transactions, andreyReturns };
+    return { products, transactions, andreyReturns, subAccounts, hostSubscriptions };
   }
   return {
     products:      JSON.parse(fs.readFileSync(FILES.products,      'utf8')),
     transactions:  JSON.parse(fs.readFileSync(FILES.transactions,  'utf8')),
     andreyReturns: JSON.parse(fs.readFileSync(FILES.andreyReturns, 'utf8')),
+    subAccounts: JSON.parse(fs.readFileSync(FILES.subAccounts, 'utf8')),
+    hostSubscriptions: JSON.parse(fs.readFileSync(FILES.hostSubscriptions, 'utf8')),
   };
 }
 
@@ -120,7 +133,11 @@ app.post('/api/login', async (req, res) => {
 // ── DATA ROUTES ──────────────────────────────────────────────
 app.get('/api/data', requireAuth, async (req, res) => {
   try {
-    res.json(await dbGetAll());
+    const data = await dbGetAll();
+    if (req.user.role !== 'admin') {
+      ADMIN_ONLY_KEYS.forEach(key => delete data[key]);
+    }
+    res.json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -47,6 +47,7 @@
   <button class="tab-btn" data-tab="restock">📥 Поступления</button>
   <button class="tab-btn" data-tab="products">🏷️ Товары</button>
   <button class="tab-btn" data-tab="history">📋 История</button>
+  <button class="tab-btn admin-only" data-tab="accounts">&#x410;&#x43A;&#x43A;&#x430;&#x443;&#x43D;&#x442;&#x44B;</button>
   <button class="tab-btn" data-tab="annual">📅 Отчётность</button>
 </nav>
 
@@ -105,7 +106,7 @@
     </table>
     <h3 style="margin-top:32px">📝 История возвратов Андрею</h3>
     <table id="andrey-returns-table">
-      <thead><tr><th>Дата</th><th>Сумма</th><th>Комментарий</th><th></th></tr></thead>
+      <thead><tr><th><button class="table-sort-btn" onclick="toggleAndreyReturnsDateSort()">Date <span class="andrey-return-sort-mark">v</span></button></th><th>Amount</th><th>Comment</th><th></th></tr></thead>
       <tbody id="andrey-returns-tbody"></tbody>
     </table>
   </div>
@@ -158,6 +159,65 @@
   </table>
 </section>
 
+<!-- ===== ACCOUNTS ===== -->
+<section id="tab-accounts" class="tab-content admin-only">
+  <h2>&#x410;&#x43A;&#x43A;&#x430;&#x443;&#x43D;&#x442;&#x44B;</h2>
+
+  <div class="accounts-toolbar">
+    <input type="search" id="accounts-search" placeholder="Search by host, email, name, phone, status..." />
+    <div class="accounts-summary" id="accounts-summary"></div>
+  </div>
+
+  <div class="accounts-forms">
+    <div class="form-card accounts-form">
+      <h3 id="host-form-title">Add host subscription</h3>
+      <input type="hidden" id="edit-host-id" />
+      <div class="form-row"><label>Host email</label><input type="email" id="host-mail" placeholder="host@example.com" /></div>
+      <div class="form-row"><label>Password</label><input type="text" id="host-password" placeholder="Password" /></div>
+      <div class="form-row"><label>Status</label><input type="text" id="host-status" placeholder="active" /></div>
+      <div class="form-row"><label>Renewal date</label><input type="date" id="host-renewal-date" /></div>
+      <div class="form-actions">
+        <button onclick="saveHostSubscription()" class="btn-primary" id="save-host-btn">Save host</button>
+        <button onclick="cancelHostEdit()" class="btn-secondary" id="cancel-host-btn" style="display:none">Cancel</button>
+      </div>
+    </div>
+
+    <div class="form-card accounts-form">
+      <h3 id="sub-form-title">Add sub-account</h3>
+      <input type="hidden" id="edit-sub-id" />
+      <div class="form-row"><label>Host</label><select id="sub-host"></select></div>
+      <div class="form-row"><label>Email</label><input type="email" id="sub-email" placeholder="user@example.com" /></div>
+      <div class="form-row accounts-grid-2">
+        <div><label>Num</label><input type="text" id="sub-num" placeholder="1" /></div>
+        <div><label>Start date</label><input type="date" id="sub-start-date" /></div>
+      </div>
+      <div class="form-row"><label>Phone</label><input type="text" id="sub-tel" placeholder="+..." /></div>
+      <div class="form-row"><label>Name</label><input type="text" id="sub-name" placeholder="Name" /></div>
+      <div class="form-row"><label>Status</label><input type="text" id="sub-status" placeholder="active" /></div>
+      <div class="form-actions">
+        <button onclick="saveSubAccount()" class="btn-primary" id="save-sub-btn">Save account</button>
+        <button onclick="cancelSubEdit()" class="btn-secondary" id="cancel-sub-btn" style="display:none">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="accounts-view-switch">
+    <button class="accounts-view-btn active" data-account-view="subs" onclick="setAccountsView('subs')">&#x410;&#x431;&#x43E;&#x43D;&#x435;&#x43D;&#x442;&#x44B;</button>
+    <button class="accounts-view-btn" data-account-view="cancelled" onclick="setAccountsView('cancelled')">&#x410;&#x43D;&#x43D;&#x443;&#x43B;&#x438;&#x440;&#x43E;&#x432;&#x430;&#x43D;&#x43D;&#x44B;&#x435;</button>
+    <button class="accounts-view-btn" data-account-view="new" onclick="setAccountsView('new')">&#x41D;&#x43E;&#x432;&#x44B;&#x435;</button>
+    <button class="accounts-view-btn" data-account-view="hosts" onclick="setAccountsView('hosts')">&#x425;&#x43E;&#x441;&#x442;&#x44B;</button>
+  </div>
+
+  <table id="sub-accounts-table">
+    <thead><tr><th>Num</th><th>Email</th><th>Phone</th><th>Name</th><th><button class="table-sort-btn" onclick="toggleSubAccountsStartSort()">Start <span class="sub-start-sort-mark">↓</span></button></th><th>Host</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="sub-accounts-tbody"></tbody>
+  </table>
+
+  <table id="accounts-table" style="display:none">
+    <thead><tr><th></th><th>Host</th><th>Status</th><th>Renewal</th><th>Linked accounts</th><th>Password</th><th>Actions</th></tr></thead>
+    <tbody id="accounts-tbody"></tbody>
+  </table>
+</section>
 <!-- ===== SALES ===== -->
 <section id="tab-sales" class="tab-content">
   <h2>Зафиксировать продажу</h2>
@@ -195,7 +255,7 @@
     <button onclick="clearHistory()" class="btn-danger admin-only">🗑️ Очистить историю</button>
   </div>
   <table id="history-table">
-    <thead><tr><th>Дата</th><th>Операция</th><th>Тип / Цвет</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Прибыль</th></tr></thead>
+    <thead><tr><th><button class="table-sort-btn" onclick="toggleHistoryDateSort()">Date <span class="history-date-sort-mark">v</span></button></th><th>Operation</th><th>Type / Color</th><th>Qty</th><th>Price</th><th>Total</th><th>Profit</th></tr></thead>
     <tbody id="history-tbody"></tbody>
   </table>
 </section>
