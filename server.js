@@ -88,6 +88,25 @@ async function dbSave(key, data) {
   }
 }
 
+function getProductStock(product) {
+  return (product.lots || []).reduce((sum, lot) => sum + (Number(lot.qty) || 0), 0);
+}
+
+function publicProduct(product) {
+  const stock = getProductStock(product);
+  const productType = product.productType || '';
+  const color = product.color || '';
+  return {
+    id: product.id,
+    productType,
+    color,
+    label: [productType, color].filter(Boolean).join(' / '),
+    sellPrice: Number(product.sellPrice) || 0,
+    stock,
+    accent: productType.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'speaker',
+  };
+}
+
 // ── MIDDLEWARE ───────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(__dirname));
@@ -131,6 +150,19 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ── DATA ROUTES ──────────────────────────────────────────────
+app.get('/api/public/products', async (req, res) => {
+  try {
+    const { products } = await dbGetAll();
+    const publicProducts = products
+      .map(publicProduct)
+      .filter(product => product.stock > 0)
+      .sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+    res.json({ products: publicProducts });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/data', requireAuth, async (req, res) => {
   try {
     const data = await dbGetAll();

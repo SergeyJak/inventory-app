@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Портативные колонки</title>
+  <link rel="stylesheet" href="catalog.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="catalog.html" aria-label="Sound Stock">
+      <span class="brand-mark"></span>
+      <span>Sound Stock</span>
+    </a>
+    <a class="header-contact" href="#">Связаться</a>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Портативный звук</p>
+        <h1 id="hero-title">Музыка, которая выглядит так же чисто, как звучит.</h1>
+        <p class="hero-text">Аккуратные портативные колонки для дома, прогулок и поездок. Выберите модель по стилю, цвету и характеру звучания.</p>
+        <a class="hero-cta" href="#products">Выбрать модель</a>
+      </div>
+
+      <div class="hero-visual" aria-hidden="true">
+        <div class="hero-speaker">
+          <span class="speaker-highlight"></span>
+          <span class="speaker-driver speaker-driver-top"></span>
+          <span class="speaker-driver speaker-driver-bottom"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="trust-block" aria-label="Преимущества">
+      <div class="trust-item">
+        <strong>Гарантия</strong>
+        <span>Проверка перед передачей</span>
+      </div>
+      <div class="trust-item">
+        <strong>Новые устройства</strong>
+        <span>Актуальные модели</span>
+      </div>
+      <div class="trust-item">
+        <strong>Доставка</strong>
+        <span>Удобно по договоренности</span>
+      </div>
+      <div class="trust-item">
+        <strong>Быстрый ответ</strong>
+        <span>WhatsApp или Telegram</span>
+      </div>
+    </section>
+
+    <section id="products" class="catalog-section" aria-labelledby="catalog-title">
+      <div class="section-heading">
+        <p class="eyebrow">Модели</p>
+        <h2 id="catalog-title">Выберите свою колонку</h2>
+      </div>
+
+      <div id="catalog-state" class="catalog-state">Загружаем товары...</div>
+      <div id="product-grid" class="product-grid" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <script src="catalog.js"></script>
+</body>
+</html>
