@@ -18,6 +18,7 @@ const assistantPanel = document.getElementById('assistant-panel');
 const assistantClose = document.getElementById('assistant-close');
 const assistantOptions = document.getElementById('assistant-options');
 const assistantResult = document.getElementById('assistant-result');
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const money = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -68,7 +69,8 @@ const PHOTO_MODELS = [
     ],
     details: ['Алиса нового поколения', 'LED-дисплей', 'Голосовое управление', 'Музыка и подкасты', 'Управление умным домом', 'Несколько цветовых вариантов'],
     fits: ['Спальня', 'Кухня', 'Детская', 'Рабочий стол'],
-    compare: ['Компактная', 'Для первого знакомства'],
+    badge: 'доступная',
+    compare: ['Первое знакомство', 'Компактная', 'LED-дисплей', 'Спальня, кухня, детская'],
     aliases: ['лайт 2', 'light 2', 'light2', 'lite 2', 'lite2'],
     glow: 'rgba(65, 178, 255, .18)',
     wash: '#f2f7fb',
@@ -111,7 +113,8 @@ const PHOTO_MODELS = [
     ],
     details: ['LED-дисплей', 'Более собранный звук', 'Голосовое управление', 'Таймеры и будильники', 'Умный дом', 'Компактный корпус'],
     fits: ['Дом', 'Рабочее место', 'Кухня', 'Подарок'],
-    compare: ['Лучше звук', 'На каждый день'],
+    badge: 'баланс',
+    compare: ['Баланс', 'Более собранный звук', 'Компактный формат', 'На каждый день'],
     aliases: ['мини 3', 'mini 3', 'mini3'],
     glow: 'rgba(120, 160, 150, .18)',
     wash: '#f3f6f4',
@@ -149,7 +152,8 @@ const PHOTO_MODELS = [
     ],
     details: ['Усиленный звук', 'Zigbee', 'Голосовые сценарии', 'LED-дисплей', 'Поддержка модулей', 'Центр умного дома'],
     fits: ['Умный дом', 'Музыка', 'Кабинет', 'Гостиная'],
-    compare: ['Zigbee', 'Центр умного дома'],
+    badge: 'умный дом',
+    compare: ['Умный дом', 'Zigbee', 'Модули', 'Больше возможностей'],
     aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini pro', 'minipro'],
     glow: 'rgba(84, 139, 255, .16)',
     wash: '#f1f4f8',
@@ -190,7 +194,8 @@ const PHOTO_MODELS = [
     ],
     details: ['Мощный звук', 'Глубокие басы', 'Фильмы и музыка', 'Голосовое управление', 'Семейные сценарии', 'Умный дом'],
     fits: ['Гостиная', 'Музыка', 'Фильмы', 'Семья'],
-    compare: ['Мощный звук', 'Большие комнаты'],
+    badge: 'музыка',
+    compare: ['Музыка', 'Мощный звук', 'Комната и фильмы', 'Семейные вечера'],
     aliases: ['миди', 'midi'],
     glow: 'rgba(120, 120, 160, .16)',
     wash: '#f3f4f7',
@@ -226,7 +231,8 @@ const PHOTO_MODELS = [
     ],
     details: ['Встроенный аккумулятор', 'Защита от влаги', 'Bluetooth', 'Музыка вне дома', 'Голосовое управление', 'Для поездок'],
     fits: ['Пикник', 'Дача', 'Путешествия', 'Дом'],
-    compare: ['Аккумулятор', 'Улица и Bluetooth'],
+    badge: 'портативная',
+    compare: ['Портативность', 'Аккумулятор', 'Bluetooth', 'Дом и поездки'],
     aliases: ['стрит', 'street'],
     glow: 'rgba(190, 185, 130, .2)',
     wash: '#f4f1e8',
@@ -268,13 +274,13 @@ function selectedStockText(photo) {
 
 function buildMessage(topicId = 'availability') {
   const { model, photo, price } = currentSelection();
-  const topic = CONTACT_TOPICS.find(item => item.id === topicId) || CONTACT_TOPICS[0];
-  const priceText = price ? money.format(price) : 'цену уточню';
+  const priceText = price ? money.format(price) : 'уточнить';
   return [
     'Здравствуйте!',
-    `Интересует ${model?.title || 'Яндекс Станция'}, ${String(photo?.name || 'выбранный цвет').toLowerCase()} цвет.`,
-    `Цена на сайте: ${priceText}. ${selectedStockText(photo)}.`,
-    topic.text,
+    `Интересует ${model?.title || 'Яндекс Станция'}, ${String(photo?.name || 'выбранный цвет').toLowerCase()}.`,
+    `Цена: ${priceText}.`,
+    `Наличие: ${selectedStockText(photo)}.`,
+    'Подскажите, пожалуйста, актуально?',
   ].join('\n');
 }
 
@@ -381,12 +387,12 @@ function pickModel(preferredIds) {
 
 function assistantScenarios() {
   return [
-    { id: 'home', label: 'Для дома', modelIds: ['mini3', 'light2', 'miniPro'], reason: 'Для дома рекомендую компактную модель: она не занимает много места, подходит для кухни, спальни и повседневных голосовых команд.' },
-    { id: 'music', label: 'Для музыки', modelIds: ['midi', 'miniPro', 'street', 'light2'], reason: 'Для музыки выбирайте модель с более плотным звуком и запасом громкости. Если Миди сейчас доступна, начните с неё.' },
-    { id: 'child', label: 'Для ребёнка', modelIds: ['light2', 'mini3'], reason: 'Для детской подойдёт компактная Станция с экраном: удобно смотреть время, ставить будильники и включать сказки или музыку голосом.' },
-    { id: 'gift', label: 'В подарок', modelIds: ['light2', 'mini3', 'miniPro'], reason: 'В подарок хорошо работает понятная компактная модель: её легко поставить дома и начать пользоваться без сложного выбора.' },
-    { id: 'compare', label: 'Сравнить модели', modelIds: ['miniPro', 'mini3', 'light2'], reason: 'Сравните модели по роли: Лайт 2 для старта, Мини 3 на каждый день, Мини 3 Про для умного дома и более плотного звука.' },
-    { id: 'budget', label: 'Доступная по цене', modelIds: [], reason: 'Доступный вариант сейчас стоит выбирать по актуальной цене и доступному цвету.' },
+    { id: 'home', label: 'Для дома', modelIds: ['miniPro', 'midi', 'mini3', 'light2'], reason: 'Для дома рекомендую модель с запасом по голосовому управлению и сценариям умного дома. Если доступна Мини 3 Про, начните с неё.' },
+    { id: 'music', label: 'Для музыки', modelIds: ['midi', 'miniPro', 'street', 'light2'], reason: 'Для музыки нужна модель с более мощным звуком. Если Миди доступна, она хорошо подходит для комнаты, фильмов и ежедневного прослушивания.' },
+    { id: 'child', label: 'Для ребёнка', modelIds: ['light2', 'mini3'], reason: 'Для детской подойдёт Лайт 2: компактная, с часами, будильниками, сказками и понятным голосовым управлением.' },
+    { id: 'gift', label: 'В подарок', modelIds: ['light2', 'mini3'], reason: 'В подарок хорошо подходят Лайт 2 или Мини 3: понятный формат, приятный внешний вид и быстрый старт с Алисой.' },
+    { id: 'compare', label: 'Сравнить модели', modelIds: ['miniPro', 'mini3', 'light2'], reason: 'Сравнение покажет роли моделей: старт, ежедневное использование, умный дом, музыка или портативность.' },
+    { id: 'budget', label: 'Доступная по цене', modelIds: [], reason: 'По цене чаще всего стоит начать с Лайт 2: базовые функции Алисы, компактность и LED-дисплей без лишней сложности.' },
   ];
 }
 
@@ -394,6 +400,8 @@ function renderAssistant() {
   assistantOptions.innerHTML = assistantScenarios().map(item => `
     <button class="assistant-chip" type="button" data-scenario="${item.id}">${item.label}</button>
   `).join('');
+  assistantResult.hidden = true;
+  assistantResult.innerHTML = '';
 }
 
 function showAssistantResult(scenarioId) {
@@ -405,7 +413,7 @@ function showAssistantResult(scenarioId) {
   assistantResult.hidden = false;
   assistantResult.innerHTML = `
     <span class="assistant-choice">${scenario.label}</span>
-    <strong>Рекомендую ${model.title}</strong>
+    <strong>Рекомендую: ${model.title}</strong>
     <p>${scenario.reason}</p>
     <div class="assistant-result-actions">
       <button type="button" data-show-model="${modelIndex}">Показать модель</button>
@@ -445,6 +453,28 @@ function buildModels(publicProducts) {
   }).filter(Boolean);
 }
 
+function renderHeroPhoto(photo, model) {
+  const src = primaryPhoto(photo);
+  const applyImage = () => {
+    heroImage.src = src;
+    heroImage.alt = `${model.title}, ${photo.name}`;
+    heroImage.decoding = 'async';
+  };
+
+  if (prefersReducedMotion.matches || !heroImage.src) {
+    applyImage();
+    return;
+  }
+
+  heroImage.classList.add('is-switching');
+  window.setTimeout(() => {
+    applyImage();
+    heroImage.classList.remove('is-switching');
+    heroImage.classList.add('is-entering');
+    window.setTimeout(() => heroImage.classList.remove('is-entering'), 240);
+  }, 130);
+}
+
 function render() {
   const model = models[activeModel];
   const photo = model.photos[activeColor] || model.photos[0];
@@ -457,12 +487,7 @@ function render() {
   document.getElementById('model-price').textContent = money.format(price);
   document.getElementById('details-title').textContent = model.title;
   document.getElementById('details-summary').textContent = model.description;
-  heroImage.style.animation = 'none';
-  void heroImage.offsetHeight;
-  heroImage.style.animation = '';
-  heroImage.src = primaryPhoto(photo);
-  heroImage.alt = `${model.title}, ${photo.name}`;
-  heroImage.decoding = 'async';
+  renderHeroPhoto(photo, model);
   setContactLinks(model);
 
   modelSwitcher.innerHTML = models.map((item, index) => `
@@ -504,16 +529,39 @@ function render() {
     </div>
     <div class="compare-block" aria-label="Сравнение моделей">
       <div class="compare-head">
-        <h3>Сравнить модели</h3>
-        <p>Коротко, чтобы быстрее выбрать подходящую Станцию.</p>
+        <h3>Какую Станцию выбрать?</h3>
+        <p>Коротко о разнице между доступными моделями.</p>
       </div>
       <div class="compare-list">
         ${models.map((item, index) => `
           <button class="compare-card ${index === activeModel ? 'active' : ''}" type="button" data-compare-model="${index}">
+            <span class="compare-badge">${item.badge || 'модель'}</span>
             <strong>${item.short}</strong>
             ${(item.compare || []).map(text => `<span>${text}</span>`).join('')}
+            <em>${money.format(item.price)}</em>
           </button>
         `).join('')}
+      </div>
+    </div>
+    <div class="trust-block" aria-label="Почему покупают у нас">
+      <div class="compare-head">
+        <h3>Почему выбирают нас</h3>
+      </div>
+      <div class="trust-list">
+        <div><strong>Консультация перед покупкой</strong><span>Подскажем, какая модель подойдёт под ваши задачи и бюджет.</span></div>
+        <div><strong>Настройка по договорённости</strong><span>Можем помочь с подключением Алисы и умного дома как отдельной услугой.</span></div>
+        <div><strong>Новые устройства</strong><span>Все Яндекс Станции продаются новыми, в заводской упаковке.</span></div>
+        <div><strong>Поддержка при нашей настройке</strong><span>Если настройку выполняем мы, поможем после подключения с вопросами по работе устройства.</span></div>
+      </div>
+    </div>
+    <div class="final-cta" aria-label="Остались вопросы">
+      <div>
+        <h3>Остались вопросы?</h3>
+        <p>Напишите удобным способом. Подскажем по модели, цвету и актуальному наличию.</p>
+      </div>
+      <div class="final-actions">
+        <a href="${contactUrl('whatsapp', 'question')}" target="_blank" rel="noopener">WhatsApp</a>
+        <a href="${contactUrl('telegram', 'question')}" target="_blank" rel="noopener">Telegram</a>
       </div>
     </div>
   `;
@@ -643,6 +691,20 @@ assistantResult.addEventListener('click', event => {
 
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeOverlays();
+});
+
+showroom.addEventListener('pointermove', event => {
+  if (prefersReducedMotion.matches || window.matchMedia('(max-width: 900px)').matches) return;
+  const rect = showroom.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width - 0.5) * 8;
+  const y = ((event.clientY - rect.top) / rect.height - 0.5) * 6;
+  heroImage.style.setProperty('--parallax-x', `${x}px`);
+  heroImage.style.setProperty('--parallax-y', `${y}px`);
+});
+
+showroom.addEventListener('pointerleave', () => {
+  heroImage.style.setProperty('--parallax-x', '0px');
+  heroImage.style.setProperty('--parallax-y', '0px');
 });
 
 loadCatalog();
