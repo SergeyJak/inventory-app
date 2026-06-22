@@ -58,6 +58,46 @@ button {
   flex: 0 0 auto;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 38px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .68);
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 20, .08);
+  backdrop-filter: blur(18px);
+}
+
+.lang-btn {
+  min-width: 34px;
+  min-height: 32px;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(17, 17, 20, .48);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: color .2s ease, background .2s ease, transform .2s ease;
+}
+
+.lang-btn:hover {
+  color: #111114;
+}
+
+.lang-btn.active {
+  color: #111114;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(10, 18, 28, .08);
+}
+
 .contact-link {
   min-height: 38px;
   display: inline-flex;
@@ -178,6 +218,7 @@ h1 {
 .model-btn:focus-visible,
 .thumb:focus-visible,
 .contact-link:focus-visible,
+.lang-btn:focus-visible,
 .site-header a:focus-visible {
   outline: 3px solid rgba(17, 17, 20, .18);
   outline-offset: 4px;
@@ -1007,15 +1048,26 @@ h1 {
     font-size: 14px;
   }
 
+  .header-actions {
+    gap: 6px;
+  }
+
+  .language-switcher {
+    min-height: 34px;
+  }
+
+  .lang-btn {
+    min-width: 30px;
+    min-height: 28px;
+    font-size: 11px;
+  }
+
   .contact-link {
-    position: absolute;
-    top: 20px;
-    left: calc(100vw - 110px);
     width: auto;
-    min-width: 86px;
+    min-width: 0;
     min-height: 34px;
     padding: 0 12px;
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .contact-link::after {

@@ -3,27 +3,30 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Яндекс Станции</title>
+  <title></title>
   <link rel="stylesheet" href="catalog.css" />
 </head>
 <body>
   <main>
     <section class="showroom" id="showroom">
       <header class="site-header">
-        <a href="catalog.html">Умная колонка</a>
-        <button class="contact-link" id="top-contact" type="button">Консультация</button>
+        <a href="catalog.html" data-i18n="nav.brand"></a>
+        <div class="header-actions">
+          <nav class="language-switcher" id="language-switcher" aria-label="Language"></nav>
+          <button class="contact-link" id="top-contact" type="button" data-i18n="nav.consultation"></button>
+        </div>
       </header>
 
-      <div id="catalog-state" class="catalog-state">Загружаем модели...</div>
+      <div id="catalog-state" class="catalog-state"></div>
 
       <div class="hero" id="catalog-content" hidden>
         <div class="copy">
-          <p class="eyebrow">Выбрана модель</p>
+          <p class="eyebrow" data-i18n="common.selectedModel"></p>
           <h1 id="model-title"></h1>
           <p class="line" id="model-line"></p>
           <div class="buy">
             <div class="price" id="model-price"></div>
-            <button class="cta" id="contact-cta" type="button">Связаться</button>
+            <button class="cta" id="contact-cta" type="button" data-i18n="common.contact"></button>
           </div>
         </div>
 
@@ -32,13 +35,13 @@
         </div>
       </div>
 
-      <nav class="model-switcher" id="model-switcher" aria-label="Модели"></nav>
-      <nav class="color-gallery" id="color-gallery" aria-label="Цвета"></nav>
+      <nav class="model-switcher" id="model-switcher" aria-label="Models"></nav>
+      <nav class="color-gallery" id="color-gallery" aria-label="Colors"></nav>
     </section>
 
     <section class="model-details" id="model-details" hidden>
       <div class="details-head">
-        <p class="eyebrow">О модели</p>
+        <p class="eyebrow" data-i18n="common.aboutModel"></p>
         <h2 id="details-title"></h2>
         <p id="details-summary"></p>
       </div>
@@ -48,25 +51,26 @@
 
   <div class="overlay" id="overlay" hidden></div>
 
-  <aside class="contact-panel" id="contact-panel" aria-label="Связаться" aria-hidden="true">
-    <button class="panel-close" id="contact-close" type="button" aria-label="Закрыть"></button>
-    <p class="panel-kicker">Связаться</p>
-    <h2>Как вам удобнее связаться?</h2>
+  <aside class="contact-panel" id="contact-panel" aria-hidden="true">
+    <button class="panel-close" id="contact-close" type="button"></button>
+    <p class="panel-kicker" data-i18n="contact.kicker"></p>
+    <h2 data-i18n="contact.title"></h2>
     <div class="contact-actions" id="contact-actions"></div>
     <div class="question-actions" id="question-actions"></div>
   </aside>
 
-  <button class="assistant-fab" id="assistant-fab" type="button">Алиса поможет выбрать</button>
+  <button class="assistant-fab" id="assistant-fab" type="button" data-i18n="assistant.fab"></button>
 
-  <aside class="assistant-panel" id="assistant-panel" aria-label="Помощник по выбору" aria-hidden="true">
-    <button class="panel-close" id="assistant-close" type="button" aria-label="Закрыть"></button>
-    <p class="panel-kicker">Помощник</p>
-    <h2>Помогу подобрать Яндекс Станцию.</h2>
-    <p class="assistant-intro">Подскажу подходящую модель по сценарию и покажу её в витрине.</p>
+  <aside class="assistant-panel" id="assistant-panel" aria-hidden="true">
+    <button class="panel-close" id="assistant-close" type="button"></button>
+    <p class="panel-kicker" data-i18n="assistant.kicker"></p>
+    <h2 data-i18n="assistant.title"></h2>
+    <p class="assistant-intro" data-i18n="assistant.intro"></p>
     <div class="assistant-options" id="assistant-options"></div>
     <div class="assistant-result" id="assistant-result" hidden></div>
   </aside>
 
+  <script src="i18n.js"></script>
   <script src="catalog.js"></script>
 </body>
 </html>

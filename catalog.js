@@ -18,184 +18,72 @@ const assistantPanel = document.getElementById('assistant-panel');
 const assistantClose = document.getElementById('assistant-close');
 const assistantOptions = document.getElementById('assistant-options');
 const assistantResult = document.getElementById('assistant-result');
+const languageSwitcher = document.getElementById('language-switcher');
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-const money = new Intl.NumberFormat('ru-RU', {
-  style: 'currency',
-  currency: 'EUR',
-  maximumFractionDigits: 0,
-});
 
 const CONTACT_CONFIG = {
   whatsappPhone: '37126198525',
   telegramUsername: 'alicestation',
 };
 
-const CONTACT_TOPICS = [
-  { id: 'availability', label: 'Узнать наличие', text: 'Подскажите, пожалуйста, она ещё в наличии?' },
-  { id: 'choose', label: 'Помочь выбрать модель', text: 'Помогите, пожалуйста, подобрать подходящую модель.' },
-  { id: 'setup', label: 'Настройка устройства', text: 'Подскажите, пожалуйста, можно ли помочь с настройкой устройства?' },
-  { id: 'question', label: 'Задать вопрос', text: 'Хочу задать вопрос по этой модели.' },
-];
+const LANGUAGES = ['ru', 'lv', 'en'];
+const translations = window.catalogTranslations || {};
+let currentLang = resolveInitialLanguage();
+
+function resolveInitialLanguage() {
+  const saved = localStorage.getItem('catalogLanguage');
+  if (LANGUAGES.includes(saved)) return saved;
+  const browserLang = String(navigator.language || '').slice(0, 2).toLowerCase();
+  return LANGUAGES.includes(browserLang) ? browserLang : 'ru';
+}
+
+function dict(path, lang = currentLang) {
+  return path.split('.').reduce((value, key) => value?.[key], translations[lang]) ??
+    path.split('.').reduce((value, key) => value?.[key], translations.ru);
+}
+
+function money(value) {
+  return `${Number(value || 0).toLocaleString(currentLang === 'en' ? 'en-US' : currentLang)} €`;
+}
 
 const PHOTO_MODELS = [
   {
     id: 'light2',
-    short: 'Лайт 2',
-    title: 'Станция Лайт 2',
-    line: 'Компактная умная колонка с Алисой, LED-дисплеем и управлением голосом.',
-    description: 'Компактная Станция с экраном, часами и живыми эмоциями Алисы. Хорошо смотрится у кровати, на кухне или на рабочем столе.',
-    sections: [
-      {
-        title: 'Лёгкий старт в мир Алисы',
-        text: 'Яндекс Станция Лайт 2 — компактная умная колонка с голосовым помощником Алисой и встроенным LED-дисплеем. Она помогает управлять умным домом, включает музыку, отвечает на вопросы, ставит будильники, рассказывает прогноз погоды и делает повседневные задачи проще.',
-      },
-      {
-        title: 'Для дома каждый день',
-        text: 'Станция подходит для спальни, кухни, детской комнаты или рабочего стола. Благодаря компактным размерам она легко вписывается практически в любой интерьер.',
-      },
-      {
-        title: 'Музыка и развлечения',
-        text: 'Слушайте музыку, подкасты и радиостанции, управляйте воспроизведением голосом и получайте быстрый доступ к сервисам Яндекса.',
-      },
-      {
-        title: 'Умный дом',
-        text: 'Используйте Алису для управления совместимыми устройствами умного дома: освещением, розетками, датчиками и другой техникой без необходимости брать телефон в руки.',
-      },
-      {
-        title: 'LED-дисплей',
-        text: 'На передней панели отображаются часы, таймеры, погода, уровень громкости и другая полезная информация, делая взаимодействие со Станцией ещё удобнее.',
-      },
-    ],
-    details: ['Алиса нового поколения', 'LED-дисплей', 'Голосовое управление', 'Музыка и подкасты', 'Управление умным домом', 'Несколько цветовых вариантов'],
-    fits: ['Спальня', 'Кухня', 'Детская', 'Рабочий стол'],
-    badge: 'доступная',
-    compare: ['Первое знакомство', 'Компактная', 'LED-дисплей', 'Спальня, кухня, детская'],
     aliases: ['лайт 2', 'light 2', 'light2', 'lite 2', 'lite2'],
     glow: 'rgba(65, 178, 255, .18)',
     wash: '#f2f7fb',
     photos: [
-      { name: 'Голубой', photos: ['images/catalog/light-2/blue/01.webp'], aliases: ['голуб'], transparent: true },
-      { name: 'Фиолетовый', photos: ['images/catalog/light-2/violet/01.webp'], aliases: ['фиолет'], transparent: true },
-      { name: 'Зелёный', photos: ['images/catalog/light-2/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
-      { name: 'Розовый', photos: ['images/catalog/light-2/pink/01.webp'], aliases: ['розов'], transparent: true },
-      { name: 'Коралловый', photos: ['images/catalog/light-2/coral/01.webp'], aliases: ['корал'], transparent: true },
-      { name: 'Чёрный', photos: ['images/catalog/light-2/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
+      { colorKey: 'blue', photos: ['images/catalog/light-2/blue/01.webp'], aliases: ['голуб'], transparent: true },
+      { colorKey: 'violet', photos: ['images/catalog/light-2/violet/01.webp'], aliases: ['фиолет'], transparent: true },
+      { colorKey: 'green', photos: ['images/catalog/light-2/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
+      { colorKey: 'pink', photos: ['images/catalog/light-2/pink/01.webp'], aliases: ['розов'], transparent: true },
+      { colorKey: 'coral', photos: ['images/catalog/light-2/coral/01.webp'], aliases: ['корал'], transparent: true },
+      { colorKey: 'black', photos: ['images/catalog/light-2/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
     ],
   },
   {
     id: 'mini3',
-    short: 'Мини 3',
-    title: 'Станция Мини 3',
-    line: 'Компактная Станция с Алисой, LED-дисплеем и более собранным звучанием.',
-    description: 'Мини 3 сохраняет компактный формат, но ощущается взрослее: спокойный дизайн, экран на передней панели и звук для ежедневного прослушивания.',
-    sections: [
-      {
-        title: 'Каждый день рядом',
-        text: 'Станция Мини 3 подходит для тех мест, где колонка нужна постоянно: на кухне, у кровати, в кабинете или на полке в гостиной. Она занимает мало места и не спорит с интерьером.',
-      },
-      {
-        title: 'Алиса без лишних действий',
-        text: 'Попросите включить музыку, поставить таймер, напомнить о деле, рассказать погоду или ответить на вопрос. Голосовое управление удобно, когда руки заняты или телефон далеко.',
-      },
-      {
-        title: 'Звук для повседневного ритма',
-        text: 'Мини 3 рассчитана на музыку, радио, подкасты и фоновое звучание дома. Она хорошо подходит для комнаты, кухни или рабочего места.',
-      },
-      {
-        title: 'Умный дом под рукой',
-        text: 'Через Алису можно управлять совместимыми лампами, розетками и другой техникой. Команды становятся частью обычного домашнего сценария.',
-      },
-      {
-        title: 'Полезный экран',
-        text: 'LED-дисплей показывает время, таймеры, громкость и другую информацию, которую удобно видеть сразу.',
-      },
-    ],
-    details: ['LED-дисплей', 'Более собранный звук', 'Голосовое управление', 'Таймеры и будильники', 'Умный дом', 'Компактный корпус'],
-    fits: ['Дом', 'Рабочее место', 'Кухня', 'Подарок'],
-    badge: 'баланс',
-    compare: ['Баланс', 'Более собранный звук', 'Компактный формат', 'На каждый день'],
     aliases: ['мини 3', 'mini 3', 'mini3'],
     glow: 'rgba(120, 160, 150, .18)',
     wash: '#f3f6f4',
     photos: [
-      { name: 'Серый', photos: ['images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
+      { colorKey: 'gray', photos: ['images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
     ],
   },
   {
     id: 'miniPro',
-    short: 'Мини 3 Про',
-    title: 'Станция Мини 3 Про',
-    line: 'Компактная Станция с усиленным звуком, Zigbee и возможностями центра умного дома.',
-    description: 'Мини Про выглядит компактно, но создана для более серьёзных сценариев: музыка плотнее, управление домом шире, а возможности можно расширять дополнительными модулями.',
-    sections: [
-      {
-        title: 'Больше возможностей в компактном формате',
-        text: 'Станция Мини Про подойдёт тем, кому важны размер Мини, но хочется более взрослого звучания и расширенных функций для умного дома.',
-      },
-      {
-        title: 'Алиса как центр управления',
-        text: 'Алиса помогает запускать музыку, создавать напоминания, отвечать на вопросы и управлять домашними сценариями голосом.',
-      },
-      {
-        title: 'Звук с запасом',
-        text: 'По сравнению с базовыми компактными моделями Мини Про звучит плотнее и увереннее, поэтому хорошо подходит для гостиной, кабинета или большой кухни.',
-      },
-      {
-        title: 'Zigbee для умного дома',
-        text: 'Поддержка Zigbee помогает подключать совместимые устройства напрямую и строить домашние сценарии без лишних промежуточных шагов.',
-      },
-      {
-        title: 'Готова к расширению',
-        text: 'Модель поддерживает дополнительные модули и аксессуары, поэтому её можно адаптировать под разные задачи дома.',
-      },
-    ],
-    details: ['Усиленный звук', 'Zigbee', 'Голосовые сценарии', 'LED-дисплей', 'Поддержка модулей', 'Центр умного дома'],
-    fits: ['Умный дом', 'Музыка', 'Кабинет', 'Гостиная'],
-    badge: 'умный дом',
-    compare: ['Умный дом', 'Zigbee', 'Модули', 'Больше возможностей'],
     aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini pro', 'minipro'],
     glow: 'rgba(84, 139, 255, .16)',
     wash: '#f1f4f8',
     photos: [
-      { name: 'Зелёный', photos: ['images/catalog/mini-pro/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
-      { name: 'Голубой', photos: ['images/catalog/mini-pro/blue/01.webp'], aliases: ['голуб', 'син'], transparent: true },
-      { name: 'Серый', photos: ['images/catalog/mini-pro/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
-      { name: 'Графит', photos: ['images/catalog/mini-pro/graphite/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
+      { colorKey: 'green', photos: ['images/catalog/mini-pro/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
+      { colorKey: 'blue', photos: ['images/catalog/mini-pro/blue/01.webp'], aliases: ['голуб', 'син'], transparent: true },
+      { colorKey: 'gray', photos: ['images/catalog/mini-pro/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
+      { colorKey: 'graphite', photos: ['images/catalog/mini-pro/graphite/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
     ],
   },
   {
     id: 'midi',
-    short: 'Миди',
-    title: 'Станция Миди',
-    line: 'Станция для большой комнаты, фильмов, музыки и семейных сценариев.',
-    description: 'Миди — следующий шаг для тех, кому нужен более мощный звук и уверенное присутствие в комнате. Она подходит для гостиной, вечеров с фильмами и музыки без ощущения фонового режима.',
-    sections: [
-      {
-        title: 'Звук для комнаты',
-        text: 'Станция Миди раскрывается там, где компактной модели уже мало: в гостиной, просторной кухне или общей комнате.',
-      },
-      {
-        title: 'Музыка и фильмы',
-        text: 'Более мощное звучание и глубокие басы помогают смотреть фильмы, слушать плейлисты и включать музыку для компании.',
-      },
-      {
-        title: 'Алиса для семьи',
-        text: 'Колонка помогает с напоминаниями, таймерами, погодой, вопросами и голосовым управлением без необходимости искать телефон.',
-      },
-      {
-        title: 'Умный дом',
-        text: 'Станция может стать заметной частью домашней системы: включать свет, управлять розетками и запускать привычные сценарии.',
-      },
-      {
-        title: 'Для вечеров дома',
-        text: 'Миди хорошо подходит для семейного использования, встреч и спокойных вечеров, когда звук должен заполнить пространство.',
-      },
-    ],
-    details: ['Мощный звук', 'Глубокие басы', 'Фильмы и музыка', 'Голосовое управление', 'Семейные сценарии', 'Умный дом'],
-    fits: ['Гостиная', 'Музыка', 'Фильмы', 'Семья'],
-    badge: 'музыка',
-    compare: ['Музыка', 'Мощный звук', 'Комната и фильмы', 'Семейные вечера'],
     aliases: ['миди', 'midi'],
     glow: 'rgba(120, 120, 160, .16)',
     wash: '#f3f4f7',
@@ -203,44 +91,14 @@ const PHOTO_MODELS = [
   },
   {
     id: 'street',
-    short: 'Стрит',
-    title: 'Станция Стрит',
-    line: 'Портативная Станция с аккумулятором, защитой от влаги и Bluetooth.',
-    description: 'Стрит создана для тех, кто хочет брать Алису и музыку с собой: из комнаты на балкон, во двор, в поездку или на пикник.',
-    sections: [
-      {
-        title: 'Музыка не только дома',
-        text: 'Станция Стрит работает от встроенного аккумулятора, поэтому её удобно переносить между комнатами, брать на дачу, к друзьям или на прогулку.',
-      },
-      {
-        title: 'Для отдыха и поездок',
-        text: 'Портативный формат подходит для пикников, поездок и вечеров на улице. Колонка остаётся самостоятельной, когда рядом нет привычного места у розетки.',
-      },
-      {
-        title: 'Алиса рядом',
-        text: 'Дома можно пользоваться привычными голосовыми командами: включать музыку, узнавать погоду, ставить таймеры и управлять сценариями.',
-      },
-      {
-        title: 'Bluetooth, когда нужен простой звук',
-        text: 'Если хочется быстро подключить телефон, Bluetooth помогает использовать колонку как портативную акустику.',
-      },
-      {
-        title: 'Защита от влаги',
-        text: 'Корпус рассчитан на использование вне дома, где бывают брызги, влажные поверхности и переменчивая погода.',
-      },
-    ],
-    details: ['Встроенный аккумулятор', 'Защита от влаги', 'Bluetooth', 'Музыка вне дома', 'Голосовое управление', 'Для поездок'],
-    fits: ['Пикник', 'Дача', 'Путешествия', 'Дом'],
-    badge: 'портативная',
-    compare: ['Портативность', 'Аккумулятор', 'Bluetooth', 'Дом и поездки'],
     aliases: ['стрит', 'street'],
     glow: 'rgba(190, 185, 130, .2)',
     wash: '#f4f1e8',
     photos: [
-      { name: 'Серый', photos: ['images/catalog/street/gray/01.webp'], aliases: ['сер', 'сереб'] },
-      { name: 'Фиолетовый', photos: ['images/catalog/street/violet/01.webp'], aliases: ['фиолет'] },
-      { name: 'Зелёный', photos: ['images/catalog/street/green/01.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
-      { name: 'Чёрный', photos: ['images/catalog/street/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
+      { colorKey: 'gray', photos: ['images/catalog/street/gray/01.webp'], aliases: ['сер', 'сереб'] },
+      { colorKey: 'violet', photos: ['images/catalog/street/violet/01.webp'], aliases: ['фиолет'] },
+      { colorKey: 'green', photos: ['images/catalog/street/green/01.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
+      { colorKey: 'black', photos: ['images/catalog/street/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
     ],
   },
 ];
@@ -269,19 +127,25 @@ function currentSelection() {
 
 function selectedStockText(photo) {
   const stock = Number(photo?.product?.stock) || 0;
-  return stock > 0 ? 'В наличии' : 'Наличие уточняется';
+  return stock > 0 ? dict('common.inStock') : dict('common.stockUnknown');
+}
+
+function modelText(model, key) {
+  return dict(`models.${model.id}.${key}`);
+}
+
+function colorName(photo) {
+  return dict(`colors.${photo?.colorKey || 'gray'}`);
 }
 
 function buildMessage(topicId = 'availability') {
   const { model, photo, price } = currentSelection();
-  const priceText = price ? money.format(price) : 'уточнить';
-  return [
-    'Здравствуйте!',
-    `Интересует ${model?.title || 'Яндекс Станция'}, ${String(photo?.name || 'выбранный цвет').toLowerCase()}.`,
-    `Цена: ${priceText}.`,
-    `Наличие: ${selectedStockText(photo)}.`,
-    'Подскажите, пожалуйста, актуально?',
-  ].join('\n');
+  return dict('contact.message')({
+    modelName: model ? modelText(model, 'title') : 'Yandex Station',
+    colorName: colorName(photo),
+    price: price ? money(price) : '-',
+    availability: selectedStockText(photo),
+  });
 }
 
 function contactUrl(channel, topicId) {
@@ -300,8 +164,11 @@ function isContactConfigured(channel) {
 }
 
 function setContactLinks(model) {
-  contactCta.setAttribute('aria-label', `Связаться по ${model.title}`);
-  topContact.setAttribute('aria-label', 'Связаться');
+  contactCta.setAttribute('aria-label', `${dict('common.contact')} ${modelText(model, 'title')}`);
+  topContact.setAttribute('aria-label', dict('contact.aria'));
+  contactPanel.setAttribute('aria-label', dict('contact.aria'));
+  contactClose.setAttribute('aria-label', dict('common.close'));
+  assistantClose.setAttribute('aria-label', dict('common.close'));
 }
 
 function matchesModel(product, model) {
@@ -386,13 +253,14 @@ function pickModel(preferredIds) {
 }
 
 function assistantScenarios() {
+  const scenarios = dict('assistant.scenarios');
   return [
-    { id: 'home', label: 'Для дома', modelIds: ['miniPro', 'midi', 'mini3', 'light2'], reason: 'Для дома рекомендую модель с запасом по голосовому управлению и сценариям умного дома. Если доступна Мини 3 Про, начните с неё.' },
-    { id: 'music', label: 'Для музыки', modelIds: ['midi', 'miniPro', 'street', 'light2'], reason: 'Для музыки нужна модель с более мощным звуком. Если Миди доступна, она хорошо подходит для комнаты, фильмов и ежедневного прослушивания.' },
-    { id: 'child', label: 'Для ребёнка', modelIds: ['light2', 'mini3'], reason: 'Для детской подойдёт Лайт 2: компактная, с часами, будильниками, сказками и понятным голосовым управлением.' },
-    { id: 'gift', label: 'В подарок', modelIds: ['light2', 'mini3'], reason: 'В подарок хорошо подходят Лайт 2 или Мини 3: понятный формат, приятный внешний вид и быстрый старт с Алисой.' },
-    { id: 'compare', label: 'Сравнить модели', modelIds: ['miniPro', 'mini3', 'light2'], reason: 'Сравнение покажет роли моделей: старт, ежедневное использование, умный дом, музыка или портативность.' },
-    { id: 'budget', label: 'Доступная по цене', modelIds: [], reason: 'По цене чаще всего стоит начать с Лайт 2: базовые функции Алисы, компактность и LED-дисплей без лишней сложности.' },
+    { id: 'home', modelIds: ['miniPro', 'midi', 'mini3', 'light2'], ...scenarios.home },
+    { id: 'music', modelIds: ['midi', 'miniPro', 'street', 'light2'], ...scenarios.music },
+    { id: 'child', modelIds: ['light2', 'mini3'], ...scenarios.child },
+    { id: 'gift', modelIds: ['light2', 'mini3'], ...scenarios.gift },
+    { id: 'compare', modelIds: ['miniPro', 'mini3', 'light2'], ...scenarios.compare },
+    { id: 'budget', modelIds: [], ...scenarios.budget },
   ];
 }
 
@@ -413,12 +281,12 @@ function showAssistantResult(scenarioId) {
   assistantResult.hidden = false;
   assistantResult.innerHTML = `
     <span class="assistant-choice">${scenario.label}</span>
-    <strong>Рекомендую: ${model.title}</strong>
+    <strong>${dict('assistant.recommend')} ${modelText(model, 'title')}</strong>
     <p>${scenario.reason}</p>
     <div class="assistant-result-actions">
-      <button type="button" data-show-model="${modelIndex}">Показать модель</button>
-      <button type="button" data-scenario="compare">Сравнить</button>
-      <button type="button" data-contact-topic="choose">Связаться</button>
+      <button type="button" data-show-model="${modelIndex}">${dict('common.showModel')}</button>
+      <button type="button" data-scenario="compare">${dict('common.compare')}</button>
+      <button type="button" data-contact-topic="choose">${dict('common.contact')}</button>
     </div>
   `;
 }
@@ -457,7 +325,7 @@ function renderHeroPhoto(photo, model) {
   const src = primaryPhoto(photo);
   const applyImage = () => {
     heroImage.src = src;
-    heroImage.alt = `${model.title}, ${photo.name}`;
+    heroImage.alt = `${modelText(model, 'title')}, ${colorName(photo)}`;
     heroImage.decoding = 'async';
   };
 
@@ -475,6 +343,25 @@ function renderHeroPhoto(photo, model) {
   }, 130);
 }
 
+function applyStaticTranslations() {
+  document.documentElement.lang = currentLang;
+  document.title = dict('meta.title');
+  document.querySelectorAll('[data-i18n]').forEach(node => {
+    node.textContent = dict(node.dataset.i18n);
+  });
+  assistantPanel.setAttribute('aria-label', dict('assistant.kicker'));
+  modelSwitcher.setAttribute('aria-label', dict('common.model'));
+  colorGallery.setAttribute('aria-label', 'Colors');
+}
+
+function renderLanguageSwitcher() {
+  languageSwitcher.innerHTML = LANGUAGES.map(lang => `
+    <button class="lang-btn ${lang === currentLang ? 'active' : ''}" type="button" data-lang="${lang}">
+      ${lang.toUpperCase()}
+    </button>
+  `).join('');
+}
+
 function render() {
   const model = models[activeModel];
   const photo = model.photos[activeColor] || model.photos[0];
@@ -482,34 +369,34 @@ function render() {
 
   showroom.style.setProperty('--glow', model.glow);
   showroom.style.setProperty('--wash', model.wash);
-  document.getElementById('model-title').textContent = model.title;
-  document.getElementById('model-line').textContent = model.line;
-  document.getElementById('model-price').textContent = money.format(price);
-  document.getElementById('details-title').textContent = model.title;
-  document.getElementById('details-summary').textContent = model.description;
+  document.getElementById('model-title').innerHTML = titleHtml(model);
+  document.getElementById('model-line').textContent = modelText(model, 'line');
+  document.getElementById('model-price').textContent = money(price);
+  document.getElementById('details-title').textContent = modelText(model, 'title');
+  document.getElementById('details-summary').textContent = modelText(model, 'description');
   renderHeroPhoto(photo, model);
   setContactLinks(model);
 
   modelSwitcher.innerHTML = models.map((item, index) => `
     <button class="model-btn ${index === activeModel ? 'active' : ''}" data-model="${index}" type="button">
-      ${item.short}
+      ${modelText(item, 'short')}
     </button>
   `).join('');
 
   colorGallery.innerHTML = model.photos.map((photoItem, index) => `
     <button class="thumb ${index === activeColor ? 'active' : ''}" data-color="${index}" type="button">
       <img src="${primaryPhoto(photoItem)}" alt="" loading="lazy" decoding="async" />
-      <span><strong>${photoItem.name}</strong><span>В наличии</span></span>
+      <span><strong>${colorName(photoItem)}</strong><span>${dict('common.inStock')}</span></span>
     </button>
   `).join('');
 
-  const sections = model.sections || [];
+  const sections = modelText(model, 'sections') || [];
   const sectionsHtml = sections.length ? `
     <div class="model-story">
       ${sections.map(section => `
         <article class="story-item">
-          <h3>${section.title}</h3>
-          <p>${section.text}</p>
+          <h3>${section[0]}</h3>
+          <p>${section[1]}</p>
         </article>
       `).join('')}
     </div>
@@ -518,46 +405,43 @@ function render() {
   detailsGrid.innerHTML = `
     ${sectionsHtml}
     <div class="detail-list">
-      ${model.details.map((detail, index) => `
+      ${modelText(model, 'details').map((detail, index) => `
     <div class="detail-item"><span class="detail-icon">${detailIcon(index)}</span><span>${detail}</span></div>
       `).join('')}
     </div>
     <div class="fit-list" aria-label="Кому подойдёт">
-      ${(model.fits || []).map(fit => `
+      ${(modelText(model, 'fits') || []).map(fit => `
         <div class="fit-item"><span>${fit}</span></div>
       `).join('')}
     </div>
     <div class="compare-block" aria-label="Сравнение моделей">
       <div class="compare-head">
-        <h3>Какую Станцию выбрать?</h3>
-        <p>Коротко о разнице между доступными моделями.</p>
+        <h3>${dict('sections.choose.title')}</h3>
+        <p>${dict('sections.choose.text')}</p>
       </div>
       <div class="compare-list">
         ${models.map((item, index) => `
           <button class="compare-card ${index === activeModel ? 'active' : ''}" type="button" data-compare-model="${index}">
-            <span class="compare-badge">${item.badge || 'модель'}</span>
-            <strong>${item.short}</strong>
-            ${(item.compare || []).map(text => `<span>${text}</span>`).join('')}
-            <em>${money.format(item.price)}</em>
+            <span class="compare-badge">${modelText(item, 'badge') || dict('common.model')}</span>
+            <strong>${modelText(item, 'short')}</strong>
+            ${(modelText(item, 'compare') || []).map(text => `<span>${text}</span>`).join('')}
+            <em>${money(item.price)}</em>
           </button>
         `).join('')}
       </div>
     </div>
-    <div class="trust-block" aria-label="Почему покупают у нас">
+    <div class="trust-block" aria-label="${dict('sections.trust.title')}">
       <div class="compare-head">
-        <h3>Почему выбирают нас</h3>
+        <h3>${dict('sections.trust.title')}</h3>
       </div>
       <div class="trust-list">
-        <div><strong>Консультация перед покупкой</strong><span>Подскажем, какая модель подойдёт под ваши задачи и бюджет.</span></div>
-        <div><strong>Настройка по договорённости</strong><span>Можем помочь с подключением Алисы и умного дома как отдельной услугой.</span></div>
-        <div><strong>Новые устройства</strong><span>Все Яндекс Станции продаются новыми, в заводской упаковке.</span></div>
-        <div><strong>Поддержка при нашей настройке</strong><span>Если настройку выполняем мы, поможем после подключения с вопросами по работе устройства.</span></div>
+        ${dict('sections.trust.items').map(item => `<div><strong>${item[0]}</strong><span>${item[1]}</span></div>`).join('')}
       </div>
     </div>
-    <div class="final-cta" aria-label="Остались вопросы">
+    <div class="final-cta" aria-label="${dict('sections.final.title')}">
       <div>
-        <h3>Остались вопросы?</h3>
-        <p>Напишите удобным способом. Подскажем по модели, цвету и актуальному наличию.</p>
+        <h3>${dict('sections.final.title')}</h3>
+        <p>${dict('sections.final.text')}</p>
       </div>
       <div class="final-actions">
         <a href="${contactUrl('whatsapp', 'question')}" target="_blank" rel="noopener">WhatsApp</a>
@@ -565,6 +449,12 @@ function render() {
       </div>
     </div>
   `;
+}
+
+function titleHtml(model) {
+  const title = modelText(model, 'title');
+  if (currentLang === 'ru') return title;
+  return title.replace(/^Station\s+/, 'Station<br>');
 }
 
 function applyUrlSelection() {
@@ -581,7 +471,7 @@ function applyUrlSelection() {
 
 async function loadCatalog() {
   try {
-    setState('Загружаем модели...');
+    setState(dict('state.loading'));
     const res = await fetch('/api/public/products');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -594,7 +484,7 @@ async function loadCatalog() {
       modelDetails.hidden = true;
       modelSwitcher.innerHTML = '';
       colorGallery.innerHTML = '';
-      setState('Сейчас нет доступных моделей с фотографиями.');
+      setState(dict('state.empty'));
       return;
     }
 
@@ -609,7 +499,7 @@ async function loadCatalog() {
     console.error('Catalog load error:', err);
     content.hidden = true;
     modelDetails.hidden = true;
-    setState('Не удалось загрузить модели. Попробуйте обновить страницу.');
+    setState(dict('state.error'));
   }
 }
 
@@ -689,6 +579,18 @@ assistantResult.addEventListener('click', event => {
   }
 });
 
+languageSwitcher.addEventListener('click', event => {
+  const btn = event.target.closest('[data-lang]');
+  if (!btn) return;
+  currentLang = btn.dataset.lang;
+  localStorage.setItem('catalogLanguage', currentLang);
+  applyStaticTranslations();
+  renderLanguageSwitcher();
+  if (models.length) render();
+  if (contactPanel.classList.contains('open')) renderContactPanel('question');
+  if (assistantPanel.classList.contains('open')) renderAssistant();
+});
+
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeOverlays();
 });
@@ -707,5 +609,7 @@ showroom.addEventListener('pointerleave', () => {
   heroImage.style.setProperty('--parallax-y', '0px');
 });
 
+applyStaticTranslations();
+renderLanguageSwitcher();
 loadCatalog();
 
