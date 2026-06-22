@@ -1,4 +1,4 @@
-const state = document.getElementById('catalog-state');
+﻿const state = document.getElementById('catalog-state');
 const content = document.getElementById('catalog-content');
 const showroom = document.getElementById('showroom');
 const modelDetails = document.getElementById('model-details');
@@ -8,6 +8,16 @@ const detailsGrid = document.getElementById('details-grid');
 const heroImage = document.getElementById('hero-image');
 const contactCta = document.getElementById('contact-cta');
 const topContact = document.getElementById('top-contact');
+const overlay = document.getElementById('overlay');
+const contactPanel = document.getElementById('contact-panel');
+const contactClose = document.getElementById('contact-close');
+const contactActions = document.getElementById('contact-actions');
+const questionActions = document.getElementById('question-actions');
+const assistantFab = document.getElementById('assistant-fab');
+const assistantPanel = document.getElementById('assistant-panel');
+const assistantClose = document.getElementById('assistant-close');
+const assistantOptions = document.getElementById('assistant-options');
+const assistantResult = document.getElementById('assistant-result');
 
 const money = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -15,7 +25,17 @@ const money = new Intl.NumberFormat('ru-RU', {
   maximumFractionDigits: 0,
 });
 
-const contactHref = '#';
+const CONTACT_CONFIG = {
+  whatsappPhone: '37126198525',
+  telegramUsername: '',
+};
+
+const CONTACT_TOPICS = [
+  { id: 'availability', label: 'Узнать наличие', text: 'Подскажите, пожалуйста, она ещё в наличии?' },
+  { id: 'choose', label: 'Помочь выбрать модель', text: 'Помогите, пожалуйста, подобрать подходящую модель.' },
+  { id: 'setup', label: 'Настройка устройства', text: 'Подскажите, пожалуйста, можно ли помочь с настройкой устройства?' },
+  { id: 'question', label: 'Задать вопрос', text: 'Хочу задать вопрос по этой модели.' },
+];
 
 const PHOTO_MODELS = [
   {
@@ -29,12 +49,12 @@ const PHOTO_MODELS = [
     glow: 'rgba(65, 178, 255, .18)',
     wash: '#f2f7fb',
     photos: [
-      { name: 'Голубой', photos: ['images/catalog/light-2/blue/01.png'], aliases: ['голуб'], transparent: true },
-      { name: 'Фиолетовый', photos: ['images/catalog/light-2/violet/01.png'], aliases: ['фиолет'], transparent: true },
-      { name: 'Зелёный', photos: ['images/catalog/light-2/green/01.png'], aliases: ['зелен', 'зелён'], transparent: true },
-      { name: 'Розовый', photos: ['images/catalog/light-2/pink/01.png'], aliases: ['розов'], transparent: true },
-      { name: 'Коралловый', photos: ['images/catalog/light-2/coral/01.png'], aliases: ['корал'], transparent: true },
-      { name: 'Чёрный', photos: ['images/catalog/light-2/black/01.png'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
+      { name: 'Голубой', photos: ['images/catalog/light-2/blue/01.webp'], aliases: ['голуб'], transparent: true },
+      { name: 'Фиолетовый', photos: ['images/catalog/light-2/violet/01.webp'], aliases: ['фиолет'], transparent: true },
+      { name: 'Зелёный', photos: ['images/catalog/light-2/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
+      { name: 'Розовый', photos: ['images/catalog/light-2/pink/01.webp'], aliases: ['розов'], transparent: true },
+      { name: 'Коралловый', photos: ['images/catalog/light-2/coral/01.webp'], aliases: ['корал'], transparent: true },
+      { name: 'Чёрный', photos: ['images/catalog/light-2/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
     ],
   },
   {
@@ -48,7 +68,7 @@ const PHOTO_MODELS = [
     glow: 'rgba(120, 160, 150, .18)',
     wash: '#f3f6f4',
     photos: [
-      { name: 'Серый', photos: ['images/catalog/mini-3/gray/01.png'], aliases: ['сер', 'сереб'], transparent: true },
+      { name: 'Серый', photos: ['images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
     ],
   },
   {
@@ -62,10 +82,10 @@ const PHOTO_MODELS = [
     glow: 'rgba(84, 139, 255, .16)',
     wash: '#f1f4f8',
     photos: [
-      { name: 'Зелёный', photos: ['images/catalog/mini-pro/green/01.png'], aliases: ['зелен', 'зелён'], transparent: true },
-      { name: 'Голубой', photos: ['images/catalog/mini-pro/blue/01.png'], aliases: ['голуб', 'син'], transparent: true },
-      { name: 'Серый', photos: ['images/catalog/mini-pro/gray/01.png'], aliases: ['сер', 'сереб'], transparent: true },
-      { name: 'Графит', photos: ['images/catalog/mini-pro/graphite/01.jfif'], aliases: ['черн', 'чёрн', 'графит'] },
+      { name: 'Зелёный', photos: ['images/catalog/mini-pro/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
+      { name: 'Голубой', photos: ['images/catalog/mini-pro/blue/01.webp'], aliases: ['голуб', 'син'], transparent: true },
+      { name: 'Серый', photos: ['images/catalog/mini-pro/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
+      { name: 'Графит', photos: ['images/catalog/mini-pro/graphite/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
     ],
   },
   {
@@ -79,10 +99,10 @@ const PHOTO_MODELS = [
     glow: 'rgba(190, 185, 130, .2)',
     wash: '#f4f1e8',
     photos: [
-      { name: 'Серый', photos: ['images/catalog/street/gray/01.jfif'], aliases: ['сер', 'сереб'] },
-      { name: 'Фиолетовый', photos: ['images/catalog/street/violet/01.jfif'], aliases: ['фиолет'] },
-      { name: 'Зелёный', photos: ['images/catalog/street/green/01.png'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
-      { name: 'Чёрный', photos: ['images/catalog/street/black/01.jfif'], aliases: ['черн', 'чёрн', 'графит'] },
+      { name: 'Серый', photos: ['images/catalog/street/gray/01.webp'], aliases: ['сер', 'сереб'] },
+      { name: 'Фиолетовый', photos: ['images/catalog/street/violet/01.webp'], aliases: ['фиолет'] },
+      { name: 'Зелёный', photos: ['images/catalog/street/green/01.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
+      { name: 'Чёрный', photos: ['images/catalog/street/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
     ],
   },
 ];
@@ -103,11 +123,46 @@ function setState(message) {
   state.textContent = message;
 }
 
+function currentSelection() {
+  const model = models[activeModel];
+  const photo = model?.photos[activeColor] || model?.photos[0];
+  return { model, photo, price: photo?.price || model?.price || 0 };
+}
+
+function selectedStockText(photo) {
+  const stock = Number(photo?.product?.stock) || 0;
+  return stock > 0 ? 'В наличии' : 'Наличие уточняется';
+}
+
+function buildMessage(topicId = 'availability') {
+  const { model, photo, price } = currentSelection();
+  const topic = CONTACT_TOPICS.find(item => item.id === topicId) || CONTACT_TOPICS[0];
+  const priceText = price ? money.format(price) : 'цену уточню';
+  return [
+    'Здравствуйте!',
+    `Интересует ${model?.title || 'Яндекс Станция'}, ${String(photo?.name || 'выбранный цвет').toLowerCase()} цвет.`,
+    `Цена на сайте: ${priceText}. ${selectedStockText(photo)}.`,
+    topic.text,
+  ].join('\n');
+}
+
+function contactUrl(channel, topicId) {
+  const message = encodeURIComponent(buildMessage(topicId));
+  if (channel === 'whatsapp' && CONTACT_CONFIG.whatsappPhone) {
+    return `https://wa.me/${CONTACT_CONFIG.whatsappPhone}?text=${message}`;
+  }
+  if (channel === 'telegram' && CONTACT_CONFIG.telegramUsername) {
+    return `https://t.me/${CONTACT_CONFIG.telegramUsername}`;
+  }
+  return '';
+}
+
+function isContactConfigured(channel) {
+  return channel === 'whatsapp' ? Boolean(CONTACT_CONFIG.whatsappPhone) : Boolean(CONTACT_CONFIG.telegramUsername);
+}
+
 function setContactLinks(model) {
-  const href = contactHref;
-  contactCta.href = href;
-  topContact.href = href;
-  contactCta.setAttribute('aria-label', `Уточнить ${model.title}`);
+  contactCta.setAttribute('aria-label', `Связаться по ${model.title}`);
   topContact.setAttribute('aria-label', 'Связаться');
 }
 
@@ -123,6 +178,117 @@ function matchesPhoto(product, photo) {
 
 function primaryPhoto(photo) {
   return photo.photos[0];
+}
+
+function detailIcon(index) {
+  const icons = [
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="4"/><path d="M9 9h6M9 15h6"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="3.25"/><circle cx="16" cy="8" r="3.25"/><circle cx="16" cy="16" r="3.25"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10.5V19h11v-8.5"/><path d="M10 19v-5h4v5"/></svg>',
+  ];
+  return icons[index % icons.length];
+}
+
+function channelIcon(channel) {
+  if (channel === 'whatsapp') {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.8 18.8 4.5 20l1.1-3.1A8 8 0 1 1 7.8 18.8Z"/><path d="M9.2 8.8c.2-.4.4-.4.7-.4h.5c.2 0 .4.1.5.4l.6 1.4c.1.3 0 .5-.2.7l-.4.5c.7 1.2 1.7 2.1 3 2.7l.5-.6c.2-.2.4-.3.7-.2l1.4.6c.3.1.4.3.4.6v.4c0 .4-.2.7-.6.9-.6.3-1.5.3-2.7-.1-2.5-.8-4.5-2.7-5.5-5.1-.4-1-.4-1.8 0-2.4Z"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 5-3.2 14.2c-.1.5-.7.7-1.1.4l-4.1-3-2 1.9c-.3.3-.8.1-.9-.3l-.6-3.8L4.4 13c-.6-.2-.6-1.1.1-1.4L19 4.2c.6-.3 1.2.2 1 1Z"/><path d="m8.2 14.3 8.4-6.2"/></svg>';
+}
+
+function openOverlay(panel) {
+  overlay.hidden = false;
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    panel.classList.add('open');
+    panel.setAttribute('aria-hidden', 'false');
+  });
+}
+
+function closeOverlays() {
+  overlay.classList.remove('open');
+  contactPanel.classList.remove('open');
+  assistantPanel.classList.remove('open');
+  contactPanel.setAttribute('aria-hidden', 'true');
+  assistantPanel.setAttribute('aria-hidden', 'true');
+  window.setTimeout(() => {
+    if (!contactPanel.classList.contains('open') && !assistantPanel.classList.contains('open')) {
+      overlay.hidden = true;
+    }
+  }, 220);
+}
+
+function openContactPanel(topicId = 'availability') {
+  renderContactPanel(topicId);
+  openOverlay(contactPanel);
+}
+
+function renderContactPanel(topicId = 'availability') {
+  const channels = [
+    { id: 'whatsapp', label: 'WhatsApp' },
+    { id: 'telegram', label: 'Telegram' },
+  ];
+
+  contactActions.innerHTML = channels.map(channel => {
+    const url = contactUrl(channel.id, topicId);
+    const disabled = !isContactConfigured(channel.id);
+    return `
+      <a class="channel-link ${disabled ? 'disabled' : ''}" data-channel="${channel.id}" data-topic="${topicId}" ${url ? `href="${url}" target="_blank" rel="noopener"` : 'aria-disabled="true" tabindex="-1"'}>
+        <span class="channel-icon">${channelIcon(channel.id)}</span>
+        <span>${channel.label}</span>
+      </a>
+    `;
+  }).join('');
+
+  questionActions.innerHTML = `
+    <div class="panel-divider"></div>
+    <p class="panel-kicker">Задать вопрос</p>
+    ${CONTACT_TOPICS.map(topic => `
+      <button class="question-chip ${topic.id === topicId ? 'active' : ''}" type="button" data-topic="${topic.id}">
+        ${topic.label}
+      </button>
+    `).join('')}
+    ${(!CONTACT_CONFIG.whatsappPhone || !CONTACT_CONFIG.telegramUsername) ? '<p class="config-note">Контакты подключаются в CONTACT_CONFIG.</p>' : ''}
+  `;
+}
+
+function pickModel(preferredIds) {
+  return preferredIds.map(id => models.find(model => model.id === id)).find(Boolean) || models[0];
+}
+
+function assistantScenarios() {
+  return [
+    { id: 'home', label: 'Для дома', modelIds: ['light2', 'mini3', 'miniPro'], reason: 'Для дома лучше взять компактную Станцию, которая хорошо смотрится в комнате и быстро отвечает на бытовые вопросы.' },
+    { id: 'music', label: 'Для музыки', modelIds: ['miniPro', 'street', 'light2'], reason: 'Для музыки лучше смотреть модель с более плотным звучанием и запасом громкости.' },
+    { id: 'child', label: 'Для ребёнка', modelIds: ['light2', 'mini3'], reason: 'Для ребёнка удобнее компактная модель с экраном и понятным управлением.' },
+    { id: 'gift', label: 'В подарок', modelIds: ['light2', 'miniPro', 'mini3'], reason: 'В подарок лучше работает универсальная модель: красивая, понятная и без сложного выбора.' },
+    { id: 'compare', label: 'Сравнить модели', modelIds: ['miniPro', 'light2', 'mini3'], reason: 'Сравнение лучше начинать с размера, звука и места, где будет стоять Станция.' },
+    { id: 'budget', label: 'Самая недорогая', modelIds: [], reason: 'Самый недорогой вариант сейчас лучше выбирать по актуальной цене и доступному цвету.' },
+  ];
+}
+
+function renderAssistant() {
+  assistantOptions.innerHTML = assistantScenarios().map(item => `
+    <button class="assistant-chip" type="button" data-scenario="${item.id}">${item.label}</button>
+  `).join('');
+}
+
+function showAssistantResult(scenarioId) {
+  const scenario = assistantScenarios().find(item => item.id === scenarioId) || assistantScenarios()[0];
+  const model = scenario.id === 'budget'
+    ? [...models].sort((a, b) => (a.price || 0) - (b.price || 0))[0]
+    : pickModel(scenario.modelIds);
+  const modelIndex = models.findIndex(item => item.id === model.id);
+  assistantResult.hidden = false;
+  assistantResult.innerHTML = `
+    <strong>${model.short}</strong>
+    <p>${scenario.reason}</p>
+    <div class="assistant-result-actions">
+      <button type="button" data-show-model="${modelIndex}">Показать</button>
+      <button type="button" data-scenario="compare">Сравнить</button>
+      <button type="button" data-contact-topic="choose">Связаться</button>
+    </div>
+  `;
 }
 
 function buildModels(publicProducts) {
@@ -167,8 +333,12 @@ function render() {
   document.getElementById('model-price').textContent = money.format(price);
   document.getElementById('details-title').textContent = model.title;
   document.getElementById('details-summary').textContent = model.description;
+  heroImage.style.animation = 'none';
+  void heroImage.offsetHeight;
+  heroImage.style.animation = '';
   heroImage.src = primaryPhoto(photo);
   heroImage.alt = `${model.title}, ${photo.name}`;
+  heroImage.decoding = 'async';
   setContactLinks(model);
 
   modelSwitcher.innerHTML = models.map((item, index) => `
@@ -179,13 +349,13 @@ function render() {
 
   colorGallery.innerHTML = model.photos.map((photoItem, index) => `
     <button class="thumb ${index === activeColor ? 'active' : ''}" data-color="${index}" type="button">
-      <img src="${primaryPhoto(photoItem)}" alt="" />
+      <img src="${primaryPhoto(photoItem)}" alt="" loading="lazy" decoding="async" />
       <span><strong>${photoItem.name}</strong><span>В наличии</span></span>
     </button>
   `).join('');
 
-  detailsGrid.innerHTML = model.details.map(detail => `
-    <div class="detail-item">${detail}</div>
+  detailsGrid.innerHTML = model.details.map((detail, index) => `
+    <div class="detail-item"><span class="detail-icon">${detailIcon(index)}</span><span>${detail}</span></div>
   `).join('');
 }
 
@@ -250,4 +420,61 @@ colorGallery.addEventListener('click', event => {
   render();
 });
 
+contactCta.addEventListener('click', () => openContactPanel('availability'));
+topContact.addEventListener('click', () => openContactPanel('question'));
+contactClose.addEventListener('click', closeOverlays);
+assistantClose.addEventListener('click', closeOverlays);
+overlay.addEventListener('click', closeOverlays);
+
+questionActions.addEventListener('click', event => {
+  const btn = event.target.closest('[data-topic]');
+  if (!btn) return;
+  renderContactPanel(btn.dataset.topic);
+});
+
+contactActions.addEventListener('click', event => {
+  const link = event.target.closest('[data-channel]');
+  if (!link || link.dataset.channel !== 'telegram' || !CONTACT_CONFIG.telegramUsername) return;
+  navigator.clipboard?.writeText(buildMessage(link.dataset.topic)).catch(() => {});
+});
+
+assistantFab.addEventListener('click', () => {
+  renderAssistant();
+  openOverlay(assistantPanel);
+});
+
+assistantOptions.addEventListener('click', event => {
+  const btn = event.target.closest('[data-scenario]');
+  if (!btn) return;
+  showAssistantResult(btn.dataset.scenario);
+});
+
+assistantResult.addEventListener('click', event => {
+  const modelBtn = event.target.closest('[data-show-model]');
+  const scenarioBtn = event.target.closest('[data-scenario]');
+  const contactBtn = event.target.closest('[data-contact-topic]');
+
+  if (modelBtn) {
+    activeModel = Number(modelBtn.dataset.showModel);
+    activeColor = 0;
+    render();
+    closeOverlays();
+    showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  if (scenarioBtn) {
+    showAssistantResult(scenarioBtn.dataset.scenario);
+  }
+
+  if (contactBtn) {
+    closeOverlays();
+    window.setTimeout(() => openContactPanel(contactBtn.dataset.contactTopic), 180);
+  }
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeOverlays();
+});
+
 loadCatalog();
+

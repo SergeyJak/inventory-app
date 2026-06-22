@@ -11,7 +11,7 @@
     <section class="showroom" id="showroom">
       <header class="site-header">
         <a href="catalog.html">Яндекс Станции</a>
-        <a href="#" class="contact-link" id="top-contact">Связаться</a>
+        <button class="contact-link" id="top-contact" type="button">Связаться</button>
       </header>
 
       <div id="catalog-state" class="catalog-state">Загружаем модели...</div>
@@ -23,7 +23,7 @@
           <p class="line" id="model-line"></p>
           <div class="buy">
             <div class="price" id="model-price"></div>
-            <a class="cta" href="#" id="contact-cta">Уточнить</a>
+            <button class="cta" id="contact-cta" type="button">Связаться</button>
           </div>
         </div>
 
@@ -45,6 +45,26 @@
       <div class="details-grid" id="details-grid" aria-label="Описание модели"></div>
     </section>
   </main>
+
+  <div class="overlay" id="overlay" hidden></div>
+
+  <aside class="contact-panel" id="contact-panel" aria-label="Связаться" aria-hidden="true">
+    <button class="panel-close" id="contact-close" type="button" aria-label="Закрыть"></button>
+    <p class="panel-kicker">Связаться</p>
+    <h2>Удобным способом</h2>
+    <div class="contact-actions" id="contact-actions"></div>
+    <div class="question-actions" id="question-actions"></div>
+  </aside>
+
+  <button class="assistant-fab" id="assistant-fab" type="button">Алиса поможет выбрать</button>
+
+  <aside class="assistant-panel" id="assistant-panel" aria-label="Помощник по выбору" aria-hidden="true">
+    <button class="panel-close" id="assistant-close" type="button" aria-label="Закрыть"></button>
+    <p class="panel-kicker">Помощник</p>
+    <h2>Помогу подобрать Яндекс Станцию.</h2>
+    <div class="assistant-options" id="assistant-options"></div>
+    <div class="assistant-result" id="assistant-result" hidden></div>
+  </aside>
 
   <script src="catalog.js"></script>
 </body>
