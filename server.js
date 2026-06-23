@@ -218,14 +218,20 @@ app.get(['/catalog.css', '/catalog.js', '/i18n.js', '/site.webmanifest', '/robot
 
 app.use('/icons', (req, res, next) => {
   if (isCatalogHost(req)) {
-    return express.static(path.join(__dirname, 'icons'))(req, res, next);
+    return express.static(path.join(__dirname, 'icons'), {
+      maxAge: '30d',
+      immutable: true,
+    })(req, res, next);
   }
   return next();
 });
 
 app.use('/images/catalog', (req, res, next) => {
   if (isCatalogHost(req)) {
-    return express.static(path.join(__dirname, 'images', 'catalog'))(req, res, next);
+    return express.static(path.join(__dirname, 'images', 'catalog'), {
+      maxAge: '30d',
+      immutable: true,
+    })(req, res, next);
   }
   return next();
 });
