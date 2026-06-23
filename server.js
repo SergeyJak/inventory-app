@@ -11,7 +11,7 @@ const PORT     = process.env.PORT || 3001;
 const DATA_DIR = path.join(__dirname, 'data');
 const USE_MONGO = !!process.env.MONGODB_URI;
 const INVENTORY_HOST = 'inv-app.up.railway.app';
-const CATALOG_HOST = 'heysmart.up.railway.app';
+const CATALOG_HOSTS = ['mysmart.up.railway.app', 'heysmart.up.railway.app'];
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -113,11 +113,13 @@ function publicProduct(product) {
 app.use(express.json({ limit: '10mb' }));
 
 function requestHost(req) {
-  return String(req.hostname || '').toLowerCase();
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const rawHost = forwardedHost || req.headers.host || req.hostname || '';
+  return String(rawHost).toLowerCase().replace(/:\d+$/, '');
 }
 
 function isCatalogHost(req) {
-  return requestHost(req) === CATALOG_HOST;
+  return CATALOG_HOSTS.includes(requestHost(req));
 }
 
 function isInventoryHost(req) {
@@ -133,6 +135,7 @@ function requireInventoryHost(req, res, next) {
 // Domain split for one Railway service:
 // - inv-app.up.railway.app keeps the existing Inventory App behavior.
 // - heysmart.up.railway.app exposes only the public catalog site and its safe assets.
+// - mysmart.up.railway.app is kept as a catalog alias.
 app.get('/', (req, res, next) => {
   if (isCatalogHost(req)) {
     return res.sendFile(path.join(__dirname, 'catalog.html'));
@@ -147,9 +150,16 @@ app.get('/catalog.html', (req, res, next) => {
   return next();
 });
 
-app.get(['/catalog.css', '/catalog.js', '/i18n.js'], (req, res, next) => {
+app.get(['/catalog.css', '/catalog.js', '/i18n.js', '/site.webmanifest', '/robots.txt', '/sitemap.xml', '/404.html', '/favicon.ico'], (req, res, next) => {
   if (isCatalogHost(req)) {
     return res.sendFile(path.join(__dirname, req.path.slice(1)));
+  }
+  return next();
+});
+
+app.use('/icons', (req, res, next) => {
+  if (isCatalogHost(req)) {
+    return express.static(path.join(__dirname, 'icons'))(req, res, next);
   }
   return next();
 });
@@ -167,7 +177,7 @@ app.use((req, res, next) => {
     (
       ['/index.html', '/app.js', '/style.css'].includes(req.path) ||
       req.path.startsWith('/data/') ||
-      req.path.startsWith('/images/')
+      (req.path.startsWith('/images/') && !req.path.startsWith('/images/catalog/'))
     )
   ) {
     return res.status(404).send('Not found');
@@ -184,6 +194,7 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
+  if (isCatalogHost(req)) return next();
   return requireInventoryHost(req, res, () => express.static(__dirname)(req, res, next));
 });
 
@@ -263,6 +274,14 @@ app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (re
 });
 
 // ── START ────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  if (isCatalogHost(req)) {
+    res.type('html');
+    return res.status(404).sendFile(path.join(__dirname, '404.html'));
+  }
+  next();
+});
+
 async function start() {
   if (USE_MONGO) await connectMongo();
   else console.log('📁  Using local JSON files (no MONGODB_URI set)');

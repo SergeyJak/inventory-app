@@ -6,6 +6,8 @@ const modelSwitcher = document.getElementById('model-switcher');
 const colorGallery = document.getElementById('color-gallery');
 const detailsGrid = document.getElementById('details-grid');
 const heroImage = document.getElementById('hero-image');
+const anglePrev = document.getElementById('angle-prev');
+const angleNext = document.getElementById('angle-next');
 const contactCta = document.getElementById('contact-cta');
 const topContact = document.getElementById('top-contact');
 const overlay = document.getElementById('overlay');
@@ -97,7 +99,7 @@ const PHOTO_MODELS = [
     photos: [
       { colorKey: 'gray', photos: ['images/catalog/street/gray/01.webp'], aliases: ['сер', 'сереб'] },
       { colorKey: 'violet', photos: ['images/catalog/street/violet/01.webp'], aliases: ['фиолет'] },
-      { colorKey: 'green', photos: ['images/catalog/street/green/01.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
+      { colorKey: 'green', photos: ['images/catalog/street/green/01.webp', 'images/catalog/street/green/02.webp', 'images/catalog/street/green/03.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
       { colorKey: 'black', photos: ['images/catalog/street/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
     ],
   },
@@ -106,6 +108,7 @@ const PHOTO_MODELS = [
 let models = [];
 let activeModel = 0;
 let activeColor = 0;
+let activeAngle = 0;
 
 function normalize(value) {
   return String(value || '')
@@ -141,7 +144,7 @@ function colorName(photo) {
 function buildMessage(topicId = 'availability') {
   const { model, photo, price } = currentSelection();
   return dict('contact.message')({
-    modelName: model ? modelText(model, 'title') : 'Yandex Station',
+    modelName: model ? modelText(model, 'title') : 'Station',
     colorName: colorName(photo),
     price: price ? money(price) : '-',
     availability: selectedStockText(photo),
@@ -165,7 +168,7 @@ function isContactConfigured(channel) {
 
 function setContactLinks(model) {
   contactCta.setAttribute('aria-label', `${dict('common.contact')} ${modelText(model, 'title')}`);
-  topContact.setAttribute('aria-label', dict('contact.aria'));
+  topContact.setAttribute('aria-label', dict('nav.consultation'));
   contactPanel.setAttribute('aria-label', dict('contact.aria'));
   contactClose.setAttribute('aria-label', dict('common.close'));
   assistantClose.setAttribute('aria-label', dict('common.close'));
@@ -182,7 +185,11 @@ function matchesPhoto(product, photo) {
 }
 
 function primaryPhoto(photo) {
-  return photo.photos[0];
+  return photo.photos[activeAngle] || photo.photos[0];
+}
+
+function photoAt(photo, index = 0) {
+  return photo.photos[index] || photo.photos[0];
 }
 
 function detailIcon(index) {
@@ -205,6 +212,7 @@ function openOverlay(panel) {
   overlay.hidden = false;
   requestAnimationFrame(() => {
     overlay.classList.add('open');
+    panel.inert = false;
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
   });
@@ -214,6 +222,8 @@ function closeOverlays() {
   overlay.classList.remove('open');
   contactPanel.classList.remove('open');
   assistantPanel.classList.remove('open');
+  contactPanel.inert = true;
+  assistantPanel.inert = true;
   contactPanel.setAttribute('aria-hidden', 'true');
   assistantPanel.setAttribute('aria-hidden', 'true');
   window.setTimeout(() => {
@@ -343,6 +353,20 @@ function renderHeroPhoto(photo, model) {
   }, 130);
 }
 
+function setAngleControls(photo) {
+  const hasAngles = (photo?.photos?.length || 0) > 1;
+  anglePrev.hidden = !hasAngles;
+  angleNext.hidden = !hasAngles;
+  heroImage.classList.toggle('has-angles', hasAngles);
+}
+
+function setActiveAngle(nextAngle) {
+  const { model, photo } = currentSelection();
+  if (!model || !photo || photo.photos.length < 2) return;
+  activeAngle = (nextAngle + photo.photos.length) % photo.photos.length;
+  renderHeroPhoto(photo, model);
+}
+
 function applyStaticTranslations() {
   document.documentElement.lang = currentLang;
   document.title = dict('meta.title');
@@ -350,13 +374,15 @@ function applyStaticTranslations() {
     node.textContent = dict(node.dataset.i18n);
   });
   assistantPanel.setAttribute('aria-label', dict('assistant.kicker'));
-  modelSwitcher.setAttribute('aria-label', dict('common.model'));
-  colorGallery.setAttribute('aria-label', 'Colors');
+  modelSwitcher.setAttribute('aria-label', dict('common.models'));
+  colorGallery.setAttribute('aria-label', dict('common.colors'));
+  detailsGrid.setAttribute('aria-label', dict('common.aboutModel'));
+  languageSwitcher.setAttribute('aria-label', dict('nav.lang'));
 }
 
 function renderLanguageSwitcher() {
   languageSwitcher.innerHTML = LANGUAGES.map(lang => `
-    <button class="lang-btn ${lang === currentLang ? 'active' : ''}" type="button" data-lang="${lang}">
+    <button class="lang-btn ${lang === currentLang ? 'active' : ''}" type="button" data-lang="${lang}" aria-pressed="${lang === currentLang}">
       ${lang.toUpperCase()}
     </button>
   `).join('');
@@ -378,17 +404,18 @@ function render() {
   document.getElementById('details-title').textContent = modelText(model, 'title');
   document.getElementById('details-summary').textContent = modelText(model, 'description');
   renderHeroPhoto(photo, model);
+  setAngleControls(photo);
   setContactLinks(model);
 
   modelSwitcher.innerHTML = models.map((item, index) => `
-    <button class="model-btn ${index === activeModel ? 'active' : ''}" data-model="${index}" type="button">
+    <button class="model-btn ${index === activeModel ? 'active' : ''}" data-model="${index}" type="button" aria-pressed="${index === activeModel}">
       ${modelText(item, 'short')}
     </button>
   `).join('');
 
   colorGallery.innerHTML = model.photos.map((photoItem, index) => `
-    <button class="thumb ${index === activeColor ? 'active' : ''}" data-color="${index}" type="button">
-      <img src="${primaryPhoto(photoItem)}" alt="" loading="lazy" decoding="async" />
+    <button class="thumb ${index === activeColor ? 'active' : ''}" data-color="${index}" type="button" aria-pressed="${index === activeColor}">
+      <img src="${photoAt(photoItem, 0)}" alt="" width="76" height="86" loading="lazy" decoding="async" />
       <span><strong>${colorName(photoItem)}</strong><span>${dict('common.inStock')}</span></span>
     </button>
   `).join('');
@@ -412,19 +439,19 @@ function render() {
     <div class="detail-item"><span class="detail-icon">${detailIcon(index)}</span><span>${detail}</span></div>
       `).join('')}
     </div>
-    <div class="fit-list" aria-label="Кому подойдёт">
+    <div class="fit-list" aria-label="${dict('common.fitFor')}">
       ${(modelText(model, 'fits') || []).map(fit => `
         <div class="fit-item"><span>${fit}</span></div>
       `).join('')}
     </div>
-    <div class="compare-block" aria-label="Сравнение моделей">
+    <div class="compare-block" aria-label="${dict('sections.choose.title')}">
       <div class="compare-head">
         <h3>${dict('sections.choose.title')}</h3>
         <p>${dict('sections.choose.text')}</p>
       </div>
       <div class="compare-list">
         ${models.map((item, index) => `
-          <button class="compare-card ${index === activeModel ? 'active' : ''}" type="button" data-compare-model="${index}">
+          <button class="compare-card ${index === activeModel ? 'active' : ''}" type="button" data-compare-model="${index}" aria-pressed="${index === activeModel}">
             <span class="compare-badge">${modelText(item, 'badge') || dict('common.model')}</span>
             <strong>${modelText(item, 'short')}</strong>
             ${(modelText(item, 'compare') || []).map(text => `<span>${text}</span>`).join('')}
@@ -447,8 +474,8 @@ function render() {
         <p>${dict('sections.final.text')}</p>
       </div>
       <div class="final-actions">
-        <a href="${contactUrl('whatsapp', 'question')}" target="_blank" rel="noopener">WhatsApp</a>
-        <a href="${contactUrl('telegram', 'question')}" target="_blank" rel="noopener">Telegram</a>
+        <a href="${contactUrl('whatsapp', 'question')}" target="_blank" rel="noopener" aria-label="WhatsApp">WhatsApp</a>
+        <a href="${contactUrl('telegram', 'question')}" target="_blank" rel="noopener" aria-label="Telegram">Telegram</a>
       </div>
     </div>
   `;
@@ -464,6 +491,7 @@ function applyUrlSelection() {
   if (Number.isInteger(colorIndex) && colorIndex >= 0) {
     activeColor = Math.min(colorIndex, models[activeModel].photos.length - 1);
   }
+  activeAngle = 0;
 }
 
 async function loadCatalog() {
@@ -487,6 +515,7 @@ async function loadCatalog() {
 
     activeModel = 0;
     activeColor = 0;
+    activeAngle = 0;
     applyUrlSelection();
     content.hidden = false;
     modelDetails.hidden = false;
@@ -505,6 +534,7 @@ modelSwitcher.addEventListener('click', event => {
   if (!btn) return;
   activeModel = Number(btn.dataset.model);
   activeColor = 0;
+  activeAngle = 0;
   render();
 });
 
@@ -512,6 +542,7 @@ colorGallery.addEventListener('click', event => {
   const btn = event.target.closest('[data-color]');
   if (!btn) return;
   activeColor = Number(btn.dataset.color);
+  activeAngle = 0;
   render();
 });
 
@@ -520,11 +551,21 @@ detailsGrid.addEventListener('click', event => {
   if (!btn) return;
   activeModel = Number(btn.dataset.compareModel);
   activeColor = 0;
+  activeAngle = 0;
   render();
   showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 contactCta.addEventListener('click', () => openContactPanel('availability'));
+heroImage.addEventListener('click', () => setActiveAngle(activeAngle + 1));
+anglePrev.addEventListener('click', event => {
+  event.stopPropagation();
+  setActiveAngle(activeAngle - 1);
+});
+angleNext.addEventListener('click', event => {
+  event.stopPropagation();
+  setActiveAngle(activeAngle + 1);
+});
 topContact.addEventListener('click', () => openContactPanel('question'));
 contactClose.addEventListener('click', closeOverlays);
 assistantClose.addEventListener('click', closeOverlays);
@@ -561,6 +602,7 @@ assistantResult.addEventListener('click', event => {
   if (modelBtn) {
     activeModel = Number(modelBtn.dataset.showModel);
     activeColor = 0;
+    activeAngle = 0;
     render();
     closeOverlays();
     showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });

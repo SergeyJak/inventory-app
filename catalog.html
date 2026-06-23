@@ -3,35 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title></title>
+  <title>Умная колонка | Станции с Алисой</title>
+  <meta name="description" content="Публичная витрина доступных умных колонок: модели, цвета, цены и быстрый способ связаться через WhatsApp или Telegram." />
+  <link rel="canonical" href="https://heysmart.up.railway.app/" />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://heysmart.up.railway.app/" />
+  <meta property="og:title" content="Умная колонка | Станции с Алисой" />
+  <meta property="og:description" content="Выберите подходящую умную колонку, цвет и удобный способ связи." />
+  <meta property="og:image" content="https://heysmart.up.railway.app/icons/icon-512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Умная колонка | Станции с Алисой" />
+  <meta name="twitter:description" content="Публичная витрина доступных умных колонок с ценами и быстрым контактом." />
+  <meta name="twitter:image" content="https://heysmart.up.railway.app/icons/icon-512.png" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="preload" href="catalog.css" as="style" />
   <link rel="stylesheet" href="catalog.css" />
 </head>
 <body>
   <main>
     <section class="showroom" id="showroom">
       <header class="site-header">
-        <a href="catalog.html" data-i18n="nav.brand"></a>
+        <a href="catalog.html" data-i18n="nav.brand">Умная колонка</a>
         <div class="header-actions">
-          <nav class="language-switcher" id="language-switcher" aria-label="Language"></nav>
-          <button class="contact-link" id="top-contact" type="button" data-i18n="nav.consultation"></button>
+          <nav class="language-switcher" id="language-switcher" aria-label="Язык">
+            <button class="lang-btn active" type="button" data-lang="ru" aria-pressed="true">RU</button>
+            <button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV</button>
+            <button class="lang-btn" type="button" data-lang="en" aria-pressed="false">EN</button>
+          </nav>
+          <button class="contact-link" id="top-contact" type="button" data-i18n="nav.consultation">Консультация</button>
         </div>
       </header>
 
       <div id="catalog-state" class="catalog-state"></div>
 
-      <div class="hero" id="catalog-content" hidden>
+      <div class="hero" id="catalog-content">
         <div class="copy">
-          <p class="eyebrow" data-i18n="common.selectedModel"></p>
-          <h1 id="model-title"></h1>
-          <p class="line" id="model-line"></p>
+          <p class="eyebrow" data-i18n="common.selectedModel">Выбрана модель</p>
+          <h1 id="model-title">Станция Лайт 2</h1>
+          <p class="line" id="model-line">Компактная умная колонка с Алисой, LED-дисплеем и управлением голосом.</p>
           <div class="buy">
-            <div class="price" id="model-price"></div>
-            <button class="cta" id="contact-cta" type="button" data-i18n="common.contact"></button>
+            <div class="price" id="model-price">90 €</div>
+            <button class="cta" id="contact-cta" type="button" data-i18n="common.contact">Связаться</button>
           </div>
         </div>
 
         <div class="hero-photo">
-          <img id="hero-image" alt="" />
+          <img id="hero-image" src="images/catalog/light-2/blue/01.webp" alt="Станция Лайт 2, голубой" width="900" height="700" fetchpriority="high" decoding="async" />
+          <button class="angle-btn angle-btn-prev" id="angle-prev" type="button" aria-label="Предыдущий ракурс"></button>
+          <button class="angle-btn angle-btn-next" id="angle-next" type="button" aria-label="Следующий ракурс"></button>
         </div>
       </div>
 
@@ -51,21 +75,21 @@
 
   <div class="overlay" id="overlay" hidden></div>
 
-  <aside class="contact-panel" id="contact-panel" aria-hidden="true">
+  <aside class="contact-panel" id="contact-panel" aria-hidden="true" inert>
     <button class="panel-close" id="contact-close" type="button"></button>
-    <p class="panel-kicker" data-i18n="contact.kicker"></p>
-    <h2 data-i18n="contact.title"></h2>
+    <p class="panel-kicker" data-i18n="contact.kicker">Связаться</p>
+    <h2 data-i18n="contact.title">Как вам удобнее связаться?</h2>
     <div class="contact-actions" id="contact-actions"></div>
     <div class="question-actions" id="question-actions"></div>
   </aside>
 
-  <button class="assistant-fab" id="assistant-fab" type="button" data-i18n="assistant.fab"></button>
+  <button class="assistant-fab" id="assistant-fab" type="button" data-i18n="assistant.fab">Алиса поможет выбрать</button>
 
-  <aside class="assistant-panel" id="assistant-panel" aria-hidden="true">
+  <aside class="assistant-panel" id="assistant-panel" aria-hidden="true" inert>
     <button class="panel-close" id="assistant-close" type="button"></button>
-    <p class="panel-kicker" data-i18n="assistant.kicker"></p>
-    <h2 data-i18n="assistant.title"></h2>
-    <p class="assistant-intro" data-i18n="assistant.intro"></p>
+    <p class="panel-kicker" data-i18n="assistant.kicker">Помощник</p>
+    <h2 data-i18n="assistant.title">Помогу подобрать умную колонку.</h2>
+    <p class="assistant-intro" data-i18n="assistant.intro">Подскажу подходящую модель по сценарию и покажу её в витрине.</p>
     <div class="assistant-options" id="assistant-options"></div>
     <div class="assistant-result" id="assistant-result" hidden></div>
   </aside>
