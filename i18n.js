@@ -69,6 +69,7 @@ window.catalogTranslations = {
       colorUnavailable: 'Такого цвета сейчас нет у выбранной модели. Могу показать доступные цвета в каталоге.',
       compareAnswer: 'Коротко: Лайт 2 — старт и детская, Мини 3 — баланс, Мини 3 Про — умный дом, Миди — музыка, Стрит — портативность.',
       alternativeLead: 'Ещё можно посмотреть',
+      colors: { blue: '\u0441\u0438\u043d\u0438\u0439', red: '\u043a\u0440\u0430\u0441\u043d\u044b\u0439', black: '\u0447\u0451\u0440\u043d\u044b\u0439', white: '\u0431\u0435\u043b\u044b\u0439', green: '\u0437\u0435\u043b\u0451\u043d\u044b\u0439', violet: '\u0444\u0438\u043e\u043b\u0435\u0442\u043e\u0432\u044b\u0439', beige: '\u0431\u0435\u0436\u0435\u0432\u044b\u0439', gray: '\u0441\u0435\u0440\u044b\u0439', pink: '\u0440\u043e\u0437\u043e\u0432\u044b\u0439', coral: '\u043a\u043e\u0440\u0430\u043b\u043b\u043e\u0432\u044b\u0439' },
     },
     sections: {
       choose: { title: 'Какую Станцию выбрать?', text: 'Коротко о разнице между доступными моделями.' },
@@ -237,6 +238,7 @@ window.catalogTranslations = {
       colorUnavailable: 'Šī krāsa pašlaik nav pieejama izvēlētajam modelim. Varu parādīt pieejamās krāsas katalogā.',
       compareAnswer: 'Īsi: Lite 2 — sākumam un bērnistabai, Mini 3 — balanss, Mini 3 Pro — viedā māja, Midi — mūzika, Street — pārnēsāšanai.',
       alternativeLead: 'Vēl var apskatīt',
+      colors: { blue: 'zila', red: 'sarkana', black: 'melna', white: 'balta', green: 'za\u013ca', violet: 'violeta', beige: 'b\u0113\u0161a', gray: 'pel\u0113ka', pink: 'roz\u0101', coral: 'kora\u013c\u013cu' },
     },
     sections: {
       choose: { title: 'Kuru Station izvēlēties?', text: 'Īsi par atšķirībām starp pieejamajiem modeļiem.' },
@@ -373,6 +375,7 @@ window.catalogTranslations = {
       colorUnavailable: 'This color is not currently available for the selected model. I can show the available colors in the catalog.',
       compareAnswer: 'In short: Lite 2 is for first use and kids, Mini 3 is balanced, Mini 3 Pro is for smart home, Midi is for music, Street is portable.',
       alternativeLead: 'Another option is',
+      colors: { blue: 'blue', red: 'red', black: 'black', white: 'white', green: 'green', violet: 'purple', beige: 'beige', gray: 'gray', pink: 'pink', coral: 'coral' },
     },
     sections: {
       choose: { title: 'Which Station should you choose?', text: 'A quick look at the differences between available models.' },

@@ -22,8 +22,10 @@ const words = {
   latviaTypo: ru(1083,1072,1090,1074,1080,1077),
   delivery: ru(1076,1086,1089,1090,1072,1074,1082,1072),
   setup: ru(1085,1072,1089,1090,1088,1086,1081,1082,1072),
-  unknown: ru(1087,1086,1095,1077,1084,1091,32,1085,1077,1073,1086,32,1079,1077,1083,1077,1085,1099,1081),
+  unknown: ru(1087,1086,1095,1077,1084,1091,32,1085,1077,1073,1086,32,1082,1074,1072,1076,1088,1072,1090,1085,1086,1077),
   blueQuestion: ru(1045,1089,1090,1100,32,1089,1080,1085,1103,1103,63),
+  redQuestion: ru(1045,1089,1090,1100,32,1082,1088,1072,1089,1085,1072,1103,63),
+  blackQuestion: ru(1045,1089,1090,1100,32,1095,1105,1088,1085,1072,1103,63),
   wantSpeaker: ru(1061,1086,1095,1091,32,1082,1086,1083,1086,1085,1082,1091),
   budget100: ru(1044,1086,32,49,48,48,32,1077,1074,1088,1086),
 };
@@ -33,8 +35,9 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync('assistant-engine.js', 'utf8'), context);
 
 const models = [
-  { id: 'light2', price: 90, aliases: ['light 2', 'lite 2', ru(1083,1072,1081,1090,32,50)], photos: [{ colorKey: 'blue' }] },
+  { id: 'light2', price: 90, aliases: ['light 2', 'lite 2', ru(1083,1072,1081,1090,32,50)], photos: [{ colorKey: 'blue' }, { colorKey: 'black' }] },
   { id: 'mini3', price: 140, aliases: ['mini 3', ru(1084,1080,1085,1080,32,51)], photos: [{ colorKey: 'gray' }] },
+  { id: 'miniPro', price: 160, aliases: ['mini 3 pro', 'mini pro', ru(1084,1080,1085,1080,32,51,32,1087,1088,1086)], photos: [{ colorKey: 'green' }, { colorKey: 'blue' }, { colorKey: 'gray' }] },
   { id: 'midi', price: 180, aliases: ['midi', ru(1084,1080,1076,1080)], photos: [{ colorKey: 'gray' }] },
   { id: 'street', price: 160, aliases: ['street', ru(1089,1090,1088,1080,1090)], photos: [{ colorKey: 'green' }] },
 ];
@@ -43,18 +46,21 @@ const modelCopy = {
   ru: {
     light2: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1051,1072,1081,1090,32,50), short: ru(1051,1072,1081,1090,32,50), line: ru(1050,1086,1084,1087,1072,1082,1090,1085,1072,1103,32,1084,1086,1076,1077,1083,1100) },
     mini3: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1052,1080,1085,1080,32,51), short: ru(1052,1080,1085,1080,32,51), line: ru(1041,1072,1083,1072,1085,1089,32,1088,1072,1079,1084,1077,1088,1072,32,1080,32,1079,1074,1091,1082,1072) },
+    miniPro: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1052,1080,1085,1080,32,51,32,1055,1088,1086), short: ru(1052,1080,1085,1080,32,51,32,1055,1088,1086), line: ru(1062,1077,1085,1090,1088,32,1091,1084,1085,1086,1075,1086,32,1076,1086,1084,1072) },
     midi: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1052,1080,1076,1080), short: ru(1052,1080,1076,1080), line: ru(1044,1083,1103,32,1084,1091,1079,1099,1082,1080,32,1080,32,1092,1080,1083,1100,1084,1086,1074) },
     street: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1057,1090,1088,1080,1090), short: ru(1057,1090,1088,1080,1090), line: ru(1055,1086,1088,1090,1072,1090,1080,1074,1085,1072,1103,32,1084,1086,1076,1077,1083,1100) },
   },
   en: {
     light2: { title: 'Station Lite 2', short: 'Lite 2', line: 'Compact first Station.' },
     mini3: { title: 'Station Mini 3', short: 'Mini 3', line: 'Balanced daily model.' },
+    miniPro: { title: 'Station Mini 3 Pro', short: 'Mini 3 Pro', line: 'Smart home center.' },
     midi: { title: 'Station Midi', short: 'Midi', line: 'For music and movies.' },
     street: { title: 'Station Street', short: 'Street', line: 'Portable model.' },
   },
   lv: {
     light2: { title: 'Station Lite 2', short: 'Lite 2', line: 'Kompakts sākums.' },
     mini3: { title: 'Station Mini 3', short: 'Mini 3', line: 'Līdzsvarots ikdienai.' },
+    miniPro: { title: 'Station Mini 3 Pro', short: 'Mini 3 Pro', line: 'Viedās mājas centrs.' },
     midi: { title: 'Station Midi', short: 'Midi', line: 'Mūzikai un filmām.' },
     street: { title: 'Station Street', short: 'Street', line: 'Pārnēsājams modelis.' },
   },
@@ -82,6 +88,14 @@ const translationSets = {
     'assistantV2.colorUnavailable': 'Такого цвета сейчас нет у выбранной модели.',
     'assistantV2.compareAnswer': 'Лайт 2 — старт, Мини 3 — баланс, Миди — музыка.',
     'assistantV2.alternativeLead': 'Ещё можно посмотреть',
+    'assistantV2.colors.blue': 'синий',
+    'assistantV2.colors.red': 'красный',
+    'assistantV2.colors.black': 'чёрный',
+    'assistantV2.colors.white': 'белый',
+    'assistantV2.colors.green': 'зелёный',
+    'assistantV2.colors.violet': 'фиолетовый',
+    'assistantV2.colors.beige': 'бежевый',
+    'assistantV2.colors.gray': 'серый',
     'faq.fallback': 'Я пока не нашёл точный ответ.',
   },
   en: {
@@ -105,6 +119,14 @@ const translationSets = {
     'assistantV2.colorUnavailable': 'This color is not currently available.',
     'assistantV2.compareAnswer': 'Lite 2 is first, Mini 3 is balanced, Midi is music.',
     'assistantV2.alternativeLead': 'Another option is',
+    'assistantV2.colors.blue': 'blue',
+    'assistantV2.colors.red': 'red',
+    'assistantV2.colors.black': 'black',
+    'assistantV2.colors.white': 'white',
+    'assistantV2.colors.green': 'green',
+    'assistantV2.colors.violet': 'purple',
+    'assistantV2.colors.beige': 'beige',
+    'assistantV2.colors.gray': 'gray',
     'faq.fallback': 'I have not found an exact answer yet.',
   },
   lv: {
@@ -128,6 +150,14 @@ const translationSets = {
     'assistantV2.colorUnavailable': 'Šī krāsa pašlaik nav pieejama.',
     'assistantV2.compareAnswer': 'Lite 2 ir sākumam, Mini 3 balansam, Midi mūzikai.',
     'assistantV2.alternativeLead': 'Vēl var apskatīt',
+    'assistantV2.colors.blue': 'zila',
+    'assistantV2.colors.red': 'sarkana',
+    'assistantV2.colors.black': 'melna',
+    'assistantV2.colors.white': 'balta',
+    'assistantV2.colors.green': 'zaļa',
+    'assistantV2.colors.violet': 'violeta',
+    'assistantV2.colors.beige': 'bēša',
+    'assistantV2.colors.gray': 'pelēka',
     'faq.fallback': 'Es vēl neatradu precīzu atbildi.',
   },
 };
@@ -175,6 +205,16 @@ function assertNotFallback(response, lang = 'ru', label = 'response') {
 
 function assertAction(response, id, label = 'response') {
   assert(response.actions?.some(action => action.id === id), `${label} missing action ${id}`);
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zа-я0-9]+/g, ' ')
+    .trim();
 }
 
 function showProductAction(response, label = 'response') {
@@ -300,13 +340,34 @@ function testNavigationActionIncludesModelAndColor() {
   assert.strictEqual(show.colorKey, null);
 }
 
+function testColorIntentKnownUnavailableAndAvailable() {
+  const cases = [
+    { lang: 'ru', input: words.blueQuestion, type: 'color', modelId: undefined },
+    { lang: 'ru', input: words.redQuestion, type: 'color_unavailable', includes: ru(1082,1088,1072,1089,1085) },
+    { lang: 'ru', before: 'Mini 3 Pro', input: words.redQuestion, type: 'color_unavailable', modelId: 'miniPro', includes: ru(1082,1088,1072,1089,1085) },
+    { lang: 'ru', input: words.blackQuestion, type: 'color', modelId: undefined },
+    { lang: 'en', input: 'Is there red?', type: 'color_unavailable', includes: 'red' },
+    { lang: 'lv', input: 'Vai ir sarkana?', type: 'color_unavailable', includes: 'sarkana' },
+  ];
+  for (const item of cases) {
+    const engine = createEngine(item.lang);
+    if (item.before) engine.handle(item.before);
+    const response = engine.handle(item.input);
+    assertNormal(response, item.lang, item.input);
+    assert.strictEqual(response.type, item.type, item.input);
+    if (item.modelId) assert.strictEqual(response.modelId, item.modelId, item.input);
+    if (item.includes) assert(normalizeText(response.text).includes(normalizeText(item.includes)), `${item.input} should mention ${item.includes}`);
+    if (response.type === 'color') assertAction(response, 'show_product', item.input);
+  }
+}
+
 function testRequiredRegressionFlow() {
   const engine = createEngine('ru');
   const steps = [
     [words.childScenario, 'light2'],
     [words.cheaper, 'light2'],
     [words.musicSwitch, 'midi'],
-    [words.homeScenario, 'mini3'],
+    [words.homeScenario, 'miniPro'],
     ['Midi', 'midi'],
     [words.another, 'light2'],
     [words.back, 'midi'],
@@ -352,10 +413,10 @@ function testGoldenConversationsAndIntentCoverage() {
 
   runDialog('B', 'ru', [
     { input: words.wantSpeaker, type: 'clarify' },
-    { input: words.homeScenario, intent: 'home', scenario: 'home', modelId: 'mini3', showProduct: true },
+    { input: words.homeScenario, intent: 'home', scenario: 'home', modelId: 'miniPro', showProduct: true },
     { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
-    { input: words.back, intent: 'back', modelId: 'mini3' },
-    { input: words.showProduct, intent: 'show_product', expectShowProductModelId: 'mini3' },
+    { input: words.back, intent: 'back', modelId: 'miniPro' },
+    { input: words.showProduct, intent: 'show_product', expectShowProductModelId: 'miniPro' },
   ], coverage);
 
   runDialog('C', 'ru', [
@@ -385,16 +446,16 @@ function testGoldenConversationsAndIntentCoverage() {
   ], coverage);
 
   runDialog('G', 'ru', [
-    { input: words.homeScenario, intent: 'home', modelId: 'mini3', showProduct: true },
+    { input: words.homeScenario, intent: 'home', modelId: 'miniPro', showProduct: true },
     { input: 'Light 2', intent: 'model', modelId: 'light2', showProduct: true },
     { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
     { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
   ], coverage);
 
   runDialog('H', 'en', [
-    { input: 'For home', intent: 'home', scenario: 'home', modelId: 'mini3', showProduct: true },
+    { input: 'For home', intent: 'home', scenario: 'home', modelId: 'miniPro', showProduct: true },
     { input: 'Another option', intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
-    { input: 'Back', intent: 'back', modelId: 'mini3' },
+    { input: 'Back', intent: 'back', modelId: 'miniPro' },
   ], coverage);
 
   runDialog('I', 'lv', [
@@ -437,6 +498,7 @@ testFallbackUnknown();
 testAlternativeDoesNotRepeatCurrentModel();
 testBackReturnsPreviousState();
 testNavigationActionIncludesModelAndColor();
+testColorIntentKnownUnavailableAndAvailable();
 testRequiredRegressionFlow();
 testLanguages();
 testGoldenConversationsAndIntentCoverage();

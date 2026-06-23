@@ -116,6 +116,7 @@ let activeAngle = 0;
 let faqItems = [];
 let assistantEngine = null;
 let keyboardMeasureTimer = null;
+let assistantKeyboardModeTimer = null;
 
 function isMobileViewport() {
   return window.matchMedia('(max-width: 900px)').matches;
@@ -243,19 +244,37 @@ function openOverlay(panel) {
 function updateAssistantKeyboardOffset() {
   if (!isMobileViewport() || !assistantPanel.classList.contains('open') || document.activeElement !== faqInput) {
     document.body.style.setProperty('--keyboard-offset', '0px');
+    document.body.style.setProperty('--assistant-visible-height', '100svh');
     return;
   }
   const viewport = window.visualViewport;
-  const safeGap = Number.parseFloat(getComputedStyle(document.body).getPropertyValue('--keyboard-safe-gap')) || 16;
   const viewportBottom = viewport
     ? viewport.offsetTop + viewport.height
     : window.innerHeight;
-  const rawOffset = Math.max(0, window.innerHeight - viewportBottom + safeGap);
+  const rawOffset = Math.max(0, window.innerHeight - viewportBottom);
   const offset = Math.min(Math.round(rawOffset), Math.round(window.innerHeight * 0.62));
   document.body.style.setProperty('--keyboard-offset', `${offset}px`);
+  document.body.style.setProperty('--assistant-visible-height', `${Math.round(viewport?.height || window.innerHeight)}px`);
   window.setTimeout(() => {
-    faqForm.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion.matches ? 'auto' : 'smooth' });
+    faqMessages.scrollTop = faqMessages.scrollHeight;
   }, 40);
+}
+
+function setAssistantKeyboardMode(enabled) {
+  window.clearTimeout(assistantKeyboardModeTimer);
+  if (enabled && isMobileViewport() && assistantPanel.classList.contains('open')) {
+    assistantPanel.classList.add('keyboard-mode');
+    scheduleAssistantKeyboardUpdate();
+    return;
+  }
+  assistantKeyboardModeTimer = window.setTimeout(() => {
+    if (document.activeElement === faqInput) return;
+    assistantPanel.classList.remove('keyboard-mode');
+    if (!assistantPanel.classList.contains('has-dialog')) {
+      assistantPanel.classList.remove('chat-mode');
+    }
+    scheduleAssistantKeyboardUpdate();
+  }, 140);
 }
 
 function scheduleAssistantKeyboardUpdate() {
@@ -268,10 +287,13 @@ function scheduleAssistantKeyboardUpdate() {
 function closeOverlays() {
   const assistantWasOpen = assistantPanel.classList.contains('open');
   window.clearTimeout(keyboardMeasureTimer);
+  window.clearTimeout(assistantKeyboardModeTimer);
   document.body.style.setProperty('--keyboard-offset', '0px');
+  document.body.style.setProperty('--assistant-visible-height', '100svh');
   overlay.classList.remove('open');
   contactPanel.classList.remove('open');
   assistantPanel.classList.remove('open');
+  assistantPanel.classList.remove('keyboard-mode');
   contactPanel.inert = true;
   assistantPanel.inert = true;
   contactPanel.setAttribute('aria-hidden', 'true');
@@ -335,6 +357,7 @@ function assistantScenarios() {
 
 function renderAssistant() {
   assistantEngine = createAssistantEngine();
+  assistantPanel.classList.remove('keyboard-mode', 'chat-mode', 'has-dialog');
   assistantOptions.classList.remove('is-collapsed');
   assistantOptions.innerHTML = assistantScenarios().map(item => `
     <button class="assistant-chip" type="button" data-scenario="${item.id}">${item.label}</button>
@@ -345,6 +368,7 @@ function renderAssistant() {
 }
 
 function collapseAssistantPrompts() {
+  assistantPanel.classList.add('chat-mode', 'has-dialog');
   assistantOptions.classList.add('is-collapsed');
   faqQuick.classList.add('is-collapsed');
   window.setTimeout(() => {
@@ -869,10 +893,12 @@ assistantFab.addEventListener('click', () => {
   renderAssistant();
   openOverlay(assistantPanel);
   trackAssistantEvent('assistant_open');
-  window.setTimeout(() => {
-    faqInput.focus({ preventScroll: true });
-    scheduleAssistantKeyboardUpdate();
-  }, 120);
+  if (!isMobileViewport()) {
+    window.setTimeout(() => {
+      faqInput.focus({ preventScroll: true });
+      scheduleAssistantKeyboardUpdate();
+    }, 120);
+  }
 });
 
 assistantOptions.addEventListener('click', event => {
@@ -936,9 +962,9 @@ faqForm.addEventListener('submit', event => {
   scheduleAssistantKeyboardUpdate();
 });
 
-faqInput.addEventListener('focus', scheduleAssistantKeyboardUpdate);
+faqInput.addEventListener('focus', () => setAssistantKeyboardMode(true));
 faqInput.addEventListener('blur', () => {
-  window.setTimeout(scheduleAssistantKeyboardUpdate, 120);
+  setAssistantKeyboardMode(false);
 });
 
 window.visualViewport?.addEventListener('resize', scheduleAssistantKeyboardUpdate);

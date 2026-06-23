@@ -21,6 +21,13 @@
     ['gray', ['серая', 'серый', 'gray', 'grey', 'pelēka', 'peleka']],
   ];
 
+  COLOR_MAP.push(
+    ['red', ['red', 'sarkana']],
+    ['white', ['white', 'balta']],
+    ['violet', ['purple', 'violeta']],
+    ['beige', ['beige', 'bД“ЕЎa', 'besa']]
+  );
+
   const ru = (...codes) => String.fromCharCode(...codes);
   SYNONYMS.station.push(
     ru(1082,1086,1083,1086,1085,1082),
@@ -80,6 +87,10 @@
   COLOR_MAP[3][1].push(ru(1082,1086,1088,1072,1083,1083,1086,1074,1072,1103), ru(1082,1086,1088,1072,1083,1083,1086,1074,1099,1081));
   COLOR_MAP[4][1].push(ru(1095,1077,1088,1085,1072,1103), ru(1095,1077,1088,1085,1099,1081), ru(1095,1105,1088,1085,1072,1103), ru(1095,1105,1088,1085,1099,1081));
   COLOR_MAP[5][1].push(ru(1089,1077,1088,1072,1103), ru(1089,1077,1088,1099,1081));
+  COLOR_MAP.find(([key]) => key === 'red')[1].push(ru(1082,1088,1072,1089,1085,1072,1103), ru(1082,1088,1072,1089,1085,1099,1081));
+  COLOR_MAP.find(([key]) => key === 'white')[1].push(ru(1073,1077,1083,1072,1103), ru(1073,1077,1083,1099,1081));
+  COLOR_MAP.find(([key]) => key === 'violet')[1].push(ru(1092,1080,1086,1083,1077,1090,1086,1074,1072,1103), ru(1092,1080,1086,1083,1077,1090,1086,1074,1099,1081));
+  COLOR_MAP.find(([key]) => key === 'beige')[1].push(ru(1073,1077,1078,1077,1074,1072,1103), ru(1073,1077,1078,1077,1074,1099,1081));
 
   function normalize(value) {
     return String(value || '')
@@ -145,13 +156,11 @@
 
     function detectModel(input) {
       const normalized = normalize(input);
-      return options.models().find(model => {
-        const aliases = [model.id, ...(model.aliases || []), options.modelText(model, 'title'), options.modelText(model, 'short')];
-        return aliases.some(alias => {
-          const candidate = normalize(alias);
-          return candidate && (normalized === candidate || normalized.includes(candidate));
-        });
-      }) || null;
+      return options.models()
+        .flatMap(model => [model.id, ...(model.aliases || []), options.modelText(model, 'title'), options.modelText(model, 'short')]
+          .map(alias => ({ model, candidate: normalize(alias) })))
+        .filter(item => item.candidate && (normalized === item.candidate || normalized.includes(item.candidate)))
+        .sort((a, b) => b.candidate.length - a.candidate.length)[0]?.model || null;
     }
 
     function pushResponse(response) {
@@ -229,6 +238,71 @@
 
     function modelHasColor(model, colorKey) {
       return model?.photos?.some(photo => photo.colorKey === colorKey);
+    }
+
+    function modelsWithColor(colorKey) {
+      return options.models().filter(model => modelHasColor(model, colorKey));
+    }
+
+    function colorLabel(colorKey) {
+      const translationKey = `assistantV2.colors.${colorKey}`;
+      const translated = options.t(translationKey);
+      if (translated && translated !== translationKey) return translated;
+      return {
+        blue: ru(1089,1080,1085,1080,1081),
+        red: ru(1082,1088,1072,1089,1085,1099,1081),
+        black: ru(1095,1105,1088,1085,1099,1081),
+        white: ru(1073,1077,1083,1099,1081),
+        green: ru(1079,1077,1083,1105,1085,1099,1081),
+        violet: ru(1092,1080,1086,1083,1077,1090,1086,1074,1099,1081),
+        beige: ru(1073,1077,1078,1077,1074,1099,1081),
+        gray: ru(1089,1077,1088,1099,1081),
+        pink: ru(1088,1086,1079,1086,1074,1099,1081),
+        coral: ru(1082,1086,1088,1072,1083,1083,1086,1074,1099,1081),
+      }[colorKey] || colorKey;
+    }
+
+    function modelColorList(model) {
+      const colors = (model?.photos || []).map(photo => colorLabel(photo.colorKey));
+      return colors.length ? colors.join(', ') : '';
+    }
+
+    function colorResponse(colorKey) {
+      const selected = modelById(context.lastModelId);
+      if (selected) {
+        const hasColor = modelHasColor(selected, colorKey);
+        return pushResponse({
+          type: hasColor ? 'color' : 'color_unavailable',
+          text: hasColor
+            ? `${options.t('assistantV2.colorAvailable')} ${options.modelText(selected, 'title')}.`
+            : `Сейчас ${colorLabel(colorKey)} цвет недоступен для ${options.modelText(selected, 'title')}. Доступные цвета: ${modelColorList(selected)}.`,
+          modelId: selected.id,
+          colorKey,
+          actions: hasColor ? recommendationActions(selected) : [{ id: 'back', label: options.t('assistantV2.back') }],
+        });
+      }
+
+      const matches = modelsWithColor(colorKey);
+      if (matches.length) {
+        context.color = colorKey;
+        const first = matches[0];
+        context.lastModelId = first.id;
+        context.alternatives = matches.slice(1).map(model => model.id);
+        return pushResponse({
+          type: 'color',
+          text: `${options.t('assistantV2.colorAvailable')}: ${matches.map(model => options.modelText(model, 'title')).join(', ')}.`,
+          modelId: first.id,
+          colorKey,
+          actions: recommendationActions(first),
+        });
+      }
+
+      return pushResponse({
+        type: 'color_unavailable',
+        text: `Сейчас ${colorLabel(colorKey)} цвета в каталоге нет. Могу показать доступные цвета.`,
+        colorKey,
+        actions: [{ id: 'back', label: options.t('assistantV2.back') }],
+      });
     }
 
     function modelResponse(model) {
@@ -335,19 +409,7 @@
         });
       }
 
-      if (color && context.lastModelId) {
-        const selected = modelById(context.lastModelId);
-        const hasColor = modelHasColor(selected, color);
-        return pushResponse({
-          type: hasColor ? 'color' : 'fallback',
-          text: hasColor
-            ? `${options.t('assistantV2.colorAvailable')} ${options.modelText(selected, 'title')}.`
-            : options.t('assistantV2.colorUnavailable'),
-          modelId: selected?.id,
-          colorKey: color,
-          actions: hasColor ? recommendationActions(selected) : [{ id: 'back', label: options.t('assistantV2.back') }],
-        });
-      }
+      if (color) return colorResponse(color);
 
       if (hasAny(input, SYNONYMS.compare)) return compareResponse();
       if (hasAny(input, SYNONYMS.station) && normalize(input).split(' ').length <= 3) return clarify();

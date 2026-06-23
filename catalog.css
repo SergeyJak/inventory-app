@@ -1624,8 +1624,118 @@ h1 {
     overscroll-behavior: contain;
   }
 
+  .assistant-panel:not(.chat-mode):not(.keyboard-mode) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .assistant-panel:not(.chat-mode):not(.keyboard-mode) .assistant-options,
+  .assistant-panel:not(.chat-mode):not(.keyboard-mode) .faq-quick {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .assistant-panel:not(.chat-mode):not(.keyboard-mode) .faq-consultant {
+    overflow: visible;
+  }
+
+  .assistant-panel:not(.chat-mode):not(.keyboard-mode) .faq-messages {
+    max-height: none;
+  }
+
+  .assistant-panel .assistant-chip,
+  .assistant-panel .faq-chip,
+  .assistant-panel .assistant-action {
+    white-space: normal;
+    line-height: 1.2;
+    text-align: left;
+  }
+
+  .assistant-panel .assistant-chip,
+  .assistant-panel .faq-chip {
+    min-height: 42px;
+    padding-block: 9px;
+  }
+
+  .assistant-panel .assistant-action {
+    min-height: 36px;
+    padding-block: 8px;
+  }
+
+  .assistant-panel.chat-mode,
+  .assistant-panel.keyboard-mode {
+    left: 8px;
+    right: 8px;
+    top: max(8px, env(safe-area-inset-top, 0px));
+    bottom: calc(12px + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: none;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    border-radius: 24px;
+    overflow: hidden;
+  }
+
+  .assistant-panel.chat-mode:not(.keyboard-mode) {
+    top: auto;
+    bottom: 10px;
+    max-height: calc(100svh - 20px);
+  }
+
+  .assistant-panel.chat-mode .panel-close,
+  .assistant-panel.keyboard-mode .panel-close {
+    top: 8px;
+    right: 8px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .assistant-panel.chat-mode .panel-close::before,
+  .assistant-panel.chat-mode .panel-close::after,
+  .assistant-panel.keyboard-mode .panel-close::before,
+  .assistant-panel.keyboard-mode .panel-close::after {
+    left: 12px;
+    right: 12px;
+    top: 18px;
+  }
+
+  .assistant-panel.chat-mode > .panel-kicker,
+  .assistant-panel.keyboard-mode > .panel-kicker {
+    margin-bottom: 0;
+    padding-right: 42px;
+  }
+
+  .assistant-panel.chat-mode h2,
+  .assistant-panel.chat-mode .assistant-intro,
+  .assistant-panel.chat-mode .assistant-options,
+  .assistant-panel.chat-mode .assistant-result,
+  .assistant-panel.chat-mode .faq-consultant > .panel-divider,
+  .assistant-panel.chat-mode .faq-consultant > .panel-kicker,
+  .assistant-panel.chat-mode .faq-quick,
+  .assistant-panel.keyboard-mode h2,
+  .assistant-panel.keyboard-mode .assistant-intro,
+  .assistant-panel.keyboard-mode .assistant-options,
+  .assistant-panel.keyboard-mode .assistant-result,
+  .assistant-panel.keyboard-mode .faq-consultant > .panel-divider,
+  .assistant-panel.keyboard-mode .faq-consultant > .panel-kicker,
+  .assistant-panel.keyboard-mode .faq-quick {
+    display: none;
+  }
+
   .faq-consultant {
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .assistant-panel.chat-mode .faq-consultant,
+  .assistant-panel.keyboard-mode .faq-consultant {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-top: 12px;
     overflow: hidden;
   }
 
@@ -1634,8 +1744,40 @@ h1 {
     min-height: 0;
   }
 
+  .assistant-panel.chat-mode .faq-messages,
+  .assistant-panel.keyboard-mode .faq-messages {
+    flex: 1 1 auto;
+    max-height: none;
+    padding: 2px 4px 10px 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .faq-form {
     padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .assistant-panel.chat-mode .faq-form,
+  .assistant-panel.keyboard-mode .faq-form {
+    position: static;
+    flex-shrink: 0;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 6px;
+    margin: 0;
+    padding: 10px 0 0;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, .96) 34%, rgba(255, 255, 255, .96));
+  }
+
+  .assistant-panel.chat-mode .faq-form input,
+  .assistant-panel.keyboard-mode .faq-form input {
+    min-height: 44px;
+  }
+
+  .assistant-panel.chat-mode .faq-form button,
+  .assistant-panel.keyboard-mode .faq-form button {
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: 13px;
   }
 
   .contact-panel.open,
