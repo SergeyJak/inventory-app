@@ -32,7 +32,11 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-    gtag('config', 'G-386BT7WQKX');
+    const gaConfig = { send_page_view: true };
+    if (new URLSearchParams(window.location.search).has('ga_debug')) {
+      gaConfig.debug_mode = true;
+    }
+    gtag('config', 'G-386BT7WQKX', gaConfig);
   </script>
 </head>
 <body>
