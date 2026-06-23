@@ -51,11 +51,11 @@ window.catalogTranslations = {
     faq: {
       kicker: 'Вопросы',
       inputLabel: 'Ваш вопрос',
-      placeholder: 'Например: работает ли в Латвии?',
+      placeholder: 'Ваш вопрос...',
       send: 'Спросить',
       greeting: 'Задайте вопрос про Станции, настройку, доставку или музыку.',
       fallback: 'Я пока не нашёл точный ответ. Напишите мне в Telegram или WhatsApp — я помогу лично.',
-      quick: ['Работает ли в Латвии?', 'Чем отличаются модели?', 'Помощь с настройкой', 'Доставка', 'Гарантия', 'Музыка и подписки'],
+      quick: ['Работает ли в Латвии?', 'Чем отличаются модели?', 'Помощь с настройкой', 'Доставка'],
     },
     sections: {
       choose: { title: 'Какую Станцию выбрать?', text: 'Коротко о разнице между доступными моделями.' },
@@ -206,11 +206,11 @@ window.catalogTranslations = {
     faq: {
       kicker: 'Jautājumi',
       inputLabel: 'Jūsu jautājums',
-      placeholder: 'Piemēram: vai darbojas Latvijā?',
+      placeholder: 'Jūsu jautājums...',
       send: 'Jautāt',
       greeting: 'Uzdodiet jautājumu par Station, iestatīšanu, piegādi vai mūziku.',
       fallback: 'Es vēl neatradu precīzu atbildi. Uzrakstiet Telegram vai WhatsApp — palīdzēšu personīgi.',
-      quick: ['Vai darbojas Latvijā?', 'Ar ko atšķiras modeļi?', 'Palīdzība ar iestatīšanu', 'Piegāde', 'Garantija', 'Mūzika un abonementi'],
+      quick: ['Vai darbojas Latvijā?', 'Ar ko atšķiras modeļi?', 'Palīdzība ar iestatīšanu', 'Piegāde'],
     },
     sections: {
       choose: { title: 'Kuru Station izvēlēties?', text: 'Īsi par atšķirībām starp pieejamajiem modeļiem.' },
@@ -329,11 +329,11 @@ window.catalogTranslations = {
     faq: {
       kicker: 'Questions',
       inputLabel: 'Your question',
-      placeholder: 'For example: does it work in Latvia?',
+      placeholder: 'Your question...',
       send: 'Ask',
       greeting: 'Ask about Stations, setup, delivery or music.',
       fallback: 'I have not found an exact answer yet. Message me on Telegram or WhatsApp — I will help personally.',
-      quick: ['Does it work in Latvia?', 'How are the models different?', 'Setup help', 'Delivery', 'Warranty', 'Music and subscriptions'],
+      quick: ['Does it work in Latvia?', 'How are the models different?', 'Setup help', 'Delivery'],
     },
     sections: {
       choose: { title: 'Which Station should you choose?', text: 'A quick look at the differences between available models.' },

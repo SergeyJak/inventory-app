@@ -285,12 +285,11 @@ function assistantScenarios() {
     { id: 'music', modelIds: ['midi', 'miniPro', 'street', 'light2'], ...scenarios.music },
     { id: 'child', modelIds: ['light2', 'mini3'], ...scenarios.child },
     { id: 'gift', modelIds: ['light2', 'mini3'], ...scenarios.gift },
-    { id: 'compare', modelIds: ['miniPro', 'mini3', 'light2'], ...scenarios.compare },
-    { id: 'budget', modelIds: [], ...scenarios.budget },
   ];
 }
 
 function renderAssistant() {
+  assistantOptions.classList.remove('is-collapsed');
   assistantOptions.innerHTML = assistantScenarios().map(item => `
     <button class="assistant-chip" type="button" data-scenario="${item.id}">${item.label}</button>
   `).join('');
@@ -299,7 +298,21 @@ function renderAssistant() {
   renderFaq();
 }
 
+function scenarioPrompt(scenario) {
+  return scenario.label;
+}
+
+function answerScenario(scenarioId) {
+  const scenario = assistantScenarios().find(item => item.id === scenarioId) || assistantScenarios()[0];
+  const model = pickModel(scenario.modelIds);
+  appendFaqMessage('user', scenarioPrompt(scenario));
+  appendFaqMessage('assistant', `${dict('assistant.recommend')} ${modelText(model, 'title')}. ${scenario.reason}`);
+  sendAssistantAnalytics({ matched: true, faq: { id: `scenario_${scenario.id}` }, confidence: 1 });
+  logAssistantQuestion(scenario.label, { faq: { id: `scenario_${scenario.id}` }, confidence: 1 });
+}
+
 function renderFaq() {
+  faqQuick.classList.remove('is-collapsed');
   faqQuick.innerHTML = dict('faq.quick').map(question => `
     <button class="faq-chip" type="button" data-faq-question="${escapeHtml(question)}">${escapeHtml(question)}</button>
   `).join('');
@@ -708,7 +721,14 @@ assistantFab.addEventListener('click', () => {
 assistantOptions.addEventListener('click', event => {
   const btn = event.target.closest('[data-scenario]');
   if (!btn) return;
-  showAssistantResult(btn.dataset.scenario);
+  const scenario = assistantScenarios().find(item => item.id === btn.dataset.scenario);
+  assistantOptions.classList.add('is-collapsed');
+  faqQuick.classList.add('is-collapsed');
+  window.setTimeout(() => {
+    assistantOptions.innerHTML = '';
+    faqQuick.innerHTML = '';
+  }, 220);
+  answerScenario(btn.dataset.scenario);
 });
 
 assistantResult.addEventListener('click', event => {

@@ -4,9 +4,9 @@
     "category": "Работа в Латвии",
     "questions": ["работает ли в латвии", "будет работать в латвии", "работает в риге", "алиса работает в латвии", "works in latvia", "works in riga", "vai darbojas latvija", "darbojas riga"],
     "answer": {
-      "ru": "Да, Яндекс Станции работают в Латвии. Для настройки нужен интернет и аккаунт Яндекса.",
-      "en": "Yes, Yandex Stations work in Latvia. Setup requires an internet connection and a Yandex account.",
-      "lv": "Jā, Yandex Stations darbojas Latvijā. Iestatīšanai nepieciešams internets un Yandex konts."
+      "ru": "Да, Яндекс Станции работают в Латвии. Для первичной настройки может понадобиться VPN. По договорённости мы можем помочь с подключением и настройкой.",
+      "en": "Yes, Yandex Stations work in Latvia. Initial setup may require a VPN. By agreement, we can help with connection and setup.",
+      "lv": "Jā, Yandex Stations darbojas Latvijā. Sākotnējai iestatīšanai var būt nepieciešams VPN. Pēc vienošanās varam palīdzēt ar pieslēgšanu un iestatīšanu."
     }
   },
   {
@@ -44,9 +44,9 @@
     "category": "Гарантия",
     "questions": ["есть гарантия", "гарантия", "официальная гарантия", "warranty", "guarantee", "garantija", "vai ir garantija"],
     "answer": {
-      "ru": "Условия гарантии лучше уточнить перед покупкой по конкретной модели. Напишите нам, и мы честно подскажем по доступному устройству.",
-      "en": "Warranty terms should be checked for the exact model before purchase. Message us and we will clarify it honestly.",
-      "lv": "Garantijas nosacījumus labāk precizēt konkrētajam modelim pirms pirkuma. Uzrakstiet mums, un mēs godīgi paskaidrosim."
+      "ru": "Гарантии нет. Устройства новые, в заводской упаковке, но продаются без официальной гарантии.",
+      "en": "There is no warranty. The devices are new and factory-packed, but they are sold without an official warranty.",
+      "lv": "Garantijas nav. Ierīces ir jaunas un rūpnīcas iepakojumā, bet tiek pārdotas bez oficiālas garantijas."
     }
   },
   {
@@ -64,9 +64,9 @@
     "category": "Настройка",
     "questions": ["настройка платная", "платная ли настройка", "сколько стоит настройка", "is setup paid", "setup price", "vai iestatisana ir maksas", "iestatisanas cena"],
     "answer": {
-      "ru": "Настройка — отдельная услуга. Стоимость и объём работ обсуждаются заранее.",
-      "en": "Setup is a separate service. The price and scope are agreed in advance.",
-      "lv": "Iestatīšana ir atsevišķs pakalpojums. Cena un darba apjoms tiek saskaņoti iepriekš."
+      "ru": "Настройка вместе с подпиской Яндекс Плюс на 1 год стоит 60 €. В услугу входит помощь с подключением Станции и базовой настройкой Алисы.",
+      "en": "Setup together with a 1-year Yandex Plus subscription costs 60 €. The service includes help connecting the Station and basic Alice setup.",
+      "lv": "Iestatīšana kopā ar Yandex Plus abonementu uz 1 gadu maksā 60 €. Pakalpojumā ietilpst palīdzība Station pieslēgšanā un Alises pamata iestatīšanā."
     }
   },
   {
@@ -74,9 +74,9 @@
     "category": "Доставка",
     "questions": ["есть доставка", "доставка", "можете доставить", "delivery", "do you deliver", "piegade", "vai ir piegade"],
     "answer": {
-      "ru": "Доставку можно обсудить индивидуально. Напишите в Telegram или WhatsApp, и мы подскажем варианты.",
-      "en": "Delivery can be discussed individually. Message us on Telegram or WhatsApp and we will suggest options.",
-      "lv": "Piegādi varam apspriest individuāli. Uzrakstiet Telegram vai WhatsApp, un mēs piedāvāsim variantus."
+      "ru": "Доставка возможна курьерской службой по всей Европе. Это дополнительная платная опция, стоимость зависит от страны и согласуется отдельно.",
+      "en": "Delivery is available by courier service across Europe. This is an additional paid option, and the price depends on the country and is agreed separately.",
+      "lv": "Piegāde iespējama ar kurjeru visā Eiropā. Tā ir papildu maksas opcija, cena ir atkarīga no valsts un tiek saskaņota atsevišķi."
     }
   },
   {
@@ -84,9 +84,9 @@
     "category": "Доставка",
     "questions": ["самовывоз", "можно забрать", "забрать сегодня", "pickup", "can i pick up", "pasiznemsana", "varu sanemt"],
     "answer": {
-      "ru": "Самовывоз возможен по договорённости. Актуальное время и место лучше уточнить перед приездом.",
-      "en": "Pickup is possible by agreement. Please confirm the time and place before coming.",
-      "lv": "Pašizņemšana iespējama pēc vienošanās. Pirms braukšanas labāk precizēt laiku un vietu."
+      "ru": "Да, самовывоз доступен. Время и место согласуем заранее.",
+      "en": "Yes, pickup is available. The time and place are agreed in advance.",
+      "lv": "Jā, pašizņemšana ir pieejama. Laiku un vietu saskaņojam iepriekš."
     }
   },
   {
@@ -94,19 +94,29 @@
     "category": "Оплата",
     "questions": ["как оплатить", "оплата", "наличные", "перевод", "payment", "how to pay", "cash", "bank transfer", "apmaksa", "ka maksat"],
     "answer": {
-      "ru": "Способ оплаты лучше согласовать перед покупкой. Напишите нам, и мы подскажем доступные варианты.",
-      "en": "Payment method should be agreed before purchase. Message us and we will clarify the available options.",
-      "lv": "Apmaksas veidu labāk saskaņot pirms pirkuma. Uzrakstiet mums, un mēs precizēsim pieejamos variantus."
+      "ru": "Оплата возможна наличными или банковским переводом по предоплате. Детали оплаты согласуем перед покупкой.",
+      "en": "Payment is possible in cash or by bank transfer with prepayment. Payment details are agreed before purchase.",
+      "lv": "Apmaksa iespējama skaidrā naudā vai ar bankas pārskaitījumu priekšapmaksā. Apmaksas detaļas saskaņojam pirms pirkuma."
     }
   },
   {
     "id": "model_difference",
     "category": "Модели",
-    "questions": ["чем отличаются модели", "light 2 mini 3 midi", "лайт мини миди отличие", "difference between models", "which model", "modelu atskiriba", "kuru modeli izveleties"],
+    "questions": ["чем отличаются модели", "сравнить модели", "сравнение моделей", "light 2 mini 3 midi", "лайт мини миди отличие", "difference between models", "compare models", "which model", "modelu atskiriba", "salidzinat modelus", "kuru modeli izveleties"],
     "answer": {
       "ru": "Лайт 2 — компактный старт с LED-дисплеем. Мини 3 звучит собраннее для ежедневного использования. Мини 3 Про добавляет Zigbee и возможности умного дома. Миди выбирают для более мощного звука, Стрит — для портативности.",
       "en": "Lite 2 is a compact start with an LED display. Mini 3 has a more balanced everyday sound. Mini 3 Pro adds Zigbee and smart home features. Midi is for stronger sound, Street is for portability.",
       "lv": "Lite 2 ir kompakts sākums ar LED displeju. Mini 3 skan līdzsvarotāk ikdienai. Mini 3 Pro pievieno Zigbee un viedās mājas iespējas. Midi ir jaudīgākai skaņai, Street — pārnēsāšanai."
+    }
+  },
+  {
+    "id": "budget_choice",
+    "category": "Выбор",
+    "questions": ["доступная по цене", "самая недорогая", "самая дешевая", "дешевле", "best price", "most affordable", "cheapest", "izdevigaka cena", "letaka", "pieejama cena"],
+    "answer": {
+      "ru": "Если важна цена, чаще всего стоит начать со Станции Лайт 2. Это компактная модель с Алисой, LED-дисплеем и базовыми возможностями для дома.",
+      "en": "If price matters most, Station Lite 2 is usually the best place to start. It is a compact model with Alice, an LED display and core home features.",
+      "lv": "Ja svarīgākā ir cena, parasti vērts sākt ar Station Lite 2. Tas ir kompakts modelis ar Alisi, LED displeju un pamata iespējām mājai."
     }
   },
   {
@@ -154,9 +164,9 @@
     "category": "Подключение",
     "questions": ["подключить к телевизору", "к телевизору", "звук телевизора", "connect to tv", "tv sound", "pieslegt televizoram", "televizors"],
     "answer": {
-      "ru": "Подключение к телевизору зависит от модели и сценария. Если нужна колонка именно для фильмов и ТВ, напишите нам — подскажем, какая модель подходит.",
-      "en": "TV connection depends on the model and scenario. If you need a speaker specifically for movies and TV, message us and we will suggest a suitable model.",
-      "lv": "Pieslēgšana televizoram ir atkarīga no modeļa un scenārija. Ja vajag kolonnu filmām un TV, uzrakstiet mums — ieteiksim piemērotu modeli."
+      "ru": "Сейчас у нас нет в продаже колонок, совместимых с ТВ.",
+      "en": "We currently do not have speakers compatible with TV for sale.",
+      "lv": "Pašlaik mums pārdošanā nav kolonnu, kas ir saderīgas ar TV."
     }
   },
   {
@@ -184,9 +194,9 @@
     "category": "Подписки",
     "questions": ["яндекс плюс", "нужна подписка", "подписка", "yandex plus", "subscription", "plus subscription", "abonements", "yandex plus"],
     "answer": {
-      "ru": "Для части музыкальных возможностей может понадобиться подписка Яндекс Плюс. Базовые голосовые функции и умный дом зависят от модели и настроек.",
-      "en": "Some music features may require a Yandex Plus subscription. Basic voice functions and smart home features depend on the model and setup.",
-      "lv": "Daļai mūzikas iespēju var būt nepieciešams Yandex Plus abonements. Pamata balss funkcijas un viedā māja ir atkarīgas no modeļa un iestatījumiem."
+      "ru": "Подписка Яндекс Плюс нужна. Без неё большая часть музыкальных и развлекательных функций Станции будет недоступна или сильно ограничена.",
+      "en": "A Yandex Plus subscription is needed. Without it, most music and entertainment features of the Station will be unavailable or strongly limited.",
+      "lv": "Yandex Plus abonements ir nepieciešams. Bez tā lielākā daļa Station mūzikas un izklaides funkciju nebūs pieejama vai būs būtiski ierobežota."
     }
   },
   {
@@ -194,9 +204,9 @@
     "category": "После покупки",
     "questions": ["что делать после покупки", "как подключить после покупки", "после покупки", "after purchase", "first setup", "pec pirkuma", "ko darit pec pirkuma"],
     "answer": {
-      "ru": "После покупки подключите Станцию к питанию, установите приложение, войдите в аккаунт Яндекса и следуйте шагам настройки. Если нужна помощь, можно заранее договориться о настройке.",
-      "en": "After purchase, connect the Station to power, install the app, sign in to a Yandex account and follow setup steps. If you need help, setup can be arranged in advance.",
-      "lv": "Pēc pirkuma pieslēdziet Station pie strāvas, instalējiet lietotni, ieejiet Yandex kontā un sekojiet iestatīšanas soļiem. Ja vajag palīdzību, var vienoties par iestatīšanu."
+      "ru": "После покупки подключите Станцию к питанию, установите приложение, войдите в аккаунт Яндекса и следуйте шагам настройки. Помощь после покупки предоставляем только в случае, если настройку выполняли мы.",
+      "en": "After purchase, connect the Station to power, install the app, sign in to a Yandex account and follow the setup steps. We provide after-purchase help only if we performed the setup.",
+      "lv": "Pēc pirkuma pieslēdziet Station pie strāvas, instalējiet lietotni, ieejiet Yandex kontā un sekojiet iestatīšanas soļiem. Palīdzību pēc pirkuma sniedzam tikai tad, ja iestatīšanu veicām mēs."
     }
   },
   {
