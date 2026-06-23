@@ -4,7 +4,9 @@
   "description": "Local inventory tracker",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node tests/assistant-engine-v2.test.cjs",
+    "test:assistant": "node tests/assistant-engine-v2.test.cjs"
   },
   "dependencies": {
     "bcryptjs": "3.0.3",

@@ -2,81 +2,304 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 
+const ru = (...codes) => String.fromCharCode(...codes);
+
+const words = {
+  childScenario: ru(1044,1083,1103,32,1088,1077,1073,1105,1085,1082,1072),
+  cheaper: ru(1040,32,1087,1086,1076,1077,1096,1077,1074,1083,1077,63),
+  musicSwitch: ru(1058,1077,1087,1077,1088,1100,32,1093,1086,1095,1091,32,1076,1083,1103,32,1084,1091,1079,1099,1082,1080),
+  homeScenario: ru(1044,1083,1103,32,1076,1086,1084,1072),
+  giftScenario: ru(1042,32,1087,1086,1076,1072,1088,1086,1082),
+  another: ru(1045,1097,1105,32,1074,1072,1088,1080,1072,1085,1090),
+  back: ru(1053,1072,1079,1072,1076),
+  showProduct: ru(1055,1086,1082,1072,1079,1072,1090,1100,32,1074,32,1082,1072,1090,1072,1083,1086,1075,1077),
+  compare: ru(1057,1088,1072,1074,1085,1080,1090,1100),
+  stationTypo: ru(1082,1072,1083,1086,1085,1082,1072),
+  alice: ru(1072,1083,1080,1089,1072),
+  station: ru(1089,1090,1072,1085,1094,1080,1103),
+  daughter: ru(1076,1083,1103,32,1076,1086,1095,1082,1080),
+  music: ru(1076,1083,1103,32,1084,1091,1079,1099,1082,1080),
+  latviaTypo: ru(1083,1072,1090,1074,1080,1077),
+  delivery: ru(1076,1086,1089,1090,1072,1074,1082,1072),
+  setup: ru(1085,1072,1089,1090,1088,1086,1081,1082,1072),
+  unknown: ru(1087,1086,1095,1077,1084,1091,32,1085,1077,1073,1086,32,1079,1077,1083,1077,1085,1099,1081),
+};
+
 const context = { window: {} };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('assistant-engine.js', 'utf8'), context);
 
 const models = [
-  { id: 'light2', price: 90, aliases: ['light 2', 'lite 2', 'лайт 2'], photos: [{ colorKey: 'blue' }] },
-  { id: 'mini3', price: 140, aliases: ['mini 3', 'мини 3'], photos: [{ colorKey: 'gray' }] },
-  { id: 'midi', price: 180, aliases: ['midi', 'миди'], photos: [{ colorKey: 'gray' }] },
+  { id: 'light2', price: 90, aliases: ['light 2', 'lite 2', ru(1083,1072,1081,1090,32,50)], photos: [{ colorKey: 'blue' }] },
+  { id: 'mini3', price: 140, aliases: ['mini 3', ru(1084,1080,1085,1080,32,51)], photos: [{ colorKey: 'gray' }] },
+  { id: 'midi', price: 180, aliases: ['midi', ru(1084,1080,1076,1080)], photos: [{ colorKey: 'gray' }] },
+  { id: 'street', price: 160, aliases: ['street', ru(1089,1090,1088,1080,1090)], photos: [{ colorKey: 'green' }] },
 ];
 
-const translations = {
-  'assistant.recommend': 'Рекомендую:',
-  'assistant.scenarios.child.reason': 'Для детской подходит компактная модель.',
-  'assistant.scenarios.music.reason': 'Для музыки лучше модель с более мощным звуком.',
-  'assistant.scenarios.home.reason': 'Для дома подойдёт модель для повседневных сценариев.',
-  'assistant.scenarios.gift.reason': 'Для подарка лучше понятная универсальная модель.',
-  'assistant.scenarios.music.label': 'Для музыки',
-  'assistant.scenarios.home.label': 'Для дома',
-  'assistant.scenarios.child.label': 'Для ребёнка',
-  'assistant.scenarios.gift.label': 'В подарок',
-  'assistantV2.showProduct': 'Показать в каталоге',
-  'assistantV2.compare': 'Сравнить',
-  'assistantV2.anotherOption': 'Ещё вариант',
-  'assistantV2.back': 'Назад',
-  'assistantV2.clarifyPurpose': 'Для чего подбираем колонку?',
-  'assistantV2.cheaperLead': 'Можно посмотреть более доступный вариант:',
-  'assistantV2.cheaperReason': 'Для базовых сценариев это хороший старт.',
-  'assistantV2.colorAvailable': 'Да, такой цвет есть для',
-  'assistantV2.colorUnavailable': 'Такого цвета сейчас нет у выбранной модели.',
-  'assistantV2.compareAnswer': 'Лайт 2 — старт, Мини 3 — баланс, Миди — музыка.',
-  'assistantV2.alternativeLead': 'Ещё можно посмотреть',
-  'faq.fallback': 'Я пока не нашёл точный ответ.',
+const modelCopy = {
+  ru: {
+    light2: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1051,1072,1081,1090,32,50), short: ru(1051,1072,1081,1090,32,50), line: ru(1050,1086,1084,1087,1072,1082,1090,1085,1072,1103,32,1084,1086,1076,1077,1083,1100) },
+    mini3: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1052,1080,1085,1080,32,51), short: ru(1052,1080,1085,1080,32,51), line: ru(1041,1072,1083,1072,1085,1089,32,1088,1072,1079,1084,1077,1088,1072,32,1080,32,1079,1074,1091,1082,1072) },
+    midi: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1052,1080,1076,1080), short: ru(1052,1080,1076,1080), line: ru(1044,1083,1103,32,1084,1091,1079,1099,1082,1080,32,1080,32,1092,1080,1083,1100,1084,1086,1074) },
+    street: { title: ru(1057,1090,1072,1085,1094,1080,1103,32,1057,1090,1088,1080,1090), short: ru(1057,1090,1088,1080,1090), line: ru(1055,1086,1088,1090,1072,1090,1080,1074,1085,1072,1103,32,1084,1086,1076,1077,1083,1100) },
+  },
+  en: {
+    light2: { title: 'Station Lite 2', short: 'Lite 2', line: 'Compact first Station.' },
+    mini3: { title: 'Station Mini 3', short: 'Mini 3', line: 'Balanced daily model.' },
+    midi: { title: 'Station Midi', short: 'Midi', line: 'For music and movies.' },
+    street: { title: 'Station Street', short: 'Street', line: 'Portable model.' },
+  },
+  lv: {
+    light2: { title: 'Station Lite 2', short: 'Lite 2', line: 'Kompakts sākums.' },
+    mini3: { title: 'Station Mini 3', short: 'Mini 3', line: 'Līdzsvarots ikdienai.' },
+    midi: { title: 'Station Midi', short: 'Midi', line: 'Mūzikai un filmām.' },
+    street: { title: 'Station Street', short: 'Street', line: 'Pārnēsājams modelis.' },
+  },
 };
 
-function modelText(model, key) {
-  const data = {
-    light2: { title: 'Станция Лайт 2', short: 'Лайт 2', line: 'Компактная модель для первого знакомства.' },
-    mini3: { title: 'Станция Мини 3', short: 'Мини 3', line: 'Баланс размера и звука.' },
-    midi: { title: 'Станция Миди', short: 'Миди', line: 'Более мощная модель для музыки.' },
+const translationSets = {
+  ru: {
+    'assistant.recommend': ru(1056,1077,1082,1086,1084,1077,1085,1076,1091,1102,58),
+    'assistant.scenarios.child.reason': 'Для детской подходит компактная модель.',
+    'assistant.scenarios.music.reason': 'Для музыки лучше модель с более мощным звуком.',
+    'assistant.scenarios.home.reason': 'Для дома подойдёт модель для повседневных сценариев.',
+    'assistant.scenarios.gift.reason': 'Для подарка лучше понятная универсальная модель.',
+    'assistant.scenarios.music.label': words.music,
+    'assistant.scenarios.home.label': words.homeScenario,
+    'assistant.scenarios.child.label': words.childScenario,
+    'assistant.scenarios.gift.label': words.giftScenario,
+    'assistantV2.showProduct': words.showProduct,
+    'assistantV2.compare': words.compare,
+    'assistantV2.anotherOption': words.another,
+    'assistantV2.back': words.back,
+    'assistantV2.clarifyPurpose': 'Для чего подбираем колонку?',
+    'assistantV2.cheaperLead': 'Можно посмотреть более доступный вариант:',
+    'assistantV2.cheaperReason': 'Для базовых сценариев это хороший старт.',
+    'assistantV2.colorAvailable': 'Да, такой цвет есть для',
+    'assistantV2.colorUnavailable': 'Такого цвета сейчас нет у выбранной модели.',
+    'assistantV2.compareAnswer': 'Лайт 2 — старт, Мини 3 — баланс, Миди — музыка.',
+    'assistantV2.alternativeLead': 'Ещё можно посмотреть',
+    'faq.fallback': 'Я пока не нашёл точный ответ.',
+  },
+  en: {
+    'assistant.recommend': 'Recommended:',
+    'assistant.scenarios.child.reason': 'A compact model works well for a child.',
+    'assistant.scenarios.music.reason': 'For music, choose stronger sound.',
+    'assistant.scenarios.home.reason': 'For home, choose a daily model.',
+    'assistant.scenarios.gift.reason': 'For a gift, choose a simple model.',
+    'assistant.scenarios.music.label': 'For music',
+    'assistant.scenarios.home.label': 'For home',
+    'assistant.scenarios.child.label': 'For a child',
+    'assistant.scenarios.gift.label': 'As a gift',
+    'assistantV2.showProduct': 'Show in catalog',
+    'assistantV2.compare': 'Compare',
+    'assistantV2.anotherOption': 'Another option',
+    'assistantV2.back': 'Back',
+    'assistantV2.clarifyPurpose': 'What will the speaker be used for?',
+    'assistantV2.cheaperLead': 'You can look at a more affordable option:',
+    'assistantV2.cheaperReason': 'It is a good start.',
+    'assistantV2.colorAvailable': 'Yes, this color is available for',
+    'assistantV2.colorUnavailable': 'This color is not currently available.',
+    'assistantV2.compareAnswer': 'Lite 2 is first, Mini 3 is balanced, Midi is music.',
+    'assistantV2.alternativeLead': 'Another option is',
+    'faq.fallback': 'I have not found an exact answer yet.',
+  },
+  lv: {
+    'assistant.recommend': 'Ieteikums:',
+    'assistant.scenarios.child.reason': 'Bērnam der kompakts modelis.',
+    'assistant.scenarios.music.reason': 'Mūzikai labāk der jaudīgāks modelis.',
+    'assistant.scenarios.home.reason': 'Mājām der ikdienas modelis.',
+    'assistant.scenarios.gift.reason': 'Dāvanai der vienkāršs modelis.',
+    'assistant.scenarios.music.label': 'Mūzikai',
+    'assistant.scenarios.home.label': 'Mājām',
+    'assistant.scenarios.child.label': 'Bērnam',
+    'assistant.scenarios.gift.label': 'Dāvanai',
+    'assistantV2.showProduct': 'Parādīt katalogā',
+    'assistantV2.compare': 'Salīdzināt',
+    'assistantV2.anotherOption': 'Vēl variants',
+    'assistantV2.back': 'Atpakaļ',
+    'assistantV2.clarifyPurpose': 'Kam izvēlamies skaļruni?',
+    'assistantV2.cheaperLead': 'Var apskatīt pieejamāku variantu:',
+    'assistantV2.cheaperReason': 'Tas ir labs sākums.',
+    'assistantV2.colorAvailable': 'Jā, šī krāsa ir pieejama modelim',
+    'assistantV2.colorUnavailable': 'Šī krāsa pašlaik nav pieejama.',
+    'assistantV2.compareAnswer': 'Lite 2 ir sākumam, Mini 3 balansam, Midi mūzikai.',
+    'assistantV2.alternativeLead': 'Vēl var apskatīt',
+    'faq.fallback': 'Es vēl neatradu precīzu atbildi.',
+  },
+};
+
+const faqAnswers = {
+  ru: {
+    latvia: 'Да, работает в Латвии.',
+    delivery: 'Доставка курьерской службой.',
+    setup: 'Настройка по договорённости.',
+  },
+  en: {
+    latvia: 'Yes, it works in Latvia.',
+    delivery: 'Courier delivery is available.',
+    setup: 'Setup is available by agreement.',
+  },
+  lv: {
+    latvia: 'Jā, darbojas Latvijā.',
+    delivery: 'Piegāde ar kurjeru ir pieejama.',
+    setup: 'Iestatīšana pēc vienošanās.',
+  },
+};
+
+function createEngine(lang = 'ru') {
+  return context.window.AssistantEngine.createAssistantEngine({
+    models: () => models,
+    t: key => translationSets[lang][key] || key,
+    modelText: (model, key) => modelCopy[lang][model.id][key] || '',
+    findFaq: input => {
+      const normalized = String(input).toLowerCase();
+      const matched =
+        /latvia|latvij|латви|рига|lv/.test(normalized) ? 'latvia' :
+        /delivery|deliver|piegāde|piegade|доставка|курьер/.test(normalized) ? 'delivery' :
+        /setup|connect|iestat|настрой|подключ/.test(normalized) ? 'setup' :
+        null;
+      return matched
+        ? { matched: true, faq: { id: matched }, confidence: 1, answer: faqAnswers[lang][matched] }
+        : { matched: false, confidence: 0 };
+    },
+  });
+}
+
+function assertNotFallback(response, lang = 'ru', label = 'response') {
+  assert.notStrictEqual(response.text, translationSets[lang]['faq.fallback'], `${label} returned fallback`);
+}
+
+function assertAction(response, id, label = 'response') {
+  assert(response.actions?.some(action => action.id === id), `${label} missing action ${id}`);
+}
+
+function testScenarioSwitchClearsContext() {
+  const engine = createEngine('ru');
+  assert.strictEqual(engine.handle(words.childScenario).modelId, 'light2');
+  assert.strictEqual(engine.handle(words.cheaper).modelId, 'light2');
+  const music = engine.handle(words.musicSwitch);
+  assert.strictEqual(music.modelId, 'midi');
+  assert.strictEqual(engine.snapshot().selectedScenario, 'music');
+  assert.strictEqual(engine.snapshot().budget, null);
+}
+
+function testActionCommandsAsText() {
+  const engine = createEngine('ru');
+  engine.handle(words.childScenario);
+  for (const input of [words.another, words.back, words.showProduct, words.compare]) {
+    const response = engine.handle(input);
+    assertNotFallback(response, 'ru', input);
+  }
+}
+
+function testSpecificModels() {
+  const cases = [['Light 2', 'light2'], ['Mini 3', 'mini3'], ['Midi', 'midi'], ['Street', 'street']];
+  for (const [input, expected] of cases) {
+    const response = createEngine('ru').handle(input);
+    assert.strictEqual(response.modelId, expected, input);
+    assertAction(response, 'show_product', input);
+  }
+}
+
+function testSynonymsTyposAndFaq() {
+  const cases = [
+    [words.stationTypo, undefined],
+    [words.alice, undefined],
+    [words.station, undefined],
+    [words.daughter, 'light2'],
+    [words.music, 'midi'],
+    [words.latviaTypo, undefined],
+    [words.delivery, undefined],
+    [words.setup, undefined],
+  ];
+  for (const [input, modelId] of cases) {
+    const response = createEngine('ru').handle(input);
+    assertNotFallback(response, 'ru', input);
+    if (modelId) assert.strictEqual(response.modelId, modelId, input);
+  }
+}
+
+function testFallbackUnknown() {
+  const response = createEngine('ru').handle(words.unknown);
+  assert.strictEqual(response.text, translationSets.ru['faq.fallback']);
+}
+
+function testAlternativeDoesNotRepeatCurrentModel() {
+  const engine = createEngine('ru');
+  const first = engine.handle('Light 2');
+  const second = engine.handle(words.another);
+  const third = engine.handle(words.another);
+  assert.notStrictEqual(second.modelId, first.modelId);
+  assert.notStrictEqual(third.modelId, second.modelId);
+}
+
+function testBackReturnsPreviousState() {
+  const engine = createEngine('ru');
+  engine.handle(words.childScenario);
+  const midi = engine.handle('Midi');
+  assert.strictEqual(midi.modelId, 'midi');
+  const back = engine.handle(words.back);
+  assert.strictEqual(back.modelId, 'light2');
+  assert.strictEqual(back.type, 'back');
+}
+
+function testNavigationActionIncludesModelAndColor() {
+  const engine = createEngine('ru');
+  const response = engine.handle('Light 2');
+  const show = response.actions.find(action => action.id === 'show_product');
+  assert(show, 'show_product action missing');
+  assert.strictEqual(show.modelId, 'light2');
+  assert.strictEqual(show.colorKey, null);
+}
+
+function testRequiredRegressionFlow() {
+  const engine = createEngine('ru');
+  const steps = [
+    [words.childScenario, 'light2'],
+    [words.cheaper, 'light2'],
+    [words.musicSwitch, 'midi'],
+    [words.homeScenario, 'mini3'],
+    ['Midi', 'midi'],
+    [words.another, 'light2'],
+    [words.back, 'midi'],
+    ['Light 2', 'light2'],
+    [words.another, 'mini3'],
+    ['Mini 3', 'mini3'],
+    [words.another, 'light2'],
+    ['Midi', 'midi'],
+  ];
+  for (const [input, expectedModelId] of steps) {
+    const response = engine.handle(input);
+    assertNotFallback(response, 'ru', input);
+    assert.strictEqual(response.modelId, expectedModelId, `${input} expected ${expectedModelId}`);
+    assert(response.actions?.length, `${input} should include actions`);
+  }
+}
+
+function testLanguages() {
+  const cases = {
+    ru: [words.homeScenario, words.music, words.childScenario, words.delivery, words.setup, words.latviaTypo],
+    en: ['For home', 'For music', 'For a child', 'delivery', 'setup', 'Latvia'],
+    lv: ['Mājām', 'Mūzikai', 'Bērnam', 'piegāde', 'iestatīšana', 'Latvijā'],
   };
-  return data[model.id][key] || '';
+  for (const [lang, inputs] of Object.entries(cases)) {
+    for (const input of inputs) {
+      const response = createEngine(lang).handle(input);
+      assertNotFallback(response, lang, `${lang}:${input}`);
+    }
+  }
 }
 
-const engine = context.window.AssistantEngine.createAssistantEngine({
-  models: () => models,
-  t: key => translations[key] || key,
-  modelText,
-  findFaq: () => ({ matched: false, confidence: 0 }),
-});
-
-const steps = [
-  ['Для ребёнка', 'light2'],
-  ['А подешевле?', 'light2'],
-  ['Теперь хочу для музыки', 'midi'],
-  ['Для дома', 'mini3'],
-  ['Миди', 'midi'],
-  ['Ещё вариант', 'light2'],
-  ['Назад', 'midi'],
-  ['Light 2', 'light2'],
-  ['Ещё вариант', 'mini3'],
-  ['Mini 3', 'mini3'],
-  ['Ещё вариант', 'light2'],
-  ['Midi', 'midi'],
-];
-
-for (const [input, expectedModelId] of steps) {
-  const response = engine.handle(input);
-  assert.notStrictEqual(response.text, translations['faq.fallback'], `${input} returned fallback`);
-  assert.strictEqual(response.modelId, expectedModelId, `${input} expected ${expectedModelId}, got ${response.modelId}`);
-  assert(response.actions?.length, `${input} should include actions`);
-}
-
-for (const input of ['Показать в каталоге', 'Сравнить', 'Для музыки', 'Для дома', 'Для ребёнка', 'В подарок']) {
-  const response = engine.handle(input);
-  assert.notStrictEqual(response.text, translations['faq.fallback'], `${input} action label returned fallback`);
-}
+testScenarioSwitchClearsContext();
+testActionCommandsAsText();
+testSpecificModels();
+testSynonymsTyposAndFaq();
+testFallbackUnknown();
+testAlternativeDoesNotRepeatCurrentModel();
+testBackReturnsPreviousState();
+testNavigationActionIncludesModelAndColor();
+testRequiredRegressionFlow();
+testLanguages();
 
 console.log('assistant engine v2 regression passed');
