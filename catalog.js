@@ -369,7 +369,10 @@ function render() {
 
   showroom.style.setProperty('--glow', model.glow);
   showroom.style.setProperty('--wash', model.wash);
-  document.getElementById('model-title').innerHTML = titleHtml(model);
+  const title = document.getElementById('model-title');
+  title.textContent = modelText(model, 'title');
+  title.dataset.fullTitle = modelText(model, 'title');
+  title.classList.toggle('split-title', currentLang !== 'ru');
   document.getElementById('model-line').textContent = modelText(model, 'line');
   document.getElementById('model-price').textContent = money(price);
   document.getElementById('details-title').textContent = modelText(model, 'title');
@@ -449,12 +452,6 @@ function render() {
       </div>
     </div>
   `;
-}
-
-function titleHtml(model) {
-  const title = modelText(model, 'title');
-  if (currentLang === 'ru') return title;
-  return title.replace(/^Station\s+/, 'Station<br>');
 }
 
 function applyUrlSelection() {

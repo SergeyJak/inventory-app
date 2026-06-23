@@ -1108,6 +1108,12 @@ h1 {
     line-height: .94;
   }
 
+  h1.split-title {
+    max-width: none;
+    font-size: 32px;
+    line-height: .98;
+  }
+
   .line {
     margin-top: 14px;
     font-size: 16px;
