@@ -129,8 +129,7 @@ function currentSelection() {
 }
 
 function selectedStockText(photo) {
-  const stock = Number(photo?.product?.stock) || 0;
-  return stock > 0 ? dict('common.inStock') : dict('common.stockUnknown');
+  return photo?.product?.inStock ? dict('common.inStock') : dict('common.stockUnknown');
 }
 
 function modelText(model, key) {

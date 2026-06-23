@@ -104,12 +104,71 @@ function publicProduct(product) {
     color,
     label: [productType, color].filter(Boolean).join(' / '),
     sellPrice: Number(product.sellPrice) || 0,
-    stock,
+    inStock: stock > 0,
     accent: productType.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'speaker',
   };
 }
 
 // ── MIDDLEWARE ───────────────────────────────────────────────
+
+const ALLOWED_ORIGINS = new Set([
+  `https://${INVENTORY_HOST}`,
+  ...CATALOG_HOSTS.map(host => `https://${host}`),
+]);
+
+const INVENTORY_PUBLIC_FILES = new Map([
+  ['/', 'index.html'],
+  ['/index.html', 'index.html'],
+  ['/login.html', 'login.html'],
+  ['/app.js', 'app.js'],
+  ['/style.css', 'style.css'],
+  ['/favicon.ico', 'favicon.ico'],
+]);
+
+function setSecurityHeaders(req, res, next) {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+    ].join('; ')
+  );
+  next();
+}
+
+function setCorsHeaders(req, res, next) {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+}
+
+function sendGenericError(res, status = 500) {
+  return res.status(status).json({ error: status === 500 ? 'Internal server error' : 'Request failed' });
+}
+
+app.use(setSecurityHeaders);
+app.use(setCorsHeaders);
 app.use(express.json({ limit: '10mb' }));
 
 function requestHost(req) {
@@ -195,7 +254,11 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
   if (isCatalogHost(req)) return next();
-  return requireInventoryHost(req, res, () => express.static(__dirname)(req, res, next));
+  return requireInventoryHost(req, res, () => {
+    const file = INVENTORY_PUBLIC_FILES.get(req.path);
+    if (!file) return next();
+    return res.sendFile(path.join(__dirname, file));
+  });
 });
 
 function requireAuth(req, res, next) {
@@ -242,11 +305,12 @@ app.get('/api/public/products', async (req, res) => {
     const { products } = await dbGetAll();
     const publicProducts = products
       .map(publicProduct)
-      .filter(product => product.stock > 0)
+      .filter(product => product.inStock)
       .sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
     res.json({ products: publicProducts });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('Public products error:', e.message);
+    sendGenericError(res);
   }
 });
 
@@ -258,7 +322,8 @@ app.get('/api/data', requireInventoryHost, requireAuth, async (req, res) => {
     }
     res.json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('Data route error:', e.message);
+    sendGenericError(res);
   }
 });
 
@@ -269,7 +334,8 @@ app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (re
     await dbSave(key, data);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('Save route error:', e.message);
+    sendGenericError(res);
   }
 });
 
@@ -280,6 +346,14 @@ app.use((req, res, next) => {
     return res.status(404).sendFile(path.join(__dirname, '404.html'));
   }
   next();
+});
+
+app.use((err, req, res, next) => {
+  console.error('Unhandled request error:', err.message);
+  if (res.headersSent) return next(err);
+  const status = err.status >= 400 && err.status < 500 ? err.status : 500;
+  if (req.path.startsWith('/api/')) return sendGenericError(res, status);
+  return res.status(status).send(status === 500 ? 'Internal server error' : 'Bad request');
 });
 
 async function start() {
