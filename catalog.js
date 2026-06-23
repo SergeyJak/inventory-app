@@ -115,6 +115,7 @@ let activeColor = 0;
 let activeAngle = 0;
 let faqItems = [];
 let assistantEngine = null;
+let keyboardMeasureTimer = null;
 
 function isMobileViewport() {
   return window.matchMedia('(max-width: 900px)').matches;
@@ -245,18 +246,28 @@ function updateAssistantKeyboardOffset() {
     return;
   }
   const viewport = window.visualViewport;
-  const rawOffset = viewport
-    ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-    : 0;
-  const offset = Math.min(Math.round(rawOffset), Math.round(window.innerHeight * 0.48));
+  const safeGap = Number.parseFloat(getComputedStyle(document.body).getPropertyValue('--keyboard-safe-gap')) || 16;
+  const viewportBottom = viewport
+    ? viewport.offsetTop + viewport.height
+    : window.innerHeight;
+  const rawOffset = Math.max(0, window.innerHeight - viewportBottom + safeGap);
+  const offset = Math.min(Math.round(rawOffset), Math.round(window.innerHeight * 0.62));
   document.body.style.setProperty('--keyboard-offset', `${offset}px`);
   window.setTimeout(() => {
     faqForm.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion.matches ? 'auto' : 'smooth' });
   }, 40);
 }
 
+function scheduleAssistantKeyboardUpdate() {
+  window.clearTimeout(keyboardMeasureTimer);
+  updateAssistantKeyboardOffset();
+  requestAnimationFrame(updateAssistantKeyboardOffset);
+  keyboardMeasureTimer = window.setTimeout(updateAssistantKeyboardOffset, 260);
+}
+
 function closeOverlays() {
   const assistantWasOpen = assistantPanel.classList.contains('open');
+  window.clearTimeout(keyboardMeasureTimer);
   document.body.style.setProperty('--keyboard-offset', '0px');
   overlay.classList.remove('open');
   contactPanel.classList.remove('open');
@@ -860,7 +871,7 @@ assistantFab.addEventListener('click', () => {
   trackAssistantEvent('assistant_open');
   window.setTimeout(() => {
     faqInput.focus({ preventScroll: true });
-    updateAssistantKeyboardOffset();
+    scheduleAssistantKeyboardUpdate();
   }, 120);
 });
 
@@ -922,17 +933,18 @@ faqForm.addEventListener('submit', event => {
   event.preventDefault();
   answerFaq(faqInput.value);
   faqInput.value = '';
-  updateAssistantKeyboardOffset();
+  scheduleAssistantKeyboardUpdate();
 });
 
-faqInput.addEventListener('focus', updateAssistantKeyboardOffset);
+faqInput.addEventListener('focus', scheduleAssistantKeyboardUpdate);
 faqInput.addEventListener('blur', () => {
-  window.setTimeout(updateAssistantKeyboardOffset, 80);
+  window.setTimeout(scheduleAssistantKeyboardUpdate, 120);
 });
 
-window.visualViewport?.addEventListener('resize', updateAssistantKeyboardOffset);
-window.visualViewport?.addEventListener('scroll', updateAssistantKeyboardOffset);
-window.addEventListener('resize', updateAssistantKeyboardOffset);
+window.visualViewport?.addEventListener('resize', scheduleAssistantKeyboardUpdate);
+window.visualViewport?.addEventListener('scroll', scheduleAssistantKeyboardUpdate);
+window.addEventListener('resize', scheduleAssistantKeyboardUpdate);
+window.addEventListener('orientationchange', scheduleAssistantKeyboardUpdate);
 
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeOverlays();

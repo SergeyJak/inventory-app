@@ -9,6 +9,7 @@ html {
 body {
   margin: 0;
   --keyboard-offset: 0px;
+  --keyboard-safe-gap: 16px;
   color: #111114;
   background: #fff;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
@@ -1631,6 +1632,10 @@ h1 {
   .faq-messages {
     max-height: clamp(82px, 20svh, 170px);
     min-height: 0;
+  }
+
+  .faq-form {
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
   }
 
   .contact-panel.open,
