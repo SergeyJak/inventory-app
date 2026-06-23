@@ -546,11 +546,7 @@ function handleAssistantAction(action) {
     return;
   }
   if (action.dataset.action === 'back') {
-    renderFaq();
-    assistantOptions.classList.remove('is-collapsed');
-    assistantOptions.innerHTML = assistantScenarios().map(item => `
-      <button class="assistant-chip" type="button" data-scenario="${item.id}">${item.label}</button>
-    `).join('');
+    appendAssistantResponse(assistantEngine?.back?.() || { text: dict('faq.greeting') });
   }
 }
 
