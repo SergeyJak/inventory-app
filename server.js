@@ -10,6 +10,8 @@ const app      = express();
 const PORT     = process.env.PORT || 3001;
 const DATA_DIR = path.join(__dirname, 'data');
 const USE_MONGO = !!process.env.MONGODB_URI;
+const INVENTORY_HOST = 'inv-app.up.railway.app';
+const CATALOG_HOST = 'heysmart.up.railway.app';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -109,7 +111,81 @@ function publicProduct(product) {
 
 // ── MIDDLEWARE ───────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(__dirname));
+
+function requestHost(req) {
+  return String(req.hostname || '').toLowerCase();
+}
+
+function isCatalogHost(req) {
+  return requestHost(req) === CATALOG_HOST;
+}
+
+function isInventoryHost(req) {
+  const host = requestHost(req);
+  return host === INVENTORY_HOST || host === 'localhost' || host === '127.0.0.1';
+}
+
+function requireInventoryHost(req, res, next) {
+  if (isInventoryHost(req)) return next();
+  return res.status(404).send('Not found');
+}
+
+// Domain split for one Railway service:
+// - inv-app.up.railway.app keeps the existing Inventory App behavior.
+// - heysmart.up.railway.app exposes only the public catalog site and its safe assets.
+app.get('/', (req, res, next) => {
+  if (isCatalogHost(req)) {
+    return res.sendFile(path.join(__dirname, 'catalog.html'));
+  }
+  return next();
+});
+
+app.get('/catalog.html', (req, res, next) => {
+  if (isCatalogHost(req)) {
+    return res.redirect(302, '/');
+  }
+  return next();
+});
+
+app.get(['/catalog.css', '/catalog.js', '/i18n.js'], (req, res, next) => {
+  if (isCatalogHost(req)) {
+    return res.sendFile(path.join(__dirname, req.path.slice(1)));
+  }
+  return next();
+});
+
+app.use('/images/catalog', (req, res, next) => {
+  if (isCatalogHost(req)) {
+    return express.static(path.join(__dirname, 'images', 'catalog'))(req, res, next);
+  }
+  return next();
+});
+
+app.use((req, res, next) => {
+  if (
+    isCatalogHost(req) &&
+    (
+      ['/index.html', '/app.js', '/style.css'].includes(req.path) ||
+      req.path.startsWith('/data/') ||
+      req.path.startsWith('/images/')
+    )
+  ) {
+    return res.status(404).send('Not found');
+  }
+  return next();
+});
+
+app.use((req, res, next) => {
+  if (isCatalogHost(req) && req.path.startsWith('/api/') && req.path !== '/api/public/products') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();
+  return requireInventoryHost(req, res, () => express.static(__dirname)(req, res, next));
+});
 
 function requireAuth(req, res, next) {
   const auth = req.headers['authorization'];
@@ -132,7 +208,7 @@ function requireAdmin(req, res, next) {
 }
 
 // ── LOGIN ────────────────────────────────────────────────────
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', requireInventoryHost, async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password required' });
@@ -163,7 +239,7 @@ app.get('/api/public/products', async (req, res) => {
   }
 });
 
-app.get('/api/data', requireAuth, async (req, res) => {
+app.get('/api/data', requireInventoryHost, requireAuth, async (req, res) => {
   try {
     const data = await dbGetAll();
     if (req.user.role !== 'admin') {
@@ -175,7 +251,7 @@ app.get('/api/data', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/save', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
   const { key, data } = req.body;
   if (!COLL[key]) return res.status(400).json({ error: 'Unknown key: ' + key });
   try {
