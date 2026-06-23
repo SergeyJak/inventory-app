@@ -1,0 +1,212 @@
+[
+  {
+    "id": "works_latvia",
+    "category": "Работа в Латвии",
+    "questions": ["работает ли в латвии", "будет работать в латвии", "работает в риге", "алиса работает в латвии", "works in latvia", "works in riga", "vai darbojas latvija", "darbojas riga"],
+    "answer": {
+      "ru": "Да, Яндекс Станции работают в Латвии. Для настройки нужен интернет и аккаунт Яндекса.",
+      "en": "Yes, Yandex Stations work in Latvia. Setup requires an internet connection and a Yandex account.",
+      "lv": "Jā, Yandex Stations darbojas Latvijā. Iestatīšanai nepieciešams internets un Yandex konts."
+    }
+  },
+  {
+    "id": "russian_language",
+    "category": "Язык",
+    "questions": ["есть ли русский язык", "алиса говорит по русски", "русский язык", "russian language", "does alice speak russian", "krievu valoda", "vai alise runa krieviski"],
+    "answer": {
+      "ru": "Да, Алиса работает на русском языке. Основные голосовые команды, музыка, таймеры и сценарии доступны на русском.",
+      "en": "Yes, Alice works in Russian. Voice commands, music, timers and smart home scenarios are available in Russian.",
+      "lv": "Jā, Alise darbojas krievu valodā. Balss komandas, mūzika, taimeri un viedās mājas scenāriji ir pieejami krieviski."
+    }
+  },
+  {
+    "id": "new_device",
+    "category": "Состояние",
+    "questions": ["новая ли колонка", "колонка новая", "не бу", "new device", "is it new", "jauna ierice", "vai jauna"],
+    "answer": {
+      "ru": "Да, устройства продаются новыми.",
+      "en": "Yes, the devices are sold new.",
+      "lv": "Jā, ierīces tiek pārdotas jaunas."
+    }
+  },
+  {
+    "id": "factory_packaging",
+    "category": "Состояние",
+    "questions": ["заводская упаковка", "в упаковке", "запечатана", "factory packaging", "sealed box", "rupnicas iepakojums", "iepakojuma"],
+    "answer": {
+      "ru": "Да, Станции продаются в заводской упаковке.",
+      "en": "Yes, the Stations are sold in factory packaging.",
+      "lv": "Jā, Stations tiek pārdotas rūpnīcas iepakojumā."
+    }
+  },
+  {
+    "id": "warranty",
+    "category": "Гарантия",
+    "questions": ["есть гарантия", "гарантия", "официальная гарантия", "warranty", "guarantee", "garantija", "vai ir garantija"],
+    "answer": {
+      "ru": "Условия гарантии лучше уточнить перед покупкой по конкретной модели. Напишите нам, и мы честно подскажем по доступному устройству.",
+      "en": "Warranty terms should be checked for the exact model before purchase. Message us and we will clarify it honestly.",
+      "lv": "Garantijas nosacījumus labāk precizēt konkrētajam modelim pirms pirkuma. Uzrakstiet mums, un mēs godīgi paskaidrosim."
+    }
+  },
+  {
+    "id": "setup_help",
+    "category": "Настройка",
+    "questions": ["помощь с настройкой", "поможете настроить", "настроить алису", "setup help", "help with setup", "palidziba iestatisana", "palidzesiet pieslegt"],
+    "answer": {
+      "ru": "Да, при необходимости можем помочь с подключением, настройкой Алисы и умного дома по предварительной договорённости.",
+      "en": "Yes, if needed we can help connect Alice and smart home devices by prior agreement.",
+      "lv": "Jā, ja nepieciešams, varam palīdzēt pieslēgt Alisi un viedo māju pēc iepriekšējas vienošanās."
+    }
+  },
+  {
+    "id": "setup_paid",
+    "category": "Настройка",
+    "questions": ["настройка платная", "платная ли настройка", "сколько стоит настройка", "is setup paid", "setup price", "vai iestatisana ir maksas", "iestatisanas cena"],
+    "answer": {
+      "ru": "Настройка — отдельная услуга. Стоимость и объём работ обсуждаются заранее.",
+      "en": "Setup is a separate service. The price and scope are agreed in advance.",
+      "lv": "Iestatīšana ir atsevišķs pakalpojums. Cena un darba apjoms tiek saskaņoti iepriekš."
+    }
+  },
+  {
+    "id": "delivery",
+    "category": "Доставка",
+    "questions": ["есть доставка", "доставка", "можете доставить", "delivery", "do you deliver", "piegade", "vai ir piegade"],
+    "answer": {
+      "ru": "Доставку можно обсудить индивидуально. Напишите в Telegram или WhatsApp, и мы подскажем варианты.",
+      "en": "Delivery can be discussed individually. Message us on Telegram or WhatsApp and we will suggest options.",
+      "lv": "Piegādi varam apspriest individuāli. Uzrakstiet Telegram vai WhatsApp, un mēs piedāvāsim variantus."
+    }
+  },
+  {
+    "id": "pickup",
+    "category": "Доставка",
+    "questions": ["самовывоз", "можно забрать", "забрать сегодня", "pickup", "can i pick up", "pasiznemsana", "varu sanemt"],
+    "answer": {
+      "ru": "Самовывоз возможен по договорённости. Актуальное время и место лучше уточнить перед приездом.",
+      "en": "Pickup is possible by agreement. Please confirm the time and place before coming.",
+      "lv": "Pašizņemšana iespējama pēc vienošanās. Pirms braukšanas labāk precizēt laiku un vietu."
+    }
+  },
+  {
+    "id": "payment",
+    "category": "Оплата",
+    "questions": ["как оплатить", "оплата", "наличные", "перевод", "payment", "how to pay", "cash", "bank transfer", "apmaksa", "ka maksat"],
+    "answer": {
+      "ru": "Способ оплаты лучше согласовать перед покупкой. Напишите нам, и мы подскажем доступные варианты.",
+      "en": "Payment method should be agreed before purchase. Message us and we will clarify the available options.",
+      "lv": "Apmaksas veidu labāk saskaņot pirms pirkuma. Uzrakstiet mums, un mēs precizēsim pieejamos variantus."
+    }
+  },
+  {
+    "id": "model_difference",
+    "category": "Модели",
+    "questions": ["чем отличаются модели", "light 2 mini 3 midi", "лайт мини миди отличие", "difference between models", "which model", "modelu atskiriba", "kuru modeli izveleties"],
+    "answer": {
+      "ru": "Лайт 2 — компактный старт с LED-дисплеем. Мини 3 звучит собраннее для ежедневного использования. Мини 3 Про добавляет Zigbee и возможности умного дома. Миди выбирают для более мощного звука, Стрит — для портативности.",
+      "en": "Lite 2 is a compact start with an LED display. Mini 3 has a more balanced everyday sound. Mini 3 Pro adds Zigbee and smart home features. Midi is for stronger sound, Street is for portability.",
+      "lv": "Lite 2 ir kompakts sākums ar LED displeju. Mini 3 skan līdzsvarotāk ikdienai. Mini 3 Pro pievieno Zigbee un viedās mājas iespējas. Midi ir jaudīgākai skaņai, Street — pārnēsāšanai."
+    }
+  },
+  {
+    "id": "for_child",
+    "category": "Выбор",
+    "questions": ["какая станция ребенку", "для ребенка", "в детскую", "for a child", "child room", "bernam", "bernistabai"],
+    "answer": {
+      "ru": "Для детской чаще всего подойдёт Станция Лайт 2: компактная, с часами, будильниками, сказками и простым голосовым управлением.",
+      "en": "For a child’s room, Station Lite 2 is usually a good fit: compact, with clock, alarms, stories and simple voice control.",
+      "lv": "Bērnistabai parasti labi der Station Lite 2: kompakta, ar pulksteni, modinātājiem, pasakām un vienkāršu balss vadību."
+    }
+  },
+  {
+    "id": "spotify",
+    "category": "Музыка",
+    "questions": ["spotify", "спотифай", "работает spotify", "spotify connect", "vai spotify darbojas"],
+    "answer": {
+      "ru": "Spotify напрямую с Алисой обычно не является основным сценарием. Для музыки чаще используют сервисы Яндекса или Bluetooth, если модель поддерживает нужный режим.",
+      "en": "Spotify is usually not the main direct scenario with Alice. Music is commonly used through Yandex services or Bluetooth when the model supports it.",
+      "lv": "Spotify parasti nav galvenais tiešais scenārijs ar Alisi. Mūzikai biežāk izmanto Yandex servisus vai Bluetooth, ja modelis to atbalsta."
+    }
+  },
+  {
+    "id": "youtube",
+    "category": "Видео",
+    "questions": ["youtube", "ютуб", "включит ютуб", "youtube music", "vai darbojas youtube"],
+    "answer": {
+      "ru": "Станции в первую очередь рассчитаны на голосовое управление, музыку и умный дом. YouTube не стоит рассматривать как основной сценарий для колонки.",
+      "en": "Stations are mainly for voice control, music and smart home. YouTube should not be considered the main speaker scenario.",
+      "lv": "Stations galvenokārt paredzētas balss vadībai, mūzikai un viedajai mājai. YouTube nav galvenais kolonnu lietošanas scenārijs."
+    }
+  },
+  {
+    "id": "music",
+    "category": "Музыка",
+    "questions": ["какая музыка", "слушать музыку", "музыка", "music", "listen to music", "muzika", "klausities muziku"],
+    "answer": {
+      "ru": "Можно слушать музыку, радио и подкасты. Для лучшего звука выбирайте более старшие модели, например Мини 3 Про, Миди или Стрит под ваш сценарий.",
+      "en": "You can listen to music, radio and podcasts. For better sound, choose higher models such as Mini 3 Pro, Midi or Street depending on your use case.",
+      "lv": "Var klausīties mūziku, radio un podkāstus. Labākai skaņai izvēlieties augstāku modeli, piemēram, Mini 3 Pro, Midi vai Street pēc lietošanas scenārija."
+    }
+  },
+  {
+    "id": "tv_connection",
+    "category": "Подключение",
+    "questions": ["подключить к телевизору", "к телевизору", "звук телевизора", "connect to tv", "tv sound", "pieslegt televizoram", "televizors"],
+    "answer": {
+      "ru": "Подключение к телевизору зависит от модели и сценария. Если нужна колонка именно для фильмов и ТВ, напишите нам — подскажем, какая модель подходит.",
+      "en": "TV connection depends on the model and scenario. If you need a speaker specifically for movies and TV, message us and we will suggest a suitable model.",
+      "lv": "Pieslēgšana televizoram ir atkarīga no modeļa un scenārija. Ja vajag kolonnu filmām un TV, uzrakstiet mums — ieteiksim piemērotu modeli."
+    }
+  },
+  {
+    "id": "smart_home",
+    "category": "Умный дом",
+    "questions": ["умный дом", "управлять светом", "розетки", "zigbee", "smart home", "control lights", "vieda maja", "zigbee"],
+    "answer": {
+      "ru": "Через Алису можно управлять совместимыми устройствами умного дома: светом, розетками, датчиками и сценариями. Для более продвинутого умного дома смотрите Мини 3 Про.",
+      "en": "With Alice you can control compatible smart home devices: lights, sockets, sensors and scenarios. For a more advanced smart home, look at Mini 3 Pro.",
+      "lv": "Ar Alisi var vadīt saderīgas viedās mājas ierīces: gaismas, rozetes, sensorus un scenārijus. Plašākai viedajai mājai skatieties Mini 3 Pro."
+    }
+  },
+  {
+    "id": "wifi",
+    "category": "Подключение",
+    "questions": ["wi fi", "wifi", "вай фай", "какой интернет", "internet connection", "wi-fi", "internets"],
+    "answer": {
+      "ru": "Для работы Станции нужен Wi‑Fi и стабильный интернет. Настройка выполняется через приложение и аккаунт Яндекса.",
+      "en": "A Station needs Wi‑Fi and a stable internet connection. Setup is done through the app and a Yandex account.",
+      "lv": "Station darbībai nepieciešams Wi‑Fi un stabils internets. Iestatīšana notiek lietotnē ar Yandex kontu."
+    }
+  },
+  {
+    "id": "plus_subscription",
+    "category": "Подписки",
+    "questions": ["яндекс плюс", "нужна подписка", "подписка", "yandex plus", "subscription", "plus subscription", "abonements", "yandex plus"],
+    "answer": {
+      "ru": "Для части музыкальных возможностей может понадобиться подписка Яндекс Плюс. Базовые голосовые функции и умный дом зависят от модели и настроек.",
+      "en": "Some music features may require a Yandex Plus subscription. Basic voice functions and smart home features depend on the model and setup.",
+      "lv": "Daļai mūzikas iespēju var būt nepieciešams Yandex Plus abonements. Pamata balss funkcijas un viedā māja ir atkarīgas no modeļa un iestatījumiem."
+    }
+  },
+  {
+    "id": "after_purchase",
+    "category": "После покупки",
+    "questions": ["что делать после покупки", "как подключить после покупки", "после покупки", "after purchase", "first setup", "pec pirkuma", "ko darit pec pirkuma"],
+    "answer": {
+      "ru": "После покупки подключите Станцию к питанию, установите приложение, войдите в аккаунт Яндекса и следуйте шагам настройки. Если нужна помощь, можно заранее договориться о настройке.",
+      "en": "After purchase, connect the Station to power, install the app, sign in to a Yandex account and follow setup steps. If you need help, setup can be arranged in advance.",
+      "lv": "Pēc pirkuma pieslēdziet Station pie strāvas, instalējiet lietotni, ieejiet Yandex kontā un sekojiet iestatīšanas soļiem. Ja vajag palīdzību, var vienoties par iestatīšanu."
+    }
+  },
+  {
+    "id": "bluetooth",
+    "category": "Подключение",
+    "questions": ["bluetooth", "блютуз", "подключить телефон", "connect phone", "bluetooth speaker", "pieslegt telefonu"],
+    "answer": {
+      "ru": "Bluetooth зависит от модели и режима использования. Если хотите использовать колонку как портативную акустику, особенно посмотрите Станцию Стрит.",
+      "en": "Bluetooth depends on the model and use mode. If you want a portable speaker scenario, especially consider Station Street.",
+      "lv": "Bluetooth ir atkarīgs no modeļa un lietošanas režīma. Ja vajag portatīvu akustiku, īpaši apskatiet Station Street."
+    }
+  }
+]

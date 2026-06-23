@@ -24,6 +24,18 @@ button {
   border: 0;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .showroom {
   position: relative;
   width: 100%;
@@ -244,6 +256,9 @@ h1 {
 .site-header a:focus-visible,
 .channel-link:focus-visible,
 .assistant-chip:focus-visible,
+.faq-chip:focus-visible,
+.faq-form input:focus-visible,
+.faq-form button:focus-visible,
 .assistant-result-actions button:focus-visible,
 .compare-card:focus-visible,
 .final-actions a:focus-visible {
@@ -717,6 +732,102 @@ h1 {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
+}
+
+.faq-consultant {
+  margin-top: 18px;
+}
+
+.faq-messages {
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.faq-message {
+  width: fit-content;
+  max-width: 92%;
+  padding: 11px 13px;
+  border-radius: 18px;
+  color: #27282d;
+  background: rgba(17, 17, 20, .06);
+  font-size: 14px;
+  line-height: 1.38;
+}
+
+.faq-message.user {
+  justify-self: end;
+  color: #fff;
+  background: #111114;
+}
+
+.faq-message.assistant {
+  justify-self: start;
+}
+
+.faq-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.faq-chip {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: #202228;
+  background: rgba(17, 17, 20, .055);
+  font-size: 13px;
+  font-weight: 760;
+  cursor: pointer;
+  transition: transform .2s ease, background .2s ease;
+}
+
+.faq-chip:hover {
+  transform: translateY(-1px);
+  background: rgba(17, 17, 20, .1);
+}
+
+.faq-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.faq-form input {
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  color: #111114;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 20, .09);
+  font: inherit;
+  font-size: 14px;
+  outline: 0;
+}
+
+.faq-form button {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: #fff;
+  background: #111114;
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: transform .2s ease, background .2s ease;
+}
+
+.faq-form button:hover {
+  transform: translateY(-1px);
+  background: #25262a;
 }
 
 .thumb img {

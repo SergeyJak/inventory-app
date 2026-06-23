@@ -34,6 +34,7 @@ const FILES = {
   andreyReturns: path.join(DATA_DIR, 'andrey-returns.json'),
   subAccounts: path.join(DATA_DIR, 'sub-accounts.json'),
   hostSubscriptions: path.join(DATA_DIR, 'host-subscriptions.json'),
+  assistantQuestions: path.join(DATA_DIR, 'assistant-questions.json'),
 };
 if (!USE_MONGO) {
   Object.values(FILES).forEach(f => {
@@ -49,6 +50,7 @@ const COLL = {
   andreyReturns: 'andreyReturns',
   subAccounts: 'subAccounts',
   hostSubscriptions: 'hostSubscriptions',
+  assistantQuestions: 'assistantQuestions',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
 
@@ -124,6 +126,7 @@ const INVENTORY_PUBLIC_FILES = new Map([
   ['/style.css', 'style.css'],
   ['/favicon.ico', 'favicon.ico'],
 ]);
+const assistantQuestionRate = new Map();
 
 function setSecurityHeaders(req, res, next) {
   res.setHeader('X-Frame-Options', 'DENY');
@@ -209,7 +212,7 @@ app.get('/catalog.html', (req, res, next) => {
   return next();
 });
 
-app.get(['/catalog.css', '/catalog.js', '/i18n.js', '/site.webmanifest', '/robots.txt', '/sitemap.xml', '/404.html', '/favicon.ico'], (req, res, next) => {
+app.get(['/catalog.css', '/catalog.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/sitemap.xml', '/404.html', '/favicon.ico'], (req, res, next) => {
   if (isCatalogHost(req)) {
     return res.sendFile(path.join(__dirname, req.path.slice(1)));
   }
@@ -251,7 +254,8 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (isCatalogHost(req) && req.path.startsWith('/api/') && req.path !== '/api/public/products') {
+  const publicCatalogApi = req.path === '/api/public/products' || req.path === '/api/public/assistant-question';
+  if (isCatalogHost(req) && req.path.startsWith('/api/') && !publicCatalogApi) {
     return res.status(404).json({ error: 'Not found' });
   }
   next();
@@ -317,6 +321,68 @@ app.get('/api/public/products', async (req, res) => {
   } catch (e) {
     console.error('Public products error:', e.message);
     sendGenericError(res);
+  }
+});
+
+function sanitizeAssistantQuestion(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 300);
+}
+
+function assistantRateKey(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+}
+
+function assistantRateAllowed(req) {
+  const key = assistantRateKey(req);
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const current = assistantQuestionRate.get(key) || [];
+  const recent = current.filter(time => now - time < windowMs);
+  if (recent.length >= 12) {
+    assistantQuestionRate.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  assistantQuestionRate.set(key, recent);
+  return true;
+}
+
+async function logAssistantQuestion(entry) {
+  if (USE_MONGO) {
+    await db.collection(COLL.assistantQuestions).insertOne(entry);
+    return;
+  }
+  const existing = JSON.parse(fs.readFileSync(FILES.assistantQuestions, 'utf8'));
+  existing.push(entry);
+  fs.writeFileSync(FILES.assistantQuestions, JSON.stringify(existing.slice(-1000), null, 2), 'utf8');
+}
+
+app.post('/api/public/assistant-question', async (req, res) => {
+  try {
+    if (!assistantRateAllowed(req)) return res.status(429).json({ ok: false });
+    const question = sanitizeAssistantQuestion(req.body?.question);
+    if (!question) return res.status(400).json({ ok: false });
+    const locale = ['ru', 'en', 'lv'].includes(req.body?.locale) ? req.body.locale : 'ru';
+    const matchedFaqId = sanitizeAssistantQuestion(req.body?.matchedFaqId).slice(0, 80) || null;
+    const confidence = Math.max(0, Math.min(1, Number(req.body?.confidence) || 0));
+    const entry = {
+      question,
+      locale,
+      matchedFaqId,
+      confidence,
+      createdAt: new Date().toISOString(),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 240),
+    };
+    logAssistantQuestion(entry).catch(err => console.error('Assistant question log error:', err.message));
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Assistant question route error:', e.message);
+    res.json({ ok: true });
   }
 });
 

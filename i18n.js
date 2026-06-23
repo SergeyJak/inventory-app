@@ -48,6 +48,15 @@ window.catalogTranslations = {
         budget: { label: 'Доступная по цене', reason: 'По цене чаще всего стоит начать с Лайт 2: базовые функции Алисы, компактность и LED-дисплей без лишней сложности.' },
       },
     },
+    faq: {
+      kicker: 'Вопросы',
+      inputLabel: 'Ваш вопрос',
+      placeholder: 'Например: работает ли в Латвии?',
+      send: 'Спросить',
+      greeting: 'Задайте вопрос про Станции, настройку, доставку или музыку.',
+      fallback: 'Я пока не нашёл точный ответ. Напишите мне в Telegram или WhatsApp — я помогу лично.',
+      quick: ['Работает ли в Латвии?', 'Чем отличаются модели?', 'Помощь с настройкой', 'Доставка', 'Гарантия', 'Музыка и подписки'],
+    },
     sections: {
       choose: { title: 'Какую Станцию выбрать?', text: 'Коротко о разнице между доступными моделями.' },
       trust: {
@@ -194,6 +203,15 @@ window.catalogTranslations = {
         budget: { label: 'Izdevīgākā cena', reason: 'Pēc cenas bieži vērts sākt ar Lite 2: Alises pamatfunkcijas, kompakts izmērs un LED displejs bez liekas sarežģītības.' },
       },
     },
+    faq: {
+      kicker: 'Jautājumi',
+      inputLabel: 'Jūsu jautājums',
+      placeholder: 'Piemēram: vai darbojas Latvijā?',
+      send: 'Jautāt',
+      greeting: 'Uzdodiet jautājumu par Station, iestatīšanu, piegādi vai mūziku.',
+      fallback: 'Es vēl neatradu precīzu atbildi. Uzrakstiet Telegram vai WhatsApp — palīdzēšu personīgi.',
+      quick: ['Vai darbojas Latvijā?', 'Ar ko atšķiras modeļi?', 'Palīdzība ar iestatīšanu', 'Piegāde', 'Garantija', 'Mūzika un abonementi'],
+    },
     sections: {
       choose: { title: 'Kuru Station izvēlēties?', text: 'Īsi par atšķirībām starp pieejamajiem modeļiem.' },
       trust: {
@@ -307,6 +325,15 @@ window.catalogTranslations = {
         compare: { label: 'Compare models', reason: 'The comparison shows each role: first speaker, daily use, smart home, music or portability.' },
         budget: { label: 'Best price', reason: 'For price, Lite 2 is usually the place to start: core Alice features, compact size and an LED display.' },
       },
+    },
+    faq: {
+      kicker: 'Questions',
+      inputLabel: 'Your question',
+      placeholder: 'For example: does it work in Latvia?',
+      send: 'Ask',
+      greeting: 'Ask about Stations, setup, delivery or music.',
+      fallback: 'I have not found an exact answer yet. Message me on Telegram or WhatsApp — I will help personally.',
+      quick: ['Does it work in Latvia?', 'How are the models different?', 'Setup help', 'Delivery', 'Warranty', 'Music and subscriptions'],
     },
     sections: {
       choose: { title: 'Which Station should you choose?', text: 'A quick look at the differences between available models.' },

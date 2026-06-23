@@ -451,6 +451,17 @@
     <p class="assistant-intro" data-i18n="assistant.intro">Подскажу подходящую модель по сценарию и покажу её в витрине.</p>
     <div class="assistant-options" id="assistant-options"></div>
     <div class="assistant-result" id="assistant-result" hidden></div>
+    <div class="faq-consultant" id="faq-consultant">
+      <div class="panel-divider"></div>
+      <p class="panel-kicker" data-i18n="faq.kicker">Вопросы</p>
+      <div class="faq-messages" id="faq-messages" aria-live="polite"></div>
+      <div class="faq-quick" id="faq-quick"></div>
+      <form class="faq-form" id="faq-form">
+        <label class="sr-only" for="faq-input" data-i18n="faq.inputLabel">Ваш вопрос</label>
+        <input id="faq-input" type="text" maxlength="300" autocomplete="off" data-i18n-placeholder="faq.placeholder" placeholder="Например: работает ли в Латвии?" />
+        <button type="submit" data-i18n="faq.send">Спросить</button>
+      </form>
+    </div>
   </aside>
 
   <script src="i18n.js"></script>

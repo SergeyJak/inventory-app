@@ -20,6 +20,10 @@ const assistantPanel = document.getElementById('assistant-panel');
 const assistantClose = document.getElementById('assistant-close');
 const assistantOptions = document.getElementById('assistant-options');
 const assistantResult = document.getElementById('assistant-result');
+const faqMessages = document.getElementById('faq-messages');
+const faqQuick = document.getElementById('faq-quick');
+const faqForm = document.getElementById('faq-form');
+const faqInput = document.getElementById('faq-input');
 const languageSwitcher = document.getElementById('language-switcher');
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -109,13 +113,26 @@ let models = [];
 let activeModel = 0;
 let activeColor = 0;
 let activeAngle = 0;
+let faqItems = [];
 
 function normalize(value) {
   return String(value || '')
     .toLowerCase()
     .replace(/ё/g, 'е')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zа-я0-9]+/g, ' ')
     .trim();
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
 }
 
 function setState(message) {
@@ -279,6 +296,103 @@ function renderAssistant() {
   `).join('');
   assistantResult.hidden = true;
   assistantResult.innerHTML = '';
+  renderFaq();
+}
+
+function renderFaq() {
+  faqQuick.innerHTML = dict('faq.quick').map(question => `
+    <button class="faq-chip" type="button" data-faq-question="${escapeHtml(question)}">${escapeHtml(question)}</button>
+  `).join('');
+  faqMessages.innerHTML = `<div class="faq-message assistant">${escapeHtml(dict('faq.greeting'))}</div>`;
+  faqInput.value = '';
+}
+
+function levenshtein(a, b) {
+  if (Math.abs(a.length - b.length) > 8) return Math.max(a.length, b.length);
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 0; i < a.length; i += 1) {
+    let before = previous[0];
+    previous[0] = i + 1;
+    for (let j = 0; j < b.length; j += 1) {
+      const temp = previous[j + 1];
+      previous[j + 1] = Math.min(
+        previous[j + 1] + 1,
+        previous[j] + 1,
+        before + (a[i] === b[j] ? 0 : 1)
+      );
+      before = temp;
+    }
+  }
+  return previous[b.length];
+}
+
+function scoreFaqQuestion(input, candidate) {
+  const query = normalize(input);
+  const text = normalize(candidate);
+  if (!query || !text) return 0;
+  if (query === text) return 1;
+  if (text.includes(query) || query.includes(text)) return 0.92;
+  const queryTokens = query.split(' ').filter(token => token.length > 1);
+  const textTokens = text.split(' ').filter(token => token.length > 1);
+  const tokenHits = queryTokens.filter(token => textTokens.some(item => item === token || item.includes(token) || token.includes(item))).length;
+  const tokenScore = queryTokens.length ? tokenHits / queryTokens.length : 0;
+  const distance = levenshtein(query, text);
+  const distanceScore = 1 - Math.min(distance / Math.max(query.length, text.length, 1), 1);
+  return Math.max(tokenScore * 0.82, distanceScore * 0.72);
+}
+
+function findFaqAnswer(question) {
+  const matches = faqItems.map(item => {
+    const questionScore = Math.max(...(item.questions || []).map(candidate => scoreFaqQuestion(question, candidate)));
+    const categoryScore = scoreFaqQuestion(question, item.category) * 0.65;
+    return { item, confidence: Math.max(questionScore, categoryScore) };
+  }).sort((a, b) => b.confidence - a.confidence);
+  const best = matches[0];
+  if (!best || best.confidence < 0.46) return { matched: false, confidence: best?.confidence || 0 };
+  return {
+    matched: true,
+    faq: best.item,
+    confidence: Number(best.confidence.toFixed(2)),
+    answer: best.item.answer?.[currentLang] || best.item.answer?.ru || '',
+  };
+}
+
+function sendAssistantAnalytics(result) {
+  try {
+    window.gtag?.('event', 'assistant_question', {
+      matched: Boolean(result.matched),
+      faq_id: result.faq?.id || '',
+      locale: currentLang,
+    });
+  } catch {}
+}
+
+function logAssistantQuestion(question, result) {
+  fetch('/api/public/assistant-question', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      question,
+      locale: currentLang,
+      matchedFaqId: result.faq?.id || null,
+      confidence: result.confidence || 0,
+    }),
+  }).catch(() => {});
+}
+
+function appendFaqMessage(role, text) {
+  faqMessages.insertAdjacentHTML('beforeend', `<div class="faq-message ${role}">${escapeHtml(text)}</div>`);
+  faqMessages.scrollTop = faqMessages.scrollHeight;
+}
+
+function answerFaq(question) {
+  const cleanQuestion = String(question || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!cleanQuestion) return;
+  appendFaqMessage('user', cleanQuestion);
+  const result = findFaqAnswer(cleanQuestion);
+  appendFaqMessage('assistant', result.matched ? result.answer : dict('faq.fallback'));
+  sendAssistantAnalytics(result);
+  logAssistantQuestion(cleanQuestion, result);
 }
 
 function showAssistantResult(scenarioId) {
@@ -371,6 +485,9 @@ function applyStaticTranslations() {
   document.title = dict('meta.title');
   document.querySelectorAll('[data-i18n]').forEach(node => {
     node.textContent = dict(node.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(node => {
+    node.setAttribute('placeholder', dict(node.dataset.i18nPlaceholder));
   });
   assistantPanel.setAttribute('aria-label', dict('assistant.kicker'));
   modelSwitcher.setAttribute('aria-label', dict('common.models'));
@@ -585,6 +702,7 @@ contactActions.addEventListener('click', event => {
 assistantFab.addEventListener('click', () => {
   renderAssistant();
   openOverlay(assistantPanel);
+  window.setTimeout(() => faqInput.focus({ preventScroll: true }), 120);
 });
 
 assistantOptions.addEventListener('click', event => {
@@ -629,6 +747,18 @@ languageSwitcher.addEventListener('click', event => {
   if (assistantPanel.classList.contains('open')) renderAssistant();
 });
 
+faqQuick.addEventListener('click', event => {
+  const btn = event.target.closest('[data-faq-question]');
+  if (!btn) return;
+  answerFaq(btn.dataset.faqQuestion);
+});
+
+faqForm.addEventListener('submit', event => {
+  event.preventDefault();
+  answerFaq(faqInput.value);
+  faqInput.value = '';
+});
+
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeOverlays();
 });
@@ -649,5 +779,9 @@ showroom.addEventListener('pointerleave', () => {
 
 applyStaticTranslations();
 renderLanguageSwitcher();
-loadCatalog();
+fetch('/faq.json')
+  .then(res => (res.ok ? res.json() : []))
+  .then(data => { faqItems = Array.isArray(data) ? data : []; })
+  .catch(() => { faqItems = []; })
+  .finally(loadCatalog);
 
