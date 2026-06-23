@@ -259,7 +259,12 @@
     function backResponse() {
       if (responseHistory.length <= 1) return clarify();
       responseHistory.pop();
-      return { ...responseHistory[responseHistory.length - 1], type: 'back' };
+      const previous = responseHistory[responseHistory.length - 1];
+      if (previous?.modelId) {
+        context.lastModelId = previous.modelId;
+        context.color = previous.colorKey || null;
+      }
+      return { ...previous, type: 'back' };
     }
 
     function nextAlternative() {
@@ -276,6 +281,15 @@
         colorKey: context.color,
         actions: recommendationActions(model),
       });
+    }
+
+    function isBudgetAmount(input) {
+      const normalized = normalize(input);
+      const upToRu = ru(1076,1086);
+      const euroRu = ru(1077,1074,1088,1086);
+      return /(?:^| )(under|up to|max|eur|euro|€) ?\d+/.test(normalized) ||
+        normalized.includes(euroRu) ||
+        new RegExp(`(?:^| )${upToRu} \\d+`).test(normalized);
     }
 
     function handle(input) {
@@ -302,12 +316,12 @@
       const model = detectModel(input);
       if (model) return modelResponse(model);
 
-      if (sameIntent(input, [options.t('assistantV2.showProduct'), 'show in catalog', ru(1087,1086,1082,1072,1079,1072,1090,1100,32,1074,32,1082,1072,1090,1072,1083,1086,1075,1077)])) {
+      if (sameIntent(input, [options.t('assistantV2.showProduct'), 'show in catalog', 'show product', ru(1087,1086,1082,1072,1079,1072,1090,1100,32,1074,32,1082,1072,1090,1072,1083,1086,1075,1077)])) {
         const selected = modelById(context.lastModelId);
         if (selected) return modelResponse(selected);
       }
 
-      if (hasAny(input, SYNONYMS.cheaper)) {
+      if (hasAny(input, SYNONYMS.cheaper) || isBudgetAmount(input)) {
         const scope = context.selectedScenario === 'child' ? ['light2', 'mini3'] : null;
         const selected = cheapestModel(scope);
         context.budget = 'low';

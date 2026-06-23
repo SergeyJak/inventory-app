@@ -23,6 +23,9 @@ const words = {
   delivery: ru(1076,1086,1089,1090,1072,1074,1082,1072),
   setup: ru(1085,1072,1089,1090,1088,1086,1081,1082,1072),
   unknown: ru(1087,1086,1095,1077,1084,1091,32,1085,1077,1073,1086,32,1079,1077,1083,1077,1085,1099,1081),
+  blueQuestion: ru(1045,1089,1090,1100,32,1089,1080,1085,1103,1103,63),
+  wantSpeaker: ru(1061,1086,1095,1091,32,1082,1086,1083,1086,1085,1082,1091),
+  budget100: ru(1044,1086,32,49,48,48,32,1077,1074,1088,1086),
 };
 
 const context = { window: {} };
@@ -174,6 +177,50 @@ function assertAction(response, id, label = 'response') {
   assert(response.actions?.some(action => action.id === id), `${label} missing action ${id}`);
 }
 
+function showProductAction(response, label = 'response') {
+  const action = response.actions?.find(item => item.id === 'show_product');
+  assert(action, `${label} missing show_product action`);
+  assert(action.modelId, `${label} show_product missing modelId`);
+  assert(models.some(model => model.id === action.modelId), `${label} show_product has unknown modelId ${action.modelId}`);
+  return action;
+}
+
+function isUnknownFallback(response, lang = 'ru') {
+  return response.type === 'fallback' && response.text === translationSets[lang]['faq.fallback'];
+}
+
+function assertNormal(response, lang, label) {
+  assert(!isUnknownFallback(response, lang), `${label} unexpectedly returned unknown fallback`);
+}
+
+function runDialog(name, lang, steps, coverage) {
+  const engine = createEngine(lang);
+  const seenModels = [];
+  let previousModelId = null;
+  let previousRecommendationModelId = null;
+
+  for (const step of steps) {
+    const response = engine.handle(step.input);
+    const label = `${name}: ${step.input}`;
+    if (step.intent) coverage.add(step.intent);
+    if (step.noFallback !== false) assertNormal(response, lang, label);
+    if (step.type) assert.strictEqual(response.type, step.type, label);
+    if (step.modelId) assert.strictEqual(response.modelId, step.modelId, label);
+    if (step.scenario) assert.strictEqual(engine.snapshot().selectedScenario, step.scenario, label);
+    if (step.action) assertAction(response, step.action, label);
+    if (step.showProduct) showProductAction(response, label);
+    if (step.expectShowProductModelId) assert.strictEqual(showProductAction(response, label).modelId, step.expectShowProductModelId, label);
+    if (step.notRepeatPrevious) assert.notStrictEqual(response.modelId, previousModelId, label);
+    if (step.backToPreviousRecommendation) assert.strictEqual(response.modelId, previousRecommendationModelId, label);
+    if (response.modelId) {
+      seenModels.push(response.modelId);
+      previousModelId = response.modelId;
+      if (response.type === 'recommendation' || response.type === 'model') previousRecommendationModelId = response.modelId;
+    }
+  }
+  return { engine, seenModels };
+}
+
 function testScenarioSwitchClearsContext() {
   const engine = createEngine('ru');
   assert.strictEqual(engine.handle(words.childScenario).modelId, 'light2');
@@ -291,6 +338,97 @@ function testLanguages() {
   }
 }
 
+function testGoldenConversationsAndIntentCoverage() {
+  const coverage = new Set();
+
+  runDialog('A', 'ru', [
+    { input: words.childScenario, intent: 'child', scenario: 'child', modelId: 'light2', showProduct: true },
+    { input: words.cheaper, intent: 'budget', modelId: 'light2', showProduct: true },
+    { input: words.musicSwitch, intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
+    { input: words.blueQuestion, intent: 'color', modelId: 'midi' },
+    { input: words.latviaTypo, intent: 'latvia', type: 'faq' },
+    { input: words.setup, intent: 'setup', type: 'faq' },
+  ], coverage);
+
+  runDialog('B', 'ru', [
+    { input: words.wantSpeaker, type: 'clarify' },
+    { input: words.homeScenario, intent: 'home', scenario: 'home', modelId: 'mini3', showProduct: true },
+    { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
+    { input: words.back, intent: 'back', modelId: 'mini3' },
+    { input: words.showProduct, intent: 'show_product', expectShowProductModelId: 'mini3' },
+  ], coverage);
+
+  runDialog('C', 'ru', [
+    { input: 'Mini 3', intent: 'model', type: 'model', modelId: 'mini3', showProduct: true },
+    { input: words.compare, intent: 'compare', type: 'compare', action: 'compare' },
+    { input: 'Midi', intent: 'model', type: 'model', modelId: 'midi', showProduct: true },
+    { input: words.showProduct, intent: 'show_product', expectShowProductModelId: 'midi' },
+  ], coverage);
+
+  runDialog('D', 'ru', [
+    { input: words.giftScenario, intent: 'gift', scenario: 'gift', modelId: 'light2', showProduct: true },
+    { input: words.budget100, intent: 'budget', modelId: 'light2', showProduct: true },
+    { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
+  ], coverage);
+
+  runDialog('E', 'en', [
+    { input: 'Do you deliver?', intent: 'delivery', type: 'faq' },
+    { input: 'setup help', intent: 'setup', type: 'faq' },
+    { input: 'music', intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
+    { input: 'show product', intent: 'show_product', expectShowProductModelId: 'midi' },
+  ], coverage);
+
+  runDialog('F', 'lv', [
+    { input: 'Vai strada Latvija?', intent: 'latvia', type: 'faq' },
+    { input: 'piegade', intent: 'delivery', type: 'faq' },
+    { input: 'iestatisana', intent: 'setup', type: 'faq' },
+  ], coverage);
+
+  runDialog('G', 'ru', [
+    { input: words.homeScenario, intent: 'home', modelId: 'mini3', showProduct: true },
+    { input: 'Light 2', intent: 'model', modelId: 'light2', showProduct: true },
+    { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
+    { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
+  ], coverage);
+
+  runDialog('H', 'en', [
+    { input: 'For home', intent: 'home', scenario: 'home', modelId: 'mini3', showProduct: true },
+    { input: 'Another option', intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
+    { input: 'Back', intent: 'back', modelId: 'mini3' },
+  ], coverage);
+
+  runDialog('I', 'lv', [
+    { input: 'Muzikai', intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
+    { input: 'Vel variants', intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
+    { input: 'Atpakal', intent: 'back', modelId: 'midi' },
+  ], coverage);
+
+  runDialog('J', 'ru', [
+    { input: words.unknown, intent: 'fallback', type: 'fallback', noFallback: false },
+  ], coverage);
+
+  const requiredIntents = [
+    'home',
+    'music',
+    'child',
+    'gift',
+    'budget',
+    'compare',
+    'setup',
+    'delivery',
+    'latvia',
+    'model',
+    'color',
+    'show_product',
+    'next_variant',
+    'back',
+    'fallback',
+  ];
+  const missing = requiredIntents.filter(intent => !coverage.has(intent));
+  assert.deepStrictEqual(missing, [], `Missing intent coverage: ${missing.join(', ')}`);
+  console.log(`assistant v2 intent coverage: ${requiredIntents.join(', ')}`);
+}
+
 testScenarioSwitchClearsContext();
 testActionCommandsAsText();
 testSpecificModels();
@@ -301,5 +439,6 @@ testBackReturnsPreviousState();
 testNavigationActionIncludesModelAndColor();
 testRequiredRegressionFlow();
 testLanguages();
+testGoldenConversationsAndIntentCoverage();
 
 console.log('assistant engine v2 regression passed');
