@@ -212,7 +212,7 @@ app.get('/catalog.html', (req, res, next) => {
   return next();
 });
 
-app.get(['/catalog.css', '/catalog.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/sitemap.xml', '/404.html', '/favicon.ico'], (req, res, next) => {
+app.get(['/catalog.css', '/catalog.js', '/assistant-engine.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/sitemap.xml', '/404.html', '/favicon.ico'], (req, res, next) => {
   if (isCatalogHost(req)) {
     return res.sendFile(path.join(__dirname, req.path.slice(1)));
   }

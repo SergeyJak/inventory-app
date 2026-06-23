@@ -114,6 +114,11 @@ let activeModel = 0;
 let activeColor = 0;
 let activeAngle = 0;
 let faqItems = [];
+let assistantEngine = null;
+
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 900px)').matches;
+}
 
 function normalize(value) {
   return String(value || '')
@@ -234,7 +239,25 @@ function openOverlay(panel) {
   });
 }
 
+function updateAssistantKeyboardOffset() {
+  if (!isMobileViewport() || !assistantPanel.classList.contains('open') || document.activeElement !== faqInput) {
+    document.body.style.setProperty('--keyboard-offset', '0px');
+    return;
+  }
+  const viewport = window.visualViewport;
+  const rawOffset = viewport
+    ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+    : 0;
+  const offset = Math.min(Math.round(rawOffset), Math.round(window.innerHeight * 0.48));
+  document.body.style.setProperty('--keyboard-offset', `${offset}px`);
+  window.setTimeout(() => {
+    faqForm.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion.matches ? 'auto' : 'smooth' });
+  }, 40);
+}
+
 function closeOverlays() {
+  const assistantWasOpen = assistantPanel.classList.contains('open');
+  document.body.style.setProperty('--keyboard-offset', '0px');
   overlay.classList.remove('open');
   contactPanel.classList.remove('open');
   assistantPanel.classList.remove('open');
@@ -247,6 +270,7 @@ function closeOverlays() {
       overlay.hidden = true;
     }
   }, 220);
+  if (assistantWasOpen) assistantEngine?.reset();
 }
 
 function openContactPanel(topicId = 'availability') {
@@ -278,6 +302,16 @@ function pickModel(preferredIds) {
   return preferredIds.map(id => models.find(model => model.id === id)).find(Boolean) || models[0];
 }
 
+function createAssistantEngine() {
+  if (!window.AssistantEngine?.createAssistantEngine) return null;
+  return window.AssistantEngine.createAssistantEngine({
+    models: () => models,
+    t: path => dict(path),
+    modelText,
+    findFaq: findFaqAnswer,
+  });
+}
+
 function assistantScenarios() {
   const scenarios = dict('assistant.scenarios');
   return [
@@ -289,6 +323,7 @@ function assistantScenarios() {
 }
 
 function renderAssistant() {
+  assistantEngine = createAssistantEngine();
   assistantOptions.classList.remove('is-collapsed');
   assistantOptions.innerHTML = assistantScenarios().map(item => `
     <button class="assistant-chip" type="button" data-scenario="${item.id}">${item.label}</button>
@@ -296,6 +331,15 @@ function renderAssistant() {
   assistantResult.hidden = true;
   assistantResult.innerHTML = '';
   renderFaq();
+}
+
+function collapseAssistantPrompts() {
+  assistantOptions.classList.add('is-collapsed');
+  faqQuick.classList.add('is-collapsed');
+  window.setTimeout(() => {
+    assistantOptions.innerHTML = '';
+    faqQuick.innerHTML = '';
+  }, 220);
 }
 
 function scenarioPrompt(scenario) {
@@ -380,6 +424,12 @@ function sendAssistantAnalytics(result) {
   } catch {}
 }
 
+function trackAssistantEvent(name, params = {}) {
+  try {
+    window.gtag?.('event', name, { locale: currentLang, ...params });
+  } catch {}
+}
+
 function logAssistantQuestion(question, result) {
   fetch('/api/public/assistant-question', {
     method: 'POST',
@@ -396,16 +446,112 @@ function logAssistantQuestion(question, result) {
 function appendFaqMessage(role, text) {
   faqMessages.insertAdjacentHTML('beforeend', `<div class="faq-message ${role}">${escapeHtml(text)}</div>`);
   faqMessages.scrollTop = faqMessages.scrollHeight;
+  return faqMessages.lastElementChild;
+}
+
+function appendAssistantResponse(response) {
+  const message = appendFaqMessage('assistant', response.text || dict('faq.fallback'));
+  if (response.actions?.length) {
+    message.insertAdjacentHTML('beforeend', `
+      <div class="assistant-message-actions">
+        ${response.actions.map(action => `
+          <button class="assistant-action" type="button"
+            data-action="${escapeHtml(action.id)}"
+            ${action.modelId ? `data-model-id="${escapeHtml(action.modelId)}"` : ''}
+            ${action.colorKey ? `data-color-key="${escapeHtml(action.colorKey)}"` : ''}
+            ${action.scenarioId ? `data-scenario="${escapeHtml(action.scenarioId)}"` : ''}>
+            ${escapeHtml(action.label)}
+          </button>
+        `).join('')}
+      </div>
+    `);
+    faqMessages.scrollTop = faqMessages.scrollHeight;
+  }
+  if (response.type === 'recommendation') {
+    trackAssistantEvent('assistant_recommendation', { model_id: response.modelId || '', scenario: assistantEngine?.snapshot().selectedScenario || '' });
+  }
 }
 
 function answerFaq(question) {
   const cleanQuestion = String(question || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
   if (!cleanQuestion) return;
+  collapseAssistantPrompts();
   appendFaqMessage('user', cleanQuestion);
-  const result = findFaqAnswer(cleanQuestion);
-  appendFaqMessage('assistant', result.matched ? result.answer : dict('faq.fallback'));
+  const response = assistantEngine?.handle(cleanQuestion);
+  const result = response?.faq || findFaqAnswer(cleanQuestion);
+  appendAssistantResponse(response || {
+    type: result.matched ? 'faq' : 'fallback',
+    text: result.matched ? result.answer : dict('faq.fallback'),
+    faq: result,
+  });
   sendAssistantAnalytics(result);
   logAssistantQuestion(cleanQuestion, result);
+}
+
+function findColorIndex(model, colorKey) {
+  const index = model?.photos?.findIndex(photo => photo.colorKey === colorKey);
+  return index >= 0 ? index : 0;
+}
+
+function highlightElement(node) {
+  if (!node) return;
+  node.classList.remove('assistant-highlight');
+  void node.offsetWidth;
+  node.classList.add('assistant-highlight');
+  window.setTimeout(() => node.classList.remove('assistant-highlight'), 2000);
+}
+
+function showAssistantModel(modelId, colorKey) {
+  const modelIndex = models.findIndex(model => model.id === modelId);
+  if (modelIndex < 0) return;
+  activeModel = modelIndex;
+  activeColor = findColorIndex(models[activeModel], colorKey);
+  activeAngle = 0;
+  render();
+  closeOverlays();
+  window.setTimeout(() => {
+    showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    highlightElement(showroom);
+  }, 180);
+  trackAssistantEvent('assistant_show_product', { model_id: modelId, color: colorKey || '' });
+}
+
+function showAssistantCompare() {
+  closeOverlays();
+  window.setTimeout(() => {
+    const compareBlock = detailsGrid.querySelector('.compare-block');
+    compareBlock?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    highlightElement(compareBlock);
+  }, 180);
+  trackAssistantEvent('assistant_compare');
+}
+
+function handleAssistantAction(action) {
+  trackAssistantEvent('assistant_quick_action', { action: action.dataset.action || '', model_id: action.dataset.modelId || '' });
+  if (action.dataset.action === 'show_product') {
+    showAssistantModel(action.dataset.modelId, action.dataset.colorKey);
+    return;
+  }
+  if (action.dataset.action === 'compare') {
+    showAssistantCompare();
+    return;
+  }
+  if (action.dataset.action === 'alternative') {
+    appendAssistantResponse(assistantEngine?.nextAlternative() || { text: dict('faq.fallback') });
+    return;
+  }
+  if (action.dataset.action === 'scenario') {
+    answerFaq(action.textContent);
+    trackAssistantEvent('assistant_followup', { scenario: action.dataset.scenario || '' });
+    return;
+  }
+  if (action.dataset.action === 'back') {
+    renderFaq();
+    assistantOptions.classList.remove('is-collapsed');
+    assistantOptions.innerHTML = assistantScenarios().map(item => `
+      <button class="assistant-chip" type="button" data-scenario="${item.id}">${item.label}</button>
+    `).join('');
+  }
 }
 
 function showAssistantResult(scenarioId) {
@@ -715,20 +861,23 @@ contactActions.addEventListener('click', event => {
 assistantFab.addEventListener('click', () => {
   renderAssistant();
   openOverlay(assistantPanel);
-  window.setTimeout(() => faqInput.focus({ preventScroll: true }), 120);
+  trackAssistantEvent('assistant_open');
+  window.setTimeout(() => {
+    faqInput.focus({ preventScroll: true });
+    updateAssistantKeyboardOffset();
+  }, 120);
 });
 
 assistantOptions.addEventListener('click', event => {
   const btn = event.target.closest('[data-scenario]');
   if (!btn) return;
-  const scenario = assistantScenarios().find(item => item.id === btn.dataset.scenario);
-  assistantOptions.classList.add('is-collapsed');
-  faqQuick.classList.add('is-collapsed');
-  window.setTimeout(() => {
-    assistantOptions.innerHTML = '';
-    faqQuick.innerHTML = '';
-  }, 220);
-  answerScenario(btn.dataset.scenario);
+  answerFaq(btn.textContent);
+});
+
+faqMessages.addEventListener('click', event => {
+  const btn = event.target.closest('[data-action]');
+  if (!btn) return;
+  handleAssistantAction(btn);
 });
 
 assistantResult.addEventListener('click', event => {
@@ -777,7 +926,17 @@ faqForm.addEventListener('submit', event => {
   event.preventDefault();
   answerFaq(faqInput.value);
   faqInput.value = '';
+  updateAssistantKeyboardOffset();
 });
+
+faqInput.addEventListener('focus', updateAssistantKeyboardOffset);
+faqInput.addEventListener('blur', () => {
+  window.setTimeout(updateAssistantKeyboardOffset, 80);
+});
+
+window.visualViewport?.addEventListener('resize', updateAssistantKeyboardOffset);
+window.visualViewport?.addEventListener('scroll', updateAssistantKeyboardOffset);
+window.addEventListener('resize', updateAssistantKeyboardOffset);
 
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeOverlays();

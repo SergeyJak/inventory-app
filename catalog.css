@@ -8,6 +8,7 @@ html {
 
 body {
   margin: 0;
+  --keyboard-offset: 0px;
   color: #111114;
   background: #fff;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
@@ -259,6 +260,7 @@ h1 {
 .faq-chip:focus-visible,
 .faq-form input:focus-visible,
 .faq-form button:focus-visible,
+.assistant-action:focus-visible,
 .assistant-result-actions button:focus-visible,
 .compare-card:focus-visible,
 .final-actions a:focus-visible {
@@ -784,6 +786,36 @@ h1 {
 
 .faq-message.assistant {
   justify-self: start;
+}
+
+.assistant-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.assistant-action {
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 999px;
+  color: #202228;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 20, .08);
+  font-size: 12px;
+  font-weight: 820;
+  cursor: pointer;
+  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.assistant-action:hover {
+  transform: translateY(-1px);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 20, .12), 0 10px 24px rgba(10, 18, 28, .08);
+}
+
+.assistant-highlight {
+  animation: assistantHighlight 2s ease both;
 }
 
 .faq-consultant > .panel-kicker {
@@ -1319,6 +1351,16 @@ h1 {
   }
 }
 
+@keyframes assistantHighlight {
+  0%, 100% {
+    box-shadow: none;
+  }
+
+  18%, 58% {
+    box-shadow: inset 0 0 0 3px rgba(17, 17, 20, .12), 0 28px 90px rgba(10, 18, 28, .08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1565,10 +1607,10 @@ h1 {
   .assistant-panel {
     left: 10px;
     right: 10px;
-    bottom: 10px;
+    bottom: calc(10px + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
     top: auto;
     width: auto;
-    max-height: calc(100svh - 28px);
+    max-height: calc(100svh - 28px - var(--keyboard-offset, 0px));
     overflow: auto;
     border-radius: 28px;
     padding: 24px;
@@ -1578,14 +1620,17 @@ h1 {
   .assistant-panel {
     display: flex;
     flex-direction: column;
+    overscroll-behavior: contain;
   }
 
   .faq-consultant {
-    overflow: visible;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .faq-messages {
     max-height: clamp(82px, 20svh, 170px);
+    min-height: 0;
   }
 
   .contact-panel.open,
