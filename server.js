@@ -11,7 +11,7 @@ const PORT     = process.env.PORT || 3001;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const USE_MONGO = !!process.env.MONGODB_URI;
 const INVENTORY_HOST = 'inv-app.up.railway.app';
-const CATALOG_HOSTS = ['mysmart.up.railway.app', 'heysmart.up.railway.app'];
+const CATALOG_HOSTS = ['mysmart.up.railway.app', 'heysmart.up.railway.app', 'heysmart.lv', 'www.heysmart.lv'];
 const BACKUP_VERSION = 1;
 const BACKUP_SECTIONS = ['products', 'sales', 'settings', 'faq', 'categories', 'translations', 'users'];
 const RESTORABLE_BACKUP_SECTIONS = ['products', 'sales', 'settings', 'faq', 'translations'];
@@ -422,7 +422,7 @@ function requireInventoryHost(req, res, next) {
 
 // Domain split for one Railway service:
 // - inv-app.up.railway.app keeps the existing Inventory App behavior.
-// - heysmart.up.railway.app exposes only the public catalog site and its safe assets.
+// - heysmart.up.railway.app and heysmart.lv expose only the public catalog site and its safe assets.
 // - mysmart.up.railway.app is kept as a catalog alias.
 app.get('/', (req, res, next) => {
   if (isCatalogHost(req)) {
