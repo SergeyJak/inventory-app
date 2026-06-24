@@ -477,6 +477,13 @@ app.use('/images/catalog', (req, res, next) => {
   return next();
 });
 
+app.get('/images/og-image.jpg', (req, res, next) => {
+  if (isCatalogHost(req) || isLocalHost(req)) {
+    return res.sendFile(path.join(__dirname, 'images', 'og-image.jpg'));
+  }
+  return next();
+});
+
 app.use((req, res, next) => {
   if (
     isCatalogHost(req) &&
