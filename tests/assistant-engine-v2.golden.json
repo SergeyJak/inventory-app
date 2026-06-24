@@ -1,0 +1,1119 @@
+[
+  {
+    "name": "golden-01-child-budget-music",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Для ребёнка",
+        "response": {
+          "type": "recommendation",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Лайт 2. Для детской подходит компактная модель."
+        }
+      },
+      {
+        "input": "А подешевле?",
+        "response": {
+          "type": "recommendation",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Можно посмотреть более доступный вариант: Станция Лайт 2. Для базовых сценариев это хороший старт."
+        }
+      },
+      {
+        "input": "Теперь хочу для музыки",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3 Про. Для музыки лучше модель с более мощным звуком."
+        }
+      },
+      {
+        "input": "Есть синяя?",
+        "response": {
+          "type": "color",
+          "modelId": "miniPro",
+          "colorKey": "blue",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Да, такой цвет есть для Станция Мини 3 Про."
+        }
+      },
+      {
+        "input": "латвие",
+        "response": {
+          "type": "faq",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Да, работает в Латвии."
+        }
+      },
+      {
+        "input": "настройка",
+        "response": {
+          "type": "faq",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Настройка по договорённости."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-02-clarify-home-nav",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Хочу колонку",
+        "response": {
+          "type": "clarify",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "scenario",
+            "scenario",
+            "scenario",
+            "scenario"
+          ],
+          "text": "Для чего подбираем колонку?"
+        }
+      },
+      {
+        "input": "Для дома",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+        }
+      },
+      {
+        "input": "Ещё вариант",
+        "response": {
+          "type": "recommendation",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Ещё можно посмотреть Станция Мини 3."
+        }
+      },
+      {
+        "input": "Назад",
+        "response": {
+          "type": "back",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Мини 3 Про. Центр умного дома"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-03-model-compare-unavailable",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Mini 3",
+        "response": {
+          "type": "model",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Мини 3. Баланс размера и звука"
+        }
+      },
+      {
+        "input": "Сравнить",
+        "response": {
+          "type": "compare",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "compare",
+            "back"
+          ],
+          "text": "Лайт 2 — старт, Мини 3 — баланс, Миди — музыка."
+        }
+      },
+      {
+        "input": "Midi",
+        "response": {
+          "type": "availability_unavailable",
+          "modelId": "midi",
+          "colorKey": "",
+          "actions": [
+            "show_available",
+            "back"
+          ],
+          "text": "Сейчас нет в наличии: Станция Миди. Могу показать доступные альтернативы."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-04-gift-budget-alt",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "В подарок",
+        "response": {
+          "type": "recommendation",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Лайт 2. Для подарка лучше понятная универсальная модель."
+        }
+      },
+      {
+        "input": "До 100 евро",
+        "response": {
+          "type": "recommendation",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Можно посмотреть более доступный вариант: Станция Лайт 2. Для базовых сценариев это хороший старт."
+        }
+      },
+      {
+        "input": "Ещё вариант",
+        "response": {
+          "type": "recommendation",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Ещё можно посмотреть Станция Мини 3."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-05-en-delivery-setup-music",
+    "lang": "en",
+    "steps": [
+      {
+        "input": "Do you deliver?",
+        "response": {
+          "type": "faq",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Courier delivery is available."
+        }
+      },
+      {
+        "input": "setup help",
+        "response": {
+          "type": "faq",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Setup is available by agreement."
+        }
+      },
+      {
+        "input": "music",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Recommended: Station Mini 3 Pro. For music, choose stronger sound."
+        }
+      },
+      {
+        "input": "show product",
+        "response": {
+          "type": "model",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Station Mini 3 Pro. Smart home center."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-06-lv-latvia-delivery-setup",
+    "lang": "lv",
+    "steps": [
+      {
+        "input": "Vai strada Latvija?",
+        "response": {
+          "type": "faq",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Jā, darbojas Latvijā."
+        }
+      },
+      {
+        "input": "piegade",
+        "response": {
+          "type": "faq",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Piegāde ar kurjeru ir pieejama."
+        }
+      },
+      {
+        "input": "iestatisana",
+        "response": {
+          "type": "faq",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Iestatīšana pēc vienošanās."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-07-home-model-cycle",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Для дома",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+        }
+      },
+      {
+        "input": "Light 2",
+        "response": {
+          "type": "model",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Лайт 2. Компактная модель"
+        }
+      },
+      {
+        "input": "Ещё вариант",
+        "response": {
+          "type": "recommendation",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Ещё можно посмотреть Станция Мини 3."
+        }
+      },
+      {
+        "input": "Ещё вариант",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Ещё можно посмотреть Станция Мини 3 Про."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-08-en-home-back",
+    "lang": "en",
+    "steps": [
+      {
+        "input": "For home",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Recommended: Station Mini 3 Pro. For home, choose a daily model."
+        }
+      },
+      {
+        "input": "Another option",
+        "response": {
+          "type": "recommendation",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Another option is Station Mini 3."
+        }
+      },
+      {
+        "input": "Back",
+        "response": {
+          "type": "back",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Recommended: Station Mini 3 Pro. For home, choose a daily model."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-09-lv-music-back",
+    "lang": "lv",
+    "steps": [
+      {
+        "input": "Muzikai",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Ieteikums: Station Mini 3 Pro. Mūzikai labāk der jaudīgāks modelis."
+        }
+      },
+      {
+        "input": "Vel variants",
+        "response": {
+          "type": "recommendation",
+          "modelId": "street",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Vēl var apskatīt Station Street."
+        }
+      },
+      {
+        "input": "Atpakal",
+        "response": {
+          "type": "back",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Ieteikums: Station Mini 3 Pro. Mūzikai labāk der jaudīgāks modelis."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-10-fallback",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "почему небо квадратное",
+        "response": {
+          "type": "fallback",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Я пока не нашёл точный ответ."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-11-kitchen",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Для кухни",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Мини 3 Про. Центр умного дома"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-12-bedroom",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Для спальни",
+        "response": {
+          "type": "recommendation",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Лайт 2. Для детской подходит компактная модель."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Лайт 2. Компактная модель"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-13-country",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Для дачи",
+        "response": {
+          "type": "recommendation",
+          "modelId": "street",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Стрит. Для дома подойдёт модель для повседневных сценариев."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "street",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Стрит. Портативная модель"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-14-elderly",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Для пожилого человека",
+        "response": {
+          "type": "recommendation",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3. Для дома подойдёт модель для повседневных сценариев."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Мини 3. Баланс размера и звука"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-15-color-blue",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Есть синяя?",
+        "response": {
+          "type": "color",
+          "modelId": "light2",
+          "colorKey": "blue",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Да, такой цвет есть для: Станция Лайт 2, Станция Мини 3 Про."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "light2",
+          "colorKey": "blue",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Лайт 2. Компактная модель"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-16-color-red",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Есть красная?",
+        "response": {
+          "type": "color_unavailable",
+          "modelId": "",
+          "colorKey": "red",
+          "actions": [
+            "back"
+          ],
+          "text": "Сейчас красный цвета в каталоге нет. Могу показать доступные цвета."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-17-color-list",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "РљР°РєРёРµ РµСЃС‚СЊ С†РІРµС‚Р°?",
+        "response": {
+          "type": "fallback",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Я пока не нашёл точный ответ."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-18-availability-list",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Р•СЃС‚СЊ?",
+        "response": {
+          "type": "fallback",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Я пока не нашёл точный ответ."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-19-mini3-availability",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Есть Mini 3?",
+        "response": {
+          "type": "availability",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Сейчас в наличии: Станция Мини 3."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "mini3",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Мини 3. Баланс размера и звука"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-20-midi-unavailable",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Миди доступна?",
+        "response": {
+          "type": "availability_unavailable",
+          "modelId": "midi",
+          "colorKey": "",
+          "actions": [
+            "show_available",
+            "back"
+          ],
+          "text": "Сейчас нет в наличии: Станция Миди. Могу показать доступные альтернативы."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-21-street-availability",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Стрит есть?",
+        "response": {
+          "type": "availability",
+          "modelId": "street",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Сейчас в наличии: Станция Стрит."
+        }
+      },
+      {
+        "input": "Показать в каталоге",
+        "response": {
+          "type": "model",
+          "modelId": "street",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Станция Стрит. Портативная модель"
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-22-compare-vs",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Mini 3 vs Light 2",
+        "response": {
+          "type": "compare",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "compare",
+            "back"
+          ],
+          "text": "Лайт 2 — старт, Мини 3 — баланс, Миди — музыка."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-23-compare-better",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Р§С‚Рѕ Р»СѓС‡С€Рµ?",
+        "response": {
+          "type": "fallback",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Я пока не нашёл точный ответ."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-24-typo-speaker",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "калонка",
+        "response": {
+          "type": "clarify",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "scenario",
+            "scenario",
+            "scenario",
+            "scenario"
+          ],
+          "text": "Для чего подбираем колонку?"
+        }
+      },
+      {
+        "input": "Для ребёнка",
+        "response": {
+          "type": "recommendation",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Лайт 2. Для детской подходит компактная модель."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-25-typo-alice",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "ялиса",
+        "response": {
+          "type": "clarify",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "scenario",
+            "scenario",
+            "scenario",
+            "scenario"
+          ],
+          "text": "Для чего подбираем колонку?"
+        }
+      },
+      {
+        "input": "Для дома",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-26-unsupported-iphone",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Р•СЃС‚СЊ iPhone?",
+        "response": {
+          "type": "fallback",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Я пока не нашёл точный ответ."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-27-smalltalk",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "РџСЂРёРІРµС‚",
+        "response": {
+          "type": "fallback",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "back"
+          ],
+          "text": "Я пока не нашёл точный ответ."
+        }
+      },
+      {
+        "input": "для музыки",
+        "response": {
+          "type": "recommendation",
+          "modelId": "miniPro",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Мини 3 Про. Для музыки лучше модель с более мощным звуком."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-28-empty",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "",
+        "response": {
+          "type": "clarify",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "scenario",
+            "scenario",
+            "scenario",
+            "scenario"
+          ],
+          "text": "Для чего подбираем колонку?"
+        }
+      },
+      {
+        "input": "В подарок",
+        "response": {
+          "type": "recommendation",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Рекомендую: Станция Лайт 2. Для подарка лучше понятная универсальная модель."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-29-mixed-light",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Р›Р°Р№С‚ 2 available?",
+        "response": {
+          "type": "availability_list",
+          "modelId": "light2",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "back"
+          ],
+          "text": "Сейчас в наличии: Станция Лайт 2, Станция Мини 3, Станция Мини 3 Про, Станция Стрит."
+        }
+      }
+    ]
+  },
+  {
+    "name": "golden-30-mixed-midi-lv",
+    "lang": "ru",
+    "steps": [
+      {
+        "input": "Midi ir?",
+        "response": {
+          "type": "availability_unavailable",
+          "modelId": "midi",
+          "colorKey": "",
+          "actions": [
+            "show_available",
+            "back"
+          ],
+          "text": "Сейчас нет в наличии: Станция Миди. Могу показать доступные альтернативы."
+        }
+      }
+    ]
+  }
+]

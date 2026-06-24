@@ -8,10 +8,13 @@ const { MongoClient } = require('mongodb');
 
 const app      = express();
 const PORT     = process.env.PORT || 3001;
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const USE_MONGO = !!process.env.MONGODB_URI;
 const INVENTORY_HOST = 'inv-app.up.railway.app';
 const CATALOG_HOSTS = ['mysmart.up.railway.app', 'heysmart.up.railway.app'];
+const BACKUP_VERSION = 1;
+const BACKUP_SECTIONS = ['products', 'sales', 'settings', 'faq', 'categories', 'translations', 'users'];
+const RESTORABLE_BACKUP_SECTIONS = ['products', 'sales', 'settings', 'faq', 'translations'];
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -26,7 +29,7 @@ const USERS = [
 
 // ── JSON FILE STORAGE (local) ────────────────────────────────
 if (!USE_MONGO) {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 const FILES = {
   products:      path.join(DATA_DIR, 'products.json'),
@@ -90,6 +93,224 @@ async function dbSave(key, data) {
   } else {
     fs.writeFileSync(FILES[key], JSON.stringify(data, null, 2), 'utf8');
   }
+}
+
+function uniqueProductTypes(products) {
+  return [...new Set(products.map(p => String(p.productType || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function safeUsers() {
+  return USERS.map(user => ({ username: user.username, role: user.role }));
+}
+
+function readTextFile(fileName, fallback = '') {
+  const filePath = path.join(__dirname, fileName);
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : fallback;
+}
+
+function writeTextFile(fileName, value) {
+  fs.writeFileSync(path.join(__dirname, fileName), String(value), 'utf8');
+}
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function dosDateTime(date) {
+  const year = Math.max(1980, date.getFullYear());
+  const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+  const dosDate = ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+  return { dosTime, dosDate };
+}
+
+function createZip(entries) {
+  const now = dosDateTime(new Date());
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  Object.entries(entries).forEach(([name, value]) => {
+    const nameBuffer = Buffer.from(name, 'utf8');
+    const data = Buffer.isBuffer(value) ? value : Buffer.from(String(value), 'utf8');
+    const crc = crc32(data);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(now.dosTime, 10);
+    local.writeUInt16LE(now.dosDate, 12);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBuffer.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, nameBuffer, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(now.dosTime, 12);
+    central.writeUInt16LE(now.dosDate, 14);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBuffer.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, nameBuffer);
+
+    offset += local.length + nameBuffer.length + data.length;
+  });
+
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(Object.keys(entries).length, 8);
+  end.writeUInt16LE(Object.keys(entries).length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, ...centralParts, end]);
+}
+
+function parseZip(buffer) {
+  const entries = {};
+  let offset = 0;
+  while (offset + 30 <= buffer.length) {
+    const signature = buffer.readUInt32LE(offset);
+    if (signature !== 0x04034b50) break;
+    const method = buffer.readUInt16LE(offset + 8);
+    if (method !== 0) throw new Error('Only stored ZIP entries are supported');
+    const expectedCrc = buffer.readUInt32LE(offset + 14);
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const fileNameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const name = buffer.subarray(nameStart, nameStart + fileNameLength).toString('utf8');
+    const dataStart = nameStart + fileNameLength + extraLength;
+    const data = buffer.subarray(dataStart, dataStart + compressedSize);
+    if (crc32(data) !== expectedCrc) throw new Error('ZIP entry checksum mismatch');
+    entries[name] = data;
+    offset = dataStart + compressedSize;
+  }
+  return entries;
+}
+
+function jsonEntry(entries, name) {
+  if (!entries[name]) throw new Error(`Missing ${name}`);
+  return JSON.parse(entries[name].toString('utf8'));
+}
+
+function jsonText(value) {
+  return JSON.stringify(value, null, 2);
+}
+
+function normalizeBackupSections(input, allowed = BACKUP_SECTIONS) {
+  const requested = Array.isArray(input) && input.length ? input : allowed;
+  return requested.filter((section, index) => (
+    allowed.includes(section) && requested.indexOf(section) === index
+  ));
+}
+
+async function buildBackup(sections) {
+  const data = await dbGetAll();
+  const selected = normalizeBackupSections(sections);
+  const entries = {};
+  const manifestCollections = [];
+
+  function addJson(section, fileName, value) {
+    if (!selected.includes(section)) return;
+    entries[fileName] = jsonText(value);
+    manifestCollections.push(section);
+  }
+
+  addJson('products', 'products.json', data.products || []);
+  addJson('sales', 'sales.json', (data.transactions || []).filter(tx => tx.type === 'sale'));
+  addJson('settings', 'settings.json', {
+    subAccounts: data.subAccounts || [],
+    hostSubscriptions: data.hostSubscriptions || [],
+  });
+  addJson('faq', 'faq.json', jsonEntry({ 'faq.json': Buffer.from(readTextFile('faq.json', '[]')) }, 'faq.json'));
+  addJson('categories', 'categories.json', uniqueProductTypes(data.products || []));
+  addJson('translations', 'translations.json', { file: 'i18n.js', content: readTextFile('i18n.js') });
+  addJson('users', 'users.json', safeUsers());
+
+  entries['manifest.json'] = jsonText({
+    version: BACKUP_VERSION,
+    createdAt: new Date().toISOString(),
+    collections: manifestCollections,
+    restorableCollections: manifestCollections.filter(section => RESTORABLE_BACKUP_SECTIONS.includes(section)),
+    exportOnlyCollections: manifestCollections.filter(section => !RESTORABLE_BACKUP_SECTIONS.includes(section)),
+  });
+
+  return createZip(entries);
+}
+
+function inspectBackupBuffer(buffer) {
+  const entries = parseZip(buffer);
+  const manifest = jsonEntry(entries, 'manifest.json');
+  const collections = normalizeBackupSections(manifest.collections || [], BACKUP_SECTIONS);
+  return {
+    entries,
+    manifest,
+    collections,
+    restorableCollections: collections.filter(section => RESTORABLE_BACKUP_SECTIONS.includes(section)),
+    exportOnlyCollections: collections.filter(section => !RESTORABLE_BACKUP_SECTIONS.includes(section)),
+  };
+}
+
+async function restoreBackup(buffer, sections) {
+  const inspected = inspectBackupBuffer(buffer);
+  const selected = normalizeBackupSections(sections, RESTORABLE_BACKUP_SECTIONS)
+    .filter(section => inspected.restorableCollections.includes(section));
+  const restored = [];
+
+  if (selected.includes('products')) {
+    await dbSave('products', jsonEntry(inspected.entries, 'products.json'));
+    restored.push('products');
+  }
+  if (selected.includes('sales')) {
+    await dbSave('transactions', jsonEntry(inspected.entries, 'sales.json'));
+    restored.push('sales');
+  }
+  if (selected.includes('settings')) {
+    const settings = jsonEntry(inspected.entries, 'settings.json');
+    await dbSave('subAccounts', settings.subAccounts || []);
+    await dbSave('hostSubscriptions', settings.hostSubscriptions || []);
+    restored.push('settings');
+  }
+  if (selected.includes('faq')) {
+    writeTextFile('faq.json', jsonText(jsonEntry(inspected.entries, 'faq.json')));
+    restored.push('faq');
+  }
+  if (selected.includes('translations')) {
+    const translations = jsonEntry(inspected.entries, 'translations.json');
+    if (translations.file !== 'i18n.js' || typeof translations.content !== 'string') {
+      throw new Error('Invalid translations payload');
+    }
+    writeTextFile('i18n.js', translations.content);
+    restored.push('translations');
+  }
+
+  return { manifest: inspected.manifest, restored };
 }
 
 function getProductStock(product) {
@@ -172,7 +393,7 @@ function sendGenericError(res, status = 500) {
 
 app.use(setSecurityHeaders);
 app.use(setCorsHeaders);
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '30mb' }));
 
 function requestHost(req) {
   const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
@@ -187,6 +408,11 @@ function isCatalogHost(req) {
 function isInventoryHost(req) {
   const host = requestHost(req);
   return host === INVENTORY_HOST || host === 'localhost' || host === '127.0.0.1';
+}
+
+function isLocalHost(req) {
+  const host = requestHost(req);
+  return host === 'localhost' || host === '127.0.0.1';
 }
 
 function requireInventoryHost(req, res, next) {
@@ -209,18 +435,21 @@ app.get('/catalog.html', (req, res, next) => {
   if (isCatalogHost(req)) {
     return res.redirect(302, '/');
   }
+  if (isLocalHost(req)) {
+    return res.sendFile(path.join(__dirname, 'catalog.html'));
+  }
   return next();
 });
 
 app.get(['/catalog.css', '/catalog.js', '/assistant-engine.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/sitemap.xml', '/404.html', '/favicon.ico'], (req, res, next) => {
-  if (isCatalogHost(req)) {
+  if (isCatalogHost(req) || isLocalHost(req)) {
     return res.sendFile(path.join(__dirname, req.path.slice(1)));
   }
   return next();
 });
 
 app.use('/icons', (req, res, next) => {
-  if (isCatalogHost(req)) {
+  if (isCatalogHost(req) || isLocalHost(req)) {
     return express.static(path.join(__dirname, 'icons'), {
       maxAge: '30d',
       immutable: true,
@@ -230,7 +459,7 @@ app.use('/icons', (req, res, next) => {
 });
 
 app.use('/images/catalog', (req, res, next) => {
-  if (isCatalogHost(req)) {
+  if (isCatalogHost(req) || isLocalHost(req)) {
     return express.static(path.join(__dirname, 'images', 'catalog'), {
       maxAge: '30d',
       immutable: true,
@@ -408,6 +637,47 @@ app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (re
   } catch (e) {
     console.error('Save route error:', e.message);
     sendGenericError(res);
+  }
+});
+
+app.post('/api/backups/export', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const zip = await buildBackup(req.body?.sections);
+    const fileDate = new Date().toISOString().replace(/[:.]/g, '-');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="inventory-backup-${fileDate}.zip"`);
+    res.send(zip);
+  } catch (e) {
+    console.error('Backup export error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/backups/import/inspect', requireInventoryHost, requireAuth, requireAdmin, express.raw({ type: 'application/zip', limit: '20mb' }), (req, res) => {
+  try {
+    const inspected = inspectBackupBuffer(Buffer.from(req.body || []));
+    res.json({
+      manifest: inspected.manifest,
+      collections: inspected.collections,
+      restorableCollections: inspected.restorableCollections,
+      exportOnlyCollections: inspected.exportOnlyCollections,
+    });
+  } catch (e) {
+    console.error('Backup inspect error:', e.message);
+    res.status(400).json({ error: 'Invalid backup ZIP' });
+  }
+});
+
+app.post('/api/backups/import', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const backupBase64 = String(req.body?.backupBase64 || '');
+    if (!req.body?.confirm) return res.status(400).json({ error: 'Import confirmation required' });
+    if (!backupBase64) return res.status(400).json({ error: 'backupBase64 required' });
+    const result = await restoreBackup(Buffer.from(backupBase64, 'base64'), req.body?.sections);
+    res.json({ ok: true, restored: result.restored, manifest: result.manifest });
+  } catch (e) {
+    console.error('Backup import error:', e.message);
+    res.status(400).json({ error: 'Invalid backup import' });
   }
 });
 

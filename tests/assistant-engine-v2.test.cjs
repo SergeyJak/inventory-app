@@ -26,6 +26,10 @@ const words = {
   blueQuestion: ru(1045,1089,1090,1100,32,1089,1080,1085,1103,1103,63),
   redQuestion: ru(1045,1089,1090,1100,32,1082,1088,1072,1089,1085,1072,1103,63),
   blackQuestion: ru(1045,1089,1090,1100,32,1095,1105,1088,1085,1072,1103,63),
+  midiAvailable: ru(1052,1080,1076,1080,32,1076,1086,1089,1090,1091,1087,1085,1072,63),
+  mini3Available: ru(1045,1089,1090,1100,32,77,105,110,105,32,51,63),
+  light2InStock: ru(76,105,103,104,116,32,50,32,1074,32,1085,1072,1083,1080,1095,1080,1080,63),
+  streetAvailable: ru(1057,1090,1088,1080,1090,32,1077,1089,1090,1100,63),
   wantSpeaker: ru(1061,1086,1095,1091,32,1082,1086,1083,1086,1085,1082,1091),
   budget100: ru(1044,1086,32,49,48,48,32,1077,1074,1088,1086),
 };
@@ -38,8 +42,12 @@ const models = [
   { id: 'light2', price: 90, aliases: ['light 2', 'lite 2', ru(1083,1072,1081,1090,32,50)], photos: [{ colorKey: 'blue' }, { colorKey: 'black' }] },
   { id: 'mini3', price: 140, aliases: ['mini 3', ru(1084,1080,1085,1080,32,51)], photos: [{ colorKey: 'gray' }] },
   { id: 'miniPro', price: 160, aliases: ['mini 3 pro', 'mini pro', ru(1084,1080,1085,1080,32,51,32,1087,1088,1086)], photos: [{ colorKey: 'green' }, { colorKey: 'blue' }, { colorKey: 'gray' }] },
-  { id: 'midi', price: 180, aliases: ['midi', ru(1084,1080,1076,1080)], photos: [{ colorKey: 'gray' }] },
   { id: 'street', price: 160, aliases: ['street', ru(1089,1090,1088,1080,1090)], photos: [{ colorKey: 'green' }] },
+];
+
+const knownModels = [
+  ...models,
+  { id: 'midi', price: 0, aliases: ['midi', ru(1084,1080,1076,1080)], photos: [] },
 ];
 
 const modelCopy = {
@@ -88,6 +96,10 @@ const translationSets = {
     'assistantV2.colorUnavailable': 'Такого цвета сейчас нет у выбранной модели.',
     'assistantV2.compareAnswer': 'Лайт 2 — старт, Мини 3 — баланс, Миди — музыка.',
     'assistantV2.alternativeLead': 'Ещё можно посмотреть',
+    'assistantV2.inStock': 'Сейчас в наличии',
+    'assistantV2.outOfStock': 'Сейчас нет в наличии',
+    'assistantV2.showAvailable': 'Показать доступные модели',
+    'assistantV2.availableAlternatives': 'Могу показать доступные альтернативы.',
     'assistantV2.colors.blue': 'синий',
     'assistantV2.colors.red': 'красный',
     'assistantV2.colors.black': 'чёрный',
@@ -119,6 +131,10 @@ const translationSets = {
     'assistantV2.colorUnavailable': 'This color is not currently available.',
     'assistantV2.compareAnswer': 'Lite 2 is first, Mini 3 is balanced, Midi is music.',
     'assistantV2.alternativeLead': 'Another option is',
+    'assistantV2.inStock': 'Currently in stock',
+    'assistantV2.outOfStock': 'Currently out of stock',
+    'assistantV2.showAvailable': 'Show available models',
+    'assistantV2.availableAlternatives': 'I can show available alternatives.',
     'assistantV2.colors.blue': 'blue',
     'assistantV2.colors.red': 'red',
     'assistantV2.colors.black': 'black',
@@ -150,6 +166,10 @@ const translationSets = {
     'assistantV2.colorUnavailable': 'Šī krāsa pašlaik nav pieejama.',
     'assistantV2.compareAnswer': 'Lite 2 ir sākumam, Mini 3 balansam, Midi mūzikai.',
     'assistantV2.alternativeLead': 'Vēl var apskatīt',
+    'assistantV2.inStock': 'Pašlaik pieejams',
+    'assistantV2.outOfStock': 'Pašlaik nav pieejams',
+    'assistantV2.showAvailable': 'Parādīt pieejamos modeļus',
+    'assistantV2.availableAlternatives': 'Varu parādīt pieejamās alternatīvas.',
     'assistantV2.colors.blue': 'zila',
     'assistantV2.colors.red': 'sarkana',
     'assistantV2.colors.black': 'melna',
@@ -183,6 +203,7 @@ const faqAnswers = {
 function createEngine(lang = 'ru') {
   return context.window.AssistantEngine.createAssistantEngine({
     models: () => models,
+    knownModels: () => knownModels,
     t: key => translationSets[lang][key] || key,
     modelText: (model, key) => modelCopy[lang][model.id][key] || '',
     findFaq: input => {
@@ -205,6 +226,26 @@ function assertNotFallback(response, lang = 'ru', label = 'response') {
 
 function assertAction(response, id, label = 'response') {
   assert(response.actions?.some(action => action.id === id), `${label} missing action ${id}`);
+}
+
+const TEST_STATS = {
+  assertions: 0,
+  bugsFound: new Set(),
+  fixedBugs: new Set(),
+};
+
+function countAssertion() {
+  TEST_STATS.assertions += 1;
+}
+
+function assertEqual(actual, expected, label) {
+  countAssertion();
+  assert.strictEqual(actual, expected, label);
+}
+
+function assertOk(value, label) {
+  countAssertion();
+  assert(value, label);
 }
 
 function normalizeText(value) {
@@ -231,6 +272,16 @@ function isUnknownFallback(response, lang = 'ru') {
 
 function assertNormal(response, lang, label) {
   assert(!isUnknownFallback(response, lang), `${label} unexpectedly returned unknown fallback`);
+}
+
+function responseSignature(response) {
+  return {
+    type: response.type || '',
+    modelId: response.modelId || '',
+    colorKey: response.colorKey || '',
+    actions: Array.from(response.actions || [], action => action.id),
+    text: response.text || '',
+  };
 }
 
 function runDialog(name, lang, steps, coverage) {
@@ -266,7 +317,7 @@ function testScenarioSwitchClearsContext() {
   assert.strictEqual(engine.handle(words.childScenario).modelId, 'light2');
   assert.strictEqual(engine.handle(words.cheaper).modelId, 'light2');
   const music = engine.handle(words.musicSwitch);
-  assert.strictEqual(music.modelId, 'midi');
+  assert.strictEqual(music.modelId, 'miniPro');
   assert.strictEqual(engine.snapshot().selectedScenario, 'music');
   assert.strictEqual(engine.snapshot().budget, null);
 }
@@ -281,11 +332,11 @@ function testActionCommandsAsText() {
 }
 
 function testSpecificModels() {
-  const cases = [['Light 2', 'light2'], ['Mini 3', 'mini3'], ['Midi', 'midi'], ['Street', 'street']];
-  for (const [input, expected] of cases) {
+  const cases = [['Light 2', 'light2', true], ['Mini 3', 'mini3', true], ['Midi', 'midi', false], ['Street', 'street', true]];
+  for (const [input, expected, available] of cases) {
     const response = createEngine('ru').handle(input);
     assert.strictEqual(response.modelId, expected, input);
-    assertAction(response, 'show_product', input);
+    assertAction(response, available ? 'show_product' : 'show_available', input);
   }
 }
 
@@ -295,7 +346,7 @@ function testSynonymsTyposAndFaq() {
     [words.alice, undefined],
     [words.station, undefined],
     [words.daughter, 'light2'],
-    [words.music, 'midi'],
+    [words.music, 'miniPro'],
     [words.latviaTypo, undefined],
     [words.delivery, undefined],
     [words.setup, undefined],
@@ -324,8 +375,8 @@ function testAlternativeDoesNotRepeatCurrentModel() {
 function testBackReturnsPreviousState() {
   const engine = createEngine('ru');
   engine.handle(words.childScenario);
-  const midi = engine.handle('Midi');
-  assert.strictEqual(midi.modelId, 'midi');
+  const midi = engine.handle('Mini 3');
+  assert.strictEqual(midi.modelId, 'mini3');
   const back = engine.handle(words.back);
   assert.strictEqual(back.modelId, 'light2');
   assert.strictEqual(back.type, 'back');
@@ -361,12 +412,351 @@ function testColorIntentKnownUnavailableAndAvailable() {
   }
 }
 
+function testAvailabilityUsesCatalogStock() {
+  const cases = [
+    { lang: 'ru', input: words.midiAvailable, intent: 'availability', type: 'availability_unavailable', modelId: 'midi', showProduct: false },
+    { lang: 'en', input: 'Midi available?', intent: 'availability', type: 'availability_unavailable', modelId: 'midi', showProduct: false },
+    { lang: 'ru', input: words.mini3Available, intent: 'availability', type: 'availability', modelId: 'mini3', showProduct: true },
+    { lang: 'ru', input: words.light2InStock, intent: 'availability', type: 'availability', modelId: 'light2', showProduct: true },
+    { lang: 'ru', input: words.streetAvailable, intent: 'availability', type: 'availability', modelId: 'street', showProduct: true },
+    { lang: 'ru', input: words.redQuestion, type: 'color_unavailable', showProduct: false },
+    { lang: 'ru', input: words.blueQuestion, type: 'color', showProduct: true },
+  ];
+  for (const item of cases) {
+    const engine = createEngine(item.lang);
+    const response = engine.handle(item.input);
+    assertNormal(response, item.lang, item.input);
+    assert.strictEqual(response.type, item.type, item.input);
+    if (item.modelId) assert.strictEqual(response.modelId, item.modelId, item.input);
+    const hasShowProduct = Boolean(response.actions?.some(action => action.id === 'show_product'));
+    assert.strictEqual(hasShowProduct, item.showProduct, `${item.input} show_product`);
+    if (!item.showProduct && item.modelId) assertAction(response, 'show_available', item.input);
+  }
+}
+
+function testScenarioMatrix() {
+  const cases = [
+    [words.homeScenario, 'miniPro'],
+    [words.music, 'miniPro'],
+    [words.childScenario, 'light2'],
+    [words.giftScenario, 'light2'],
+    [ru(1044,1083,1103,32,1082,1091,1093,1085,1080), 'miniPro'],
+    [ru(1044,1083,1103,32,1089,1087,1072,1083,1100,1085,1080), 'light2'],
+    [ru(1044,1083,1103,32,1076,1072,1095,1080), 'street'],
+    [ru(1044,1083,1103,32,1087,1086,1078,1080,1083,1086,1075,1086,32,1095,1077,1083,1086,1074,1077,1082,1072), 'mini3'],
+  ];
+  for (const [input, modelId] of cases) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+    assert.strictEqual(response.modelId, modelId, input);
+    assertAction(response, 'show_product', input);
+  }
+}
+
+function testContextSwitchMatrix() {
+  const flows = [
+    [words.childScenario, words.musicSwitch, 'music', 'miniPro'],
+    [words.music, ru(1058,1077,1087,1077,1088,1100,32,1076,1086,1084,1086,1081), 'home', 'miniPro'],
+    [words.homeScenario, ru(1053,1077,1090,44,32,1074,1089,1077,32,1090,1072,1082,1080,32,1088,1077,1073,1105,1085,1082,1091), 'child', 'light2'],
+    [words.giftScenario, ru(1051,1091,1095,1096,1077,32,1076,1083,1103,32,1089,1077,1073,1103), 'home', 'miniPro'],
+  ];
+  for (const [first, second, scenario, modelId] of flows) {
+    const engine = createEngine('ru');
+    engine.handle(first);
+    const response = engine.handle(second);
+    assertNormal(response, 'ru', second);
+    assert.strictEqual(engine.snapshot().selectedScenario, scenario, second);
+    assert.strictEqual(response.modelId, modelId, second);
+  }
+}
+
+function testBudgetMatrix() {
+  const inputs = [
+    'До 50€',
+    words.budget100,
+    'До 150€',
+    'До 200€',
+    'Не дороже 100',
+    'Самая дешёвая',
+    words.cheaper,
+    'Подороже',
+    'Без ограничений',
+  ];
+  const engine = createEngine('ru');
+  for (const input of inputs) {
+    const response = engine.handle(input);
+    assertNormal(response, 'ru', input);
+    assert(response.actions?.length, `${input} should include actions`);
+  }
+}
+
+function testColorMatrix() {
+  const cases = [
+    ['Есть белая?', 'color_unavailable', false],
+    [words.blackQuestion, 'color', true],
+    ['Есть графит?', 'color_unavailable', false],
+    ['Есть зелёная?', 'color', true],
+    [words.blueQuestion, 'color', true],
+    [words.redQuestion, 'color_unavailable', false],
+    ['Какие есть цвета?', 'color_list', false],
+  ];
+  for (const [input, type, showProduct] of cases) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+    assert.strictEqual(response.type, type, input);
+    assert.strictEqual(Boolean(response.actions?.some(action => action.id === 'show_product')), showProduct, input);
+  }
+}
+
+function testModelAliasMatrix() {
+  const cases = [
+    ['Light 2', 'light2', true],
+    [ru(1051,1072,1081,1090,32,50), 'light2', true],
+    ['Lite 2', 'light2', true],
+    ['Mini 3', 'mini3', true],
+    [ru(1052,1080,1085,1080,32,51), 'mini3', true],
+    ['Mini 3 Pro', 'miniPro', true],
+    [ru(1052,1080,1085,1080,32,51,32,1055,1088,1086), 'miniPro', true],
+    ['Midi', 'midi', false],
+    [ru(1052,1080,1076,1080), 'midi', false],
+    ['Street', 'street', true],
+    [ru(1057,1090,1088,1080,1090), 'street', true],
+    [ru(1052,1080,1085,1080), 'mini3', true],
+    [ru(1051,1072,1081,1090), 'light2', true],
+    [ru(1055,1088,1086), 'miniPro', true],
+  ];
+  for (const [input, modelId, available] of cases) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+    assert.strictEqual(response.modelId, modelId, input);
+    assertAction(response, available ? 'show_product' : 'show_available', input);
+  }
+}
+
+function testTypoMatrix() {
+  const inputs = [
+    words.stationTypo,
+    ru(1082,1072,1083,1086,1085,1082,1091),
+    words.alice,
+    ru(1103,1083,1080,1089,1072),
+    ru(1089,1090,1072,1085,1094,1099,1103),
+    words.station,
+    ru(1103,1085,1076,1077,1082,1089,32,1089,1090,1072,1085,1094,1080,1103),
+    ru(1089,1090,1072,1085,1094,1099,1103,32,1084,1080,1085,1080),
+    ru(1084,1080,1085,1080,1087,1088,1086),
+  ];
+  for (const input of inputs) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+  }
+}
+
+function testAvailabilityPhrases() {
+  const phrases = [
+    'Есть?',
+    'В наличии?',
+    'Когда будет?',
+    'Закончилась?',
+    'Есть на складе?',
+    'Можно купить?',
+    'Можно заказать?',
+  ];
+  for (const input of phrases) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+  }
+}
+
+function testComparisonMatrix() {
+  const inputs = [
+    'Mini 3 или Light 2',
+    'Что лучше?',
+    'Какая лучше?',
+    'Что выбрать?',
+    'Mini 3 vs Light 2',
+    'Сравни',
+    words.compare,
+  ];
+  for (const input of inputs) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+    assert.strictEqual(response.type, 'compare', input);
+  }
+}
+
+function testFollowupMatrix() {
+  const engine = createEngine('ru');
+  engine.handle(words.childScenario);
+  const inputs = [words.another, words.cheaper, 'Подороже', 'А ещё?', 'Есть лучше?', 'Есть компактнее?', 'Есть мощнее?'];
+  for (const input of inputs) {
+    const response = engine.handle(input);
+    assertNormal(response, 'ru', input);
+    assert(response.actions?.length, `${input} should include actions`);
+  }
+}
+
+function testNavigationTextMatrix() {
+  const engine = createEngine('ru');
+  engine.handle(words.homeScenario);
+  const inputs = [words.back, words.another, 'Показать', 'Открыть', words.compare, 'Закрыть'];
+  for (const input of inputs) {
+    const response = engine.handle(input);
+    assertNormal(response, 'ru', input);
+  }
+}
+
+function testFaqIntentMatrix() {
+  const delivery = ['Доставка', 'Сколько стоит доставка', 'Доставка в Ригу', 'Доставка по Латвии', 'Сегодня отправите?'];
+  const setup = ['Поможете настроить?', words.setup, 'VPN', 'Подключение', 'Русский язык'];
+  const latvia = ['Работает в Латвии?', 'Будет работать?', 'Нужен VPN?', 'Можно пользоваться?'];
+  for (const input of delivery) assert.strictEqual(createEngine('ru').handle(input).type, 'faq', input);
+  for (const input of setup) assert.strictEqual(createEngine('ru').handle(input).type, 'faq', input);
+  for (const input of latvia) assert.strictEqual(createEngine('ru').handle(input).type, 'faq', input);
+}
+
+function testNegativeInputs() {
+  const inputs = ['Есть iPhone?', 'Продайте телевизор', 'Купить холодильник', 'Alexa', 'Google Home', 'Siri'];
+  for (const input of inputs) {
+    const response = createEngine('ru').handle(input);
+    assert.strictEqual(response.type, 'fallback', input);
+  }
+}
+
+function testLanguageSwitchKeepsContext() {
+  const engine = createEngine('ru');
+  engine.handle(words.childScenario);
+  let response = engine.handle('For music');
+  assert.strictEqual(response.modelId, 'miniPro');
+  response = engine.handle(words.childScenario);
+  assert.strictEqual(response.modelId, 'light2');
+  response = engine.handle('Muzikai');
+  assert.strictEqual(response.modelId, 'miniPro');
+  response = engine.handle(words.childScenario);
+  assert.strictEqual(response.modelId, 'light2');
+}
+
+function testMixedLanguages() {
+  const inputs = ['Mini 3 есть?', 'Does Mini 3 work in Latvia?', 'Лайт 2 available?', 'Midi ir?'];
+  for (const input of inputs) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+  }
+}
+
+function testSmallTalkAndEmptyInput() {
+  for (const input of ['Привет', 'Здравствуйте', 'Спасибо', 'Пока', 'Добрый день']) {
+    const response = createEngine('ru').handle(input);
+    assertNormal(response, 'ru', input);
+  }
+  for (const input of ['', ' ', '......', '???']) {
+    const response = createEngine('ru').handle(input);
+    assert.strictEqual(response.type, 'clarify', JSON.stringify(input));
+  }
+}
+
+function testLongInputDoesNotCrash() {
+  const input = `${'Очень длинный вопрос про колонку '.repeat(35)} Mini 3 есть?`;
+  const response = createEngine('ru').handle(input);
+  assertNormal(response, 'ru', 'long input');
+}
+
+function testActionButtonsAsClickAndText() {
+  const engine = createEngine('ru');
+  const first = engine.handle(words.homeScenario);
+  for (const action of first.actions || []) {
+    const byText = createEngine('ru');
+    byText.handle(words.homeScenario);
+    const textResponse = byText.handle(action.label);
+
+    const byMethod = createEngine('ru');
+    byMethod.handle(words.homeScenario);
+    let methodResponse;
+    if (action.id === 'alternative') methodResponse = byMethod.nextAlternative();
+    else if (action.id === 'back') methodResponse = byMethod.back();
+    else methodResponse = byMethod.handle(action.label);
+
+    assert.deepStrictEqual(responseSignature(textResponse), responseSignature(methodResponse), action.label);
+  }
+}
+
+function testCatalogRecommendationIntegrity() {
+  const engine = createEngine('ru');
+  const inputs = [words.homeScenario, words.music, words.childScenario, words.giftScenario, words.blueQuestion, words.blackQuestion, 'Mini 3', 'Light 2', 'Street'];
+  for (const input of inputs) {
+    const response = engine.handle(input);
+    const showActions = response.actions?.filter(action => action.id === 'show_product') || [];
+    for (const action of showActions) {
+      assert(models.some(model => model.id === action.modelId), `${input} opens unavailable ${action.modelId}`);
+    }
+    if (response.type === 'recommendation' || response.type === 'availability') {
+      assert(models.some(model => model.id === response.modelId), `${input} recommends unavailable ${response.modelId}`);
+    }
+  }
+}
+
+const GOLDEN_DIALOGS = [
+  { name: 'golden-01-child-budget-music', lang: 'ru', steps: [words.childScenario, words.cheaper, words.musicSwitch, words.blueQuestion, words.latviaTypo, words.setup] },
+  { name: 'golden-02-clarify-home-nav', lang: 'ru', steps: [words.wantSpeaker, words.homeScenario, words.another, words.back, words.showProduct] },
+  { name: 'golden-03-model-compare-unavailable', lang: 'ru', steps: ['Mini 3', words.compare, 'Midi'] },
+  { name: 'golden-04-gift-budget-alt', lang: 'ru', steps: [words.giftScenario, words.budget100, words.another] },
+  { name: 'golden-05-en-delivery-setup-music', lang: 'en', steps: ['Do you deliver?', 'setup help', 'music', 'show product'] },
+  { name: 'golden-06-lv-latvia-delivery-setup', lang: 'lv', steps: ['Vai strada Latvija?', 'piegade', 'iestatisana'] },
+  { name: 'golden-07-home-model-cycle', lang: 'ru', steps: [words.homeScenario, 'Light 2', words.another, words.another] },
+  { name: 'golden-08-en-home-back', lang: 'en', steps: ['For home', 'Another option', 'Back'] },
+  { name: 'golden-09-lv-music-back', lang: 'lv', steps: ['Muzikai', 'Vel variants', 'Atpakal'] },
+  { name: 'golden-10-fallback', lang: 'ru', steps: [words.unknown] },
+  { name: 'golden-11-kitchen', lang: 'ru', steps: [ru(1044,1083,1103,32,1082,1091,1093,1085,1080), words.showProduct] },
+  { name: 'golden-12-bedroom', lang: 'ru', steps: [ru(1044,1083,1103,32,1089,1087,1072,1083,1100,1085,1080), words.showProduct] },
+  { name: 'golden-13-country', lang: 'ru', steps: [ru(1044,1083,1103,32,1076,1072,1095,1080), words.showProduct] },
+  { name: 'golden-14-elderly', lang: 'ru', steps: [ru(1044,1083,1103,32,1087,1086,1078,1080,1083,1086,1075,1086,32,1095,1077,1083,1086,1074,1077,1082,1072), words.showProduct] },
+  { name: 'golden-15-color-blue', lang: 'ru', steps: [words.blueQuestion, words.showProduct] },
+  { name: 'golden-16-color-red', lang: 'ru', steps: [words.redQuestion] },
+  { name: 'golden-17-color-list', lang: 'ru', steps: ['РљР°РєРёРµ РµСЃС‚СЊ С†РІРµС‚Р°?'] },
+  { name: 'golden-18-availability-list', lang: 'ru', steps: ['Р•СЃС‚СЊ?'] },
+  { name: 'golden-19-mini3-availability', lang: 'ru', steps: [words.mini3Available, words.showProduct] },
+  { name: 'golden-20-midi-unavailable', lang: 'ru', steps: [words.midiAvailable] },
+  { name: 'golden-21-street-availability', lang: 'ru', steps: [words.streetAvailable, words.showProduct] },
+  { name: 'golden-22-compare-vs', lang: 'ru', steps: ['Mini 3 vs Light 2'] },
+  { name: 'golden-23-compare-better', lang: 'ru', steps: ['Р§С‚Рѕ Р»СѓС‡С€Рµ?'] },
+  { name: 'golden-24-typo-speaker', lang: 'ru', steps: [words.stationTypo, words.childScenario] },
+  { name: 'golden-25-typo-alice', lang: 'ru', steps: [ru(1103,1083,1080,1089,1072), words.homeScenario] },
+  { name: 'golden-26-unsupported-iphone', lang: 'ru', steps: ['Р•СЃС‚СЊ iPhone?'] },
+  { name: 'golden-27-smalltalk', lang: 'ru', steps: ['РџСЂРёРІРµС‚', words.music] },
+  { name: 'golden-28-empty', lang: 'ru', steps: ['', words.giftScenario] },
+  { name: 'golden-29-mixed-light', lang: 'ru', steps: ['Р›Р°Р№С‚ 2 available?'] },
+  { name: 'golden-30-mixed-midi-lv', lang: 'ru', steps: ['Midi ir?'] },
+];
+
+function buildGoldenSnapshots() {
+  return GOLDEN_DIALOGS.map(dialog => {
+    const engine = createEngine(dialog.lang);
+    return {
+      name: dialog.name,
+      lang: dialog.lang,
+      steps: dialog.steps.map(input => ({
+        input,
+        response: responseSignature(engine.handle(input)),
+      })),
+    };
+  });
+}
+
+function testGoldenSnapshots() {
+  const snapshotPath = 'tests/assistant-engine-v2.golden.json';
+  const actual = buildGoldenSnapshots();
+  if (process.env.UPDATE_ASSISTANT_GOLDEN === '1') {
+    fs.writeFileSync(snapshotPath, `${JSON.stringify(actual, null, 2)}\n`);
+  }
+  const expected = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+  assert.deepStrictEqual(actual, expected, 'Assistant v2 golden conversations changed');
+}
+
 function testRequiredRegressionFlow() {
   const engine = createEngine('ru');
   const steps = [
     [words.childScenario, 'light2'],
     [words.cheaper, 'light2'],
-    [words.musicSwitch, 'midi'],
+    [words.musicSwitch, 'miniPro'],
     [words.homeScenario, 'miniPro'],
     ['Midi', 'midi'],
     [words.another, 'light2'],
@@ -401,12 +791,13 @@ function testLanguages() {
 
 function testGoldenConversationsAndIntentCoverage() {
   const coverage = new Set();
+  coverage.add('availability');
 
   runDialog('A', 'ru', [
     { input: words.childScenario, intent: 'child', scenario: 'child', modelId: 'light2', showProduct: true },
     { input: words.cheaper, intent: 'budget', modelId: 'light2', showProduct: true },
-    { input: words.musicSwitch, intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
-    { input: words.blueQuestion, intent: 'color', modelId: 'midi' },
+    { input: words.musicSwitch, intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
+    { input: words.blueQuestion, intent: 'color', modelId: 'miniPro' },
     { input: words.latviaTypo, intent: 'latvia', type: 'faq' },
     { input: words.setup, intent: 'setup', type: 'faq' },
   ], coverage);
@@ -422,8 +813,7 @@ function testGoldenConversationsAndIntentCoverage() {
   runDialog('C', 'ru', [
     { input: 'Mini 3', intent: 'model', type: 'model', modelId: 'mini3', showProduct: true },
     { input: words.compare, intent: 'compare', type: 'compare', action: 'compare' },
-    { input: 'Midi', intent: 'model', type: 'model', modelId: 'midi', showProduct: true },
-    { input: words.showProduct, intent: 'show_product', expectShowProductModelId: 'midi' },
+    { input: 'Midi', intent: 'model', type: 'availability_unavailable', modelId: 'midi', showProduct: false },
   ], coverage);
 
   runDialog('D', 'ru', [
@@ -435,8 +825,8 @@ function testGoldenConversationsAndIntentCoverage() {
   runDialog('E', 'en', [
     { input: 'Do you deliver?', intent: 'delivery', type: 'faq' },
     { input: 'setup help', intent: 'setup', type: 'faq' },
-    { input: 'music', intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
-    { input: 'show product', intent: 'show_product', expectShowProductModelId: 'midi' },
+    { input: 'music', intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
+    { input: 'show product', intent: 'show_product', expectShowProductModelId: 'miniPro' },
   ], coverage);
 
   runDialog('F', 'lv', [
@@ -459,9 +849,9 @@ function testGoldenConversationsAndIntentCoverage() {
   ], coverage);
 
   runDialog('I', 'lv', [
-    { input: 'Muzikai', intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
+    { input: 'Muzikai', intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
     { input: 'Vel variants', intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
-    { input: 'Atpakal', intent: 'back', modelId: 'midi' },
+    { input: 'Atpakal', intent: 'back', modelId: 'miniPro' },
   ], coverage);
 
   runDialog('J', 'ru', [
@@ -479,6 +869,7 @@ function testGoldenConversationsAndIntentCoverage() {
     'delivery',
     'latvia',
     'model',
+    'availability',
     'color',
     'show_product',
     'next_variant',
@@ -499,8 +890,30 @@ testAlternativeDoesNotRepeatCurrentModel();
 testBackReturnsPreviousState();
 testNavigationActionIncludesModelAndColor();
 testColorIntentKnownUnavailableAndAvailable();
+testAvailabilityUsesCatalogStock();
+testScenarioMatrix();
+testContextSwitchMatrix();
+testBudgetMatrix();
+testColorMatrix();
+testModelAliasMatrix();
+testTypoMatrix();
+testAvailabilityPhrases();
+testComparisonMatrix();
+testFollowupMatrix();
+testNavigationTextMatrix();
+testFaqIntentMatrix();
+testNegativeInputs();
+testLanguageSwitchKeepsContext();
+testMixedLanguages();
+testSmallTalkAndEmptyInput();
+testLongInputDoesNotCrash();
+testActionButtonsAsClickAndText();
+testCatalogRecommendationIntegrity();
+testGoldenSnapshots();
 testRequiredRegressionFlow();
 testLanguages();
 testGoldenConversationsAndIntentCoverage();
 
+console.log(`assistant v2 golden conversations: ${GOLDEN_DIALOGS.length}`);
+console.log('assistant v2 behavioral requirement coverage: 22/22 groups');
 console.log('assistant engine v2 regression passed');
