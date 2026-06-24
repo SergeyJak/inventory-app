@@ -194,7 +194,7 @@ p {
   margin-top: 0;
 }
 
-h1 {
+#model-title {
   margin-bottom: 0;
   max-width: 480px;
   font-size: clamp(48px, 6.4vw, 92px);
@@ -1436,12 +1436,12 @@ h1 {
     margin-bottom: 12px;
   }
 
-  h1 {
+  #model-title {
     font-size: 39px;
     line-height: .94;
   }
 
-  h1.split-title {
+  #model-title.split-title {
     max-width: none;
     font-size: 32px;
     line-height: .98;
