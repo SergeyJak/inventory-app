@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://heysmart.up.railway.app/sitemap.xml
+Sitemap: https://heysmart.lv/sitemap.xml
