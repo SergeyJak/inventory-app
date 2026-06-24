@@ -405,6 +405,13 @@ function isCatalogHost(req) {
   return CATALOG_HOSTS.includes(requestHost(req));
 }
 
+function redirectWwwCatalogHost(req, res, next) {
+  if (requestHost(req) === 'www.heysmart.lv') {
+    return res.redirect(301, `https://heysmart.lv${req.originalUrl || '/'}`);
+  }
+  return next();
+}
+
 function isInventoryHost(req) {
   const host = requestHost(req);
   return host === INVENTORY_HOST || host === 'localhost' || host === '127.0.0.1';
@@ -424,6 +431,8 @@ function requireInventoryHost(req, res, next) {
 // - inv-app.up.railway.app keeps the existing Inventory App behavior.
 // - heysmart.up.railway.app and heysmart.lv expose only the public catalog site and its safe assets.
 // - mysmart.up.railway.app is kept as a catalog alias.
+app.use(redirectWwwCatalogHost);
+
 app.get('/', (req, res, next) => {
   if (isCatalogHost(req)) {
     return res.sendFile(path.join(__dirname, 'catalog.html'));
