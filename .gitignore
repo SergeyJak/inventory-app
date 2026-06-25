@@ -2,3 +2,6 @@
 node_modules/
 data/
 reports/
+artifacts/
+test-results/
+.codex/

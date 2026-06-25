@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HeySmart Mail</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
+  <link rel="stylesheet" href="/mail.css" />
+</head>
+<body>
+  <main class="mail-shell">
+    <section class="login-view" id="login-view">
+      <a class="back-link" href="/">HeySmart</a>
+      <div class="login-card">
+        <p class="kicker">HeySmart Mail</p>
+        <h1>Вход в почту</h1>
+        <form id="login-form">
+          <label for="mail-email">Email</label>
+          <input id="mail-email" type="email" autocomplete="username" placeholder="alstrix1023@heysmart.lv" required />
+          <label for="mail-password">Password</label>
+          <input id="mail-password" type="password" autocomplete="current-password" required />
+          <button type="submit" id="login-btn">Войти</button>
+        </form>
+        <div class="error" id="login-error"></div>
+      </div>
+    </section>
+
+    <section class="inbox-view" id="inbox-view" hidden>
+      <header class="mail-header">
+        <div>
+          <p class="kicker">HeySmart Mail</p>
+          <h1 id="mailbox-title">Inbox</h1>
+        </div>
+        <div class="mail-actions">
+          <button type="button" id="refresh-btn">Обновить</button>
+          <button type="button" id="logout-btn">Выйти</button>
+        </div>
+      </header>
+
+      <div class="mail-layout">
+        <aside class="message-list" id="message-list"></aside>
+        <article class="message-detail" id="message-detail">
+          <div class="empty-state">Писем пока нет. Если Яндекс отправил код, нажмите Обновить через несколько секунд.</div>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script src="/mail.js"></script>
+</body>
+</html>

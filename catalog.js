@@ -339,6 +339,7 @@ function createAssistantEngine() {
   if (!window.AssistantEngine?.createAssistantEngine) return null;
   return window.AssistantEngine.createAssistantEngine({
     models: () => models,
+    knownModels: () => PHOTO_MODELS,
     t: path => dict(path),
     modelText,
     findFaq: findFaqAnswer,
@@ -561,6 +562,15 @@ function showAssistantCompare() {
   trackAssistantEvent('assistant_compare');
 }
 
+function showAvailableModels() {
+  closeOverlays();
+  window.setTimeout(() => {
+    showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    highlightElement(modelSwitcher);
+  }, 180);
+  trackAssistantEvent('assistant_show_available');
+}
+
 function handleAssistantAction(action) {
   trackAssistantEvent('assistant_quick_action', { action: action.dataset.action || '', model_id: action.dataset.modelId || '' });
   if (action.dataset.action === 'show_product') {
@@ -569,6 +579,10 @@ function handleAssistantAction(action) {
   }
   if (action.dataset.action === 'compare') {
     showAssistantCompare();
+    return;
+  }
+  if (action.dataset.action === 'show_available') {
+    showAvailableModels();
     return;
   }
   if (action.dataset.action === 'alternative') {

@@ -5,6 +5,7 @@ const path      = require('path');
 const jwt       = require('jsonwebtoken');
 const bcrypt    = require('bcryptjs');
 const { MongoClient } = require('mongodb');
+const { createMailService } = require('./mail-service');
 
 const app      = express();
 const PORT     = process.env.PORT || 3001;
@@ -47,6 +48,7 @@ if (!USE_MONGO) {
 
 // ── MONGODB STORAGE ──────────────────────────────────────────
 let db = null;
+let mail = null;
 const COLL = {
   products: 'products',
   transactions: 'transactions',
@@ -457,6 +459,20 @@ app.get(['/catalog.css', '/catalog.js', '/assistant-engine.js', '/i18n.js', '/fa
   return next();
 });
 
+app.get('/mail', (req, res, next) => {
+  if (isCatalogHost(req) || isLocalHost(req)) {
+    return res.sendFile(path.join(__dirname, 'mail.html'));
+  }
+  return next();
+});
+
+app.get(['/mail.html', '/mail.css', '/mail.js'], (req, res, next) => {
+  if (isCatalogHost(req) || isLocalHost(req)) {
+    return res.sendFile(path.join(__dirname, req.path.slice(1)));
+  }
+  return next();
+});
+
 app.use('/icons', (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
     return express.static(path.join(__dirname, 'icons'), {
@@ -499,7 +515,9 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  const publicCatalogApi = req.path === '/api/public/products' || req.path === '/api/public/assistant-question';
+  const publicCatalogApi = req.path === '/api/public/products'
+    || req.path === '/api/public/assistant-question'
+    || req.path.startsWith('/api/mail/');
   if (isCatalogHost(req) && req.path.startsWith('/api/') && !publicCatalogApi) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -536,6 +554,14 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+mail = createMailService({
+  express,
+  dbProvider: () => db,
+  jwtSecret: JWT_SECRET,
+  requireAuth,
+  requireAdmin,
+});
+
 // ── LOGIN ────────────────────────────────────────────────────
 app.post('/api/login', requireInventoryHost, async (req, res) => {
   const { username, password } = req.body || {};
@@ -553,6 +579,8 @@ app.post('/api/login', requireInventoryHost, async (req, res) => {
   );
   res.json({ token, role: user.role, username: user.username });
 });
+
+app.use(mail.router);
 
 // ── DATA ROUTES ──────────────────────────────────────────────
 app.get('/api/public/products', async (req, res) => {
@@ -715,11 +743,16 @@ app.use((err, req, res, next) => {
 });
 
 async function start() {
-  if (USE_MONGO) await connectMongo();
-  else console.log('📁  Using local JSON files (no MONGODB_URI set)');
+  if (USE_MONGO) {
+    await connectMongo();
+    await mail.ensureMailIndexes(db);
+  } else {
+    console.log('📁  Using local JSON files (no MONGODB_URI set)');
+  }
   app.listen(PORT, () => {
     console.log(`Inventory app running at http://localhost:${PORT}`);
   });
+  if (USE_MONGO) mail.startMailPoller(db);
 }
 
 start().catch(err => {

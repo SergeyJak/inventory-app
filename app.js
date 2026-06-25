@@ -13,6 +13,17 @@ function logout() {
 
 // ========== STORAGE (server-backed) ==========
 const _cache = { products: [], transactions: [], andreyReturns: [], subAccounts: [], hostSubscriptions: [] };
+const BACKUP_SECTIONS = [
+  { id: 'products', label: 'products', hint: 'товары и остатки', restorable: true },
+  { id: 'sales', label: 'sales', hint: 'только продажи', restorable: true },
+  { id: 'settings', label: 'settings', hint: 'аккаунты и хосты', restorable: true },
+  { id: 'faq', label: 'faq', hint: 'faq.json', restorable: true },
+  { id: 'categories', label: 'categories', hint: 'вычисляется из товаров', restorable: false },
+  { id: 'translations', label: 'translations', hint: 'i18n.js', restorable: true },
+  { id: 'users', label: 'users', hint: 'только метаданные', restorable: false },
+];
+let inspectedBackupBase64 = '';
+let inspectedBackupInfo = null;
 
 function loadProducts()        { return _cache.products; }
 function loadTransactions()    { return _cache.transactions; }
@@ -217,6 +228,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'dashboard') renderDashboard();
     if (btn.dataset.tab === 'products')  renderProducts();
     if (btn.dataset.tab === 'accounts')  renderAccounts();
+    if (btn.dataset.tab === 'mail-accounts') renderMailAccounts();
+    if (btn.dataset.tab === 'backups')   renderBackups();
     if (btn.dataset.tab === 'sales')     populateProductSelect('sale-product');
     if (btn.dataset.tab === 'restock')   populateProductSelect('restock-product');
     if (btn.dataset.tab === 'history')   renderHistory('all');
@@ -933,6 +946,172 @@ function deleteSubAccount(id) {
   renderAccounts();
 }
 
+// ========== HEYSMART MAIL ADMIN ==========
+let mailAccountsCache = [];
+
+function formatMailDate(value) {
+  if (!value) return '<span style="color:#94a3b8">-</span>';
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? esc(value) : date.toLocaleString('ru-RU');
+}
+
+async function loadMailAccounts() {
+  const res = await fetch('/api/admin/mail/accounts', { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+  mailAccountsCache = data.accounts || [];
+  return mailAccountsCache;
+}
+
+function renderMailCredentials(result) {
+  const box = document.getElementById('mail-credentials');
+  if (!box) return;
+  const text = `Email: ${result.account.email}\nPassword: ${result.password}\nLink: ${result.link}`;
+  box.hidden = false;
+  box.innerHTML = `
+    <strong>Client credentials</strong>
+    <pre>${esc(text)}</pre>
+    <button class="btn-secondary" onclick="copyMailCredentials()">Copy credentials</button>`;
+  box.dataset.copy = text;
+}
+
+function copyMailCredentials() {
+  const box = document.getElementById('mail-credentials');
+  const text = box?.dataset.copy || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => showToast('Mail credentials copied'));
+}
+
+async function renderMailAccounts() {
+  const tbody = document.getElementById('mail-accounts-tbody');
+  if (!tbody) return;
+  try {
+    await loadMailAccounts();
+    const q = (document.getElementById('mail-accounts-search')?.value || '').trim().toLowerCase();
+    const rows = mailAccountsCache
+      .filter(account => !q || String(account.email || '').toLowerCase().includes(q))
+      .map(account => {
+        const id = esc(account._id);
+        return `<tr>
+          <td><strong>${esc(account.email)}</strong></td>
+          <td><span class="account-status">${account.active ? 'active' : 'disabled'}</span></td>
+          <td>${formatMailDate(account.createdAt)}</td>
+          <td>${formatMailDate(account.lastLoginAt)}</td>
+          <td><span class="accounts-actions">
+            <button class="btn-edit" onclick="openMailAccount('${id}')">Open</button>
+            <button class="btn-edit" onclick="resetMailPassword('${id}')">Reset</button>
+            <button class="btn-delete" onclick="deactivateMailAccount('${id}')" ${account.active ? '' : 'disabled'}>Deactivate</button>
+          </span></td>
+        </tr>`;
+      });
+    tbody.innerHTML = rows.length ? rows.join('') : '<tr class="empty-row"><td colspan="5">No mail accounts yet.</td></tr>';
+    document.getElementById('mail-accounts-summary').textContent = `${mailAccountsCache.length} mail accounts`;
+  } catch (e) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="5">Could not load mail accounts: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function createMailAccount() {
+  const username = document.getElementById('mail-username').value.trim();
+  if (!username) return showToast('Username is required', 'error');
+  const btn = document.getElementById('mail-create-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/admin/mail/accounts', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ username }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    document.getElementById('mail-username').value = '';
+    renderMailCredentials(data);
+    await renderMailAccounts();
+    showToast('Mail account created');
+  } catch (e) {
+    showToast('Mail account error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function resetMailPassword(id) {
+  if (!confirm('Reset password for this mailbox?')) return;
+  try {
+    const res = await fetch(`/api/admin/mail/accounts/${encodeURIComponent(id)}/reset-password`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    renderMailCredentials(data);
+    await renderMailAccounts();
+    showToast('Mail password reset');
+  } catch (e) {
+    showToast('Reset error: ' + e.message, 'error');
+  }
+}
+
+async function deactivateMailAccount(id) {
+  if (!confirm('Deactivate this mailbox?')) return;
+  try {
+    const res = await fetch(`/api/admin/mail/accounts/${encodeURIComponent(id)}/deactivate`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    await renderMailAccounts();
+    showToast('Mail account deactivated');
+  } catch (e) {
+    showToast('Deactivate error: ' + e.message, 'error');
+  }
+}
+
+async function openMailAccount(id) {
+  const selected = mailAccountsCache.find(account => account._id === id);
+  document.getElementById('mail-admin-selected').textContent = selected ? selected.email : 'Selected mailbox';
+  const box = document.getElementById('mail-admin-messages');
+  box.innerHTML = '<div class="backup-muted">Loading messages...</div>';
+  try {
+    const res = await fetch(`/api/admin/mail/accounts/${encodeURIComponent(id)}/messages`, { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    box.innerHTML = (data.messages || []).length
+      ? data.messages.map(message => `<article class="mail-admin-message">
+          <strong>${esc(message.subject || '(no subject)')}</strong>
+          <span>${esc(message.from || '')}</span>
+          <small>${formatMailDate(message.receivedAt)}</small>
+        </article>`).join('')
+      : '<div class="backup-muted">No messages saved for this mailbox yet.</div>';
+  } catch (e) {
+    box.innerHTML = `<div class="backup-muted">Could not load messages: ${esc(e.message)}</div>`;
+  }
+}
+
+async function testMailImap() {
+  const btn = document.getElementById('mail-imap-test-btn');
+  const status = document.getElementById('mail-imap-status');
+  btn.disabled = true;
+  status.textContent = 'Testing Gmail IMAP...';
+  try {
+    const res = await fetch('/api/admin/mail/imap-test', { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      status.textContent = data.reason || data.error || 'IMAP test failed';
+      showToast('IMAP test failed', 'error');
+      return;
+    }
+    status.textContent = `IMAP OK. Messages: ${data.messages}, unseen: ${data.unseen}, newest: ${data.newest?.subject || '-'}`;
+    showToast('IMAP connection OK');
+  } catch (e) {
+    status.textContent = 'IMAP test error: ' + e.message;
+    showToast('IMAP test error', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ========== SALES ==========
 function populateProductSelect(selectId) {
   const products = loadProducts();
@@ -1051,15 +1230,61 @@ function renderHistory(filter) {
     return String(b.id || '').localeCompare(String(a.id || ''));
   });
   const tbody = document.getElementById('history-tbody');
-  if (!txs.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Операций пока нет.</td></tr>'; return; }
+  if (!txs.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No operations yet.</td></tr>'; return; }
   tbody.innerHTML = txs.map(t => {
-    const d       = new Date(t.date);
+    const d = new Date(t.date);
     const dateStr = d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
-    const tag     = t.type === 'sale' ? '<span class="tag-sale">Продажа</span>' : '<span class="tag-restock">Поступление</span>';
-    return `<tr><td>${dateStr}</td><td>${tag}</td><td>${esc(t.productLabel || t.productName || '—')}</td><td>${t.qty}</td><td>${fmt(t.price)}</td><td>${fmt(t.total)}</td><td>${t.type === 'sale' ? fmt(t.profit) : '—'}</td></tr>`;
+    const tag = t.type === 'sale' ? '<span class="tag-sale">Sale</span>' : '<span class="tag-restock">Restock</span>';
+    const actions = t.type === 'sale' && getRole() !== 'viewer'
+      ? `<span class="accounts-actions"><button class="btn-return" onclick="returnOneSaleItem('${esc(t.id)}')">Return 1</button></span>`
+      : '';
+    return `<tr><td>${dateStr}</td><td>${tag}</td><td>${esc(t.productLabel || t.productName || '-')}</td><td>${t.qty}</td><td>${fmt(t.price)}</td><td>${fmt(t.total)}</td><td>${t.type === 'sale' ? fmt(t.profit) : '-'}</td><td>${actions}</td></tr>`;
   }).join('');
 }
 
+function returnOneSaleItem(txId) {
+  const txs = loadTransactions();
+  const tx = txs.find(t => t.id === txId);
+  if (!tx || tx.type !== 'sale') return;
+  const qty = Number(tx.qty) || 0;
+  if (qty <= 0) return;
+  if (!confirm(`Return 1 item from sale "${tx.productLabel || tx.productName || txId}" to stock?`)) return;
+
+  const products = loadProducts();
+  let product = products.find(p => p.id === tx.productId);
+  if (!product) {
+    const label = tx.productLabel || tx.productName || 'Returned item';
+    const parts = label.split(' / ');
+    product = {
+      id: tx.productId || genId(),
+      productType: parts[0] || label,
+      color: parts.slice(1).join(' / ') || '',
+      sellPrice: tx.price || 0,
+      arrivalDate: String(tx.date || '').slice(0, 10),
+      lots: []
+    };
+    products.push(product);
+  }
+
+  const returnedCost = qty > 0 ? (Number(tx.costTotal) || 0) / qty : 0;
+  product.lots = product.lots || [];
+  product.lots.push({ qty: 1, buyPrice: returnedCost, date: new Date().toISOString().slice(0, 10) });
+
+  if (qty <= 1) {
+    saveTransactions(txs.filter(t => t.id !== txId));
+  } else {
+    tx.qty = qty - 1;
+    tx.total = (Number(tx.total) || 0) - (Number(tx.price) || 0);
+    tx.costTotal = (Number(tx.costTotal) || 0) - returnedCost;
+    tx.profit = (Number(tx.total) || 0) - (Number(tx.costTotal) || 0);
+    saveTransactions(txs);
+  }
+
+  saveProducts(products);
+  renderHistory(document.getElementById('history-filter').value);
+  renderDashboard();
+  showToast('Returned 1 item to stock');
+}
 function toggleHistoryDateSort() {
   historyDateSort = historyDateSort === 'desc' ? 'asc' : 'desc';
   document.querySelectorAll('.history-date-sort-mark').forEach(mark => {
@@ -1070,6 +1295,7 @@ function toggleHistoryDateSort() {
 
 document.getElementById('history-filter').addEventListener('change', e => { renderHistory(e.target.value); });
 document.getElementById('accounts-search')?.addEventListener('input', renderAccounts);
+document.getElementById('mail-accounts-search')?.addEventListener('input', renderMailAccounts);
 document.addEventListener('dblclick', e => {
   const cell = e.target.closest('.editable-start-date');
   if (!cell) return;
@@ -1155,6 +1381,156 @@ function toggleAnnualMonths(year) {
   const isOpen = row.style.display !== 'none';
   row.style.display    = isOpen ? 'none' : 'table-row';
   arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
+}
+
+// ========== BACKUPS ==========
+function renderBackupSectionChecks(containerId, sections, inputName, checkedRestorableOnly) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = sections.map(section => {
+    const checked = checkedRestorableOnly ? section.restorable : true;
+    const disabled = inputName === 'backup-restore-section' && !section.restorable;
+    return `<label class="backup-check">
+      <input type="checkbox" name="${inputName}" value="${esc(section.id)}" ${checked && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''} />
+      <span>${esc(section.label)}<small>${esc(section.hint)}${section.restorable ? '' : ' · только экспорт'}</small></span>
+    </label>`;
+  }).join('');
+}
+
+function selectedBackupSections(inputName) {
+  return [...document.querySelectorAll(`input[name="${inputName}"]:checked`)].map(input => input.value);
+}
+
+function renderBackups() {
+  renderBackupSectionChecks('backup-export-sections', BACKUP_SECTIONS, 'backup-export-section', false);
+}
+
+async function exportBackup() {
+  const sections = selectedBackupSections('backup-export-section');
+  if (!sections.length) return showToast('Выберите хотя бы одну секцию', 'error');
+  const btn = document.getElementById('backup-export-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/backups/export', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ sections }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'inventory-backup-' + new Date().toISOString().slice(0, 10) + '.zip';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast('Резервная копия скачана');
+  } catch (e) {
+    showToast('Ошибка экспорта: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+async function inspectBackup() {
+  const fileInput = document.getElementById('backup-file');
+  const file = fileInput?.files?.[0];
+  if (!file) return showToast('Выберите ZIP-файл', 'error');
+  const buffer = await file.arrayBuffer();
+  const btn = document.getElementById('backup-inspect-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/backups/import/inspect', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/zip' },
+      body: buffer,
+    });
+    const info = await res.json();
+    if (!res.ok) throw new Error(info.error || ('HTTP ' + res.status));
+    inspectedBackupBase64 = arrayBufferToBase64(buffer);
+    inspectedBackupInfo = info;
+    renderBackupInspect(info);
+    showToast('Архив проверен');
+  } catch (e) {
+    inspectedBackupBase64 = '';
+    inspectedBackupInfo = null;
+    const result = document.getElementById('backup-inspect-result');
+    if (result) {
+      result.className = 'backup-inspect show';
+      result.innerHTML = `<div class="backup-manifest" style="color:#dc2626">Ошибка проверки: ${esc(e.message)}</div>`;
+    }
+    showToast('Ошибка проверки архива', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderBackupInspect(info) {
+  const result = document.getElementById('backup-inspect-result');
+  if (!result) return;
+  const restorable = new Set(info.restorableCollections || []);
+  const sections = BACKUP_SECTIONS
+    .filter(section => (info.collections || []).includes(section.id))
+    .map(section => ({ ...section, restorable: restorable.has(section.id) }));
+  result.className = 'backup-inspect show';
+  result.innerHTML = `
+    <div class="backup-manifest">
+      <strong>Manifest:</strong> version ${esc(info.manifest?.version || '-')}, ${esc(info.manifest?.createdAt || '-')}<br>
+      <strong>Секции:</strong> ${esc((info.collections || []).join(', ') || '-')}<br>
+      <strong>Только экспорт:</strong> ${esc((info.exportOnlyCollections || []).join(', ') || '-')}
+    </div>
+    <div class="backup-checks" id="backup-restore-sections"></div>
+    <div class="backup-restore-actions">
+      <label class="backup-confirm">
+        <input type="checkbox" id="backup-confirm-check" />
+        <span>Я понимаю, что выбранные секции будут заменены данными из архива.</span>
+      </label>
+      <button onclick="restoreBackup()" class="btn-danger" id="backup-restore-btn">Восстановить выбранное</button>
+    </div>`;
+  renderBackupSectionChecks('backup-restore-sections', sections, 'backup-restore-section', true);
+}
+
+async function restoreBackup() {
+  if (!inspectedBackupBase64 || !inspectedBackupInfo) return showToast('Сначала проверьте ZIP-архив', 'error');
+  const sections = selectedBackupSections('backup-restore-section');
+  if (!sections.length) return showToast('Выберите секции для восстановления', 'error');
+  if (!document.getElementById('backup-confirm-check')?.checked) {
+    return showToast('Подтвердите восстановление чекбоксом', 'error');
+  }
+  if (!confirm('Восстановить выбранные секции из резервной копии?')) return;
+  const btn = document.getElementById('backup-restore-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/backups/import', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ backupBase64: inspectedBackupBase64, sections, confirm: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    const reload = await fetch('/api/data', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    const fresh = await reload.json();
+    _cache.products = fresh.products || [];
+    _cache.transactions = fresh.transactions || [];
+    _cache.andreyReturns = fresh.andreyReturns || [];
+    _cache.subAccounts = fresh.subAccounts || [];
+    _cache.hostSubscriptions = fresh.hostSubscriptions || [];
+    renderDashboard();
+    showToast('Восстановлено: ' + (data.restored || []).join(', '));
+  } catch (e) {
+    showToast('Ошибка восстановления: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ========== UTILS ==========

@@ -6,13 +6,18 @@
   "scripts": {
     "start": "node server.js",
     "test": "node tests/assistant-engine-v2.test.cjs",
-    "test:assistant": "node tests/assistant-engine-v2.test.cjs"
+    "test:assistant": "node tests/assistant-engine-v2.test.cjs",
+    "test:backup": "node tests/backup-flow.test.cjs",
+    "test:mail": "node tests/mail-service.test.cjs"
   },
   "dependencies": {
     "bcryptjs": "3.0.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "imapflow": "^1.4.2",
     "jsonwebtoken": "9.0.3",
-    "mongodb": "7.2.0"
+    "mailparser": "^3.9.12",
+    "mongodb": "7.2.0",
+    "sanitize-html": "^2.17.5"
   }
 }

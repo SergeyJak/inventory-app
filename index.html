@@ -48,6 +48,8 @@
   <button class="tab-btn" data-tab="products">🏷️ Товары</button>
   <button class="tab-btn" data-tab="history">📋 История</button>
   <button class="tab-btn admin-only" data-tab="accounts">&#x410;&#x43A;&#x43A;&#x430;&#x443;&#x43D;&#x442;&#x44B;</button>
+  <button class="tab-btn admin-only" data-tab="mail-accounts">Mail Accounts</button>
+  <button class="tab-btn admin-only" data-tab="backups">Резервные копии</button>
   <button class="tab-btn" data-tab="annual">📅 Отчётность</button>
 </nav>
 
@@ -218,6 +220,44 @@
     <tbody id="accounts-tbody"></tbody>
   </table>
 </section>
+<!-- ===== MAIL ACCOUNTS ===== -->
+<section id="tab-mail-accounts" class="tab-content admin-only">
+  <h2>HeySmart Mail Accounts</h2>
+
+  <div class="mail-admin-grid">
+    <div class="form-card mail-admin-card">
+      <h3>Create mailbox</h3>
+      <div class="form-row">
+        <label>Username</label>
+        <div class="mail-username-row">
+          <input type="text" id="mail-username" placeholder="alstrix1023" autocomplete="off" />
+          <span>@heysmart.lv</span>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button onclick="createMailAccount()" class="btn-primary" id="mail-create-btn">Create mailbox</button>
+        <button onclick="testMailImap()" class="btn-secondary" id="mail-imap-test-btn">Test IMAP</button>
+      </div>
+      <div class="mail-credentials" id="mail-credentials" hidden></div>
+      <p class="backup-muted" id="mail-imap-status"></p>
+    </div>
+
+    <div class="form-card mail-admin-card">
+      <h3>Selected inbox</h3>
+      <div id="mail-admin-selected" class="backup-muted">Select an account to preview messages.</div>
+      <div id="mail-admin-messages" class="mail-admin-messages"></div>
+    </div>
+  </div>
+
+  <div class="accounts-toolbar">
+    <input type="search" id="mail-accounts-search" placeholder="Search mail accounts..." />
+    <div class="accounts-summary" id="mail-accounts-summary"></div>
+  </div>
+  <table id="mail-accounts-table">
+    <thead><tr><th>Email</th><th>Status</th><th>Created</th><th>Last login</th><th>Actions</th></tr></thead>
+    <tbody id="mail-accounts-tbody"></tbody>
+  </table>
+</section>
 <!-- ===== SALES ===== -->
 <section id="tab-sales" class="tab-content">
   <h2>Зафиксировать продажу</h2>
@@ -255,9 +295,38 @@
     <button onclick="clearHistory()" class="btn-danger admin-only">🗑️ Очистить историю</button>
   </div>
   <table id="history-table">
-    <thead><tr><th><button class="table-sort-btn" onclick="toggleHistoryDateSort()">Date <span class="history-date-sort-mark">v</span></button></th><th>Operation</th><th>Type / Color</th><th>Qty</th><th>Price</th><th>Total</th><th>Profit</th></tr></thead>
+    <thead><tr><th><button class="table-sort-btn" onclick="toggleHistoryDateSort()">Date <span class="history-date-sort-mark">v</span></button></th><th>Operation</th><th>Type / Color</th><th>Qty</th><th>Price</th><th>Total</th><th>Profit</th><th>Actions</th></tr></thead>
     <tbody id="history-tbody"></tbody>
   </table>
+</section>
+
+<!-- ===== BACKUPS ===== -->
+<section id="tab-backups" class="tab-content admin-only">
+  <h2>Резервные копии</h2>
+
+  <div class="backup-grid">
+    <div class="form-card backup-card">
+      <h3>Создать ZIP</h3>
+      <p class="backup-muted">Выберите секции, которые попадут в архив. Внутри будет manifest.json с версией, датой и списком секций.</p>
+      <div class="backup-checks" id="backup-export-sections"></div>
+      <div class="form-actions">
+        <button onclick="exportBackup()" class="btn-primary" id="backup-export-btn">Скачать ZIP</button>
+      </div>
+    </div>
+
+    <div class="form-card backup-card">
+      <h3>Восстановить из ZIP</h3>
+      <p class="backup-muted">Сначала загрузите архив для проверки manifest.json, затем выберите секции для восстановления.</p>
+      <div class="form-row">
+        <label>Backup ZIP</label>
+        <input type="file" id="backup-file" accept=".zip,application/zip" />
+      </div>
+      <div class="form-actions">
+        <button onclick="inspectBackup()" class="btn-secondary" id="backup-inspect-btn">Проверить архив</button>
+      </div>
+      <div id="backup-inspect-result" class="backup-inspect"></div>
+    </div>
+  </div>
 </section>
 
 <!-- ===== ANNUAL REPORT ===== -->
