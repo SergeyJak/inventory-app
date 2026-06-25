@@ -1,6 +1,6 @@
 window.catalogTranslations = {
   ru: {
-    meta: { title: 'Станции' },
+    meta: { title: 'Яндекс Станции в Латвии — Лайт 2, Мини 3, Мини 3 Про и Стрит | HeySmart' },
     nav: { brand: 'Умная колонка', consultation: 'Консультация', lang: 'Язык' },
     state: {
       loading: 'Загружаем модели...',
@@ -186,7 +186,7 @@ window.catalogTranslations = {
     },
   },
   lv: {
-    meta: { title: 'Stations' },
+    meta: { title: 'Yandex Station Latvijā — Lite 2, Mini 3, Mini 3 Pro un Street | HeySmart' },
     nav: { brand: 'Viedais skaļrunis', consultation: 'Konsultācija', lang: 'Valoda' },
     state: { loading: 'Ielādējam modeļus...', empty: 'Pašlaik nav pieejamu modeļu ar foto.', error: 'Neizdevās ielādēt modeļus. Mēģiniet atsvaidzināt lapu.' },
     common: { selectedModel: 'Izvēlētais modelis', aboutModel: 'Par modeli', contact: 'Sazināties', close: 'Aizvērt', inStock: 'Pieejams', stockUnknown: 'Pieejamība jāprecizē', model: 'modelis', models: 'Modeļi', colors: 'Krāsas', fitFor: 'Kam piemērots', showModel: 'Parādīt modeli', compare: 'Salīdzināt' },
@@ -323,7 +323,7 @@ window.catalogTranslations = {
     },
   },
   en: {
-    meta: { title: 'Stations' },
+    meta: { title: 'Yandex Stations in Latvia — Lite 2, Mini 3, Mini 3 Pro and Street | HeySmart' },
     nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language' },
     state: { loading: 'Loading models...', empty: 'No available models with photos right now.', error: 'Could not load models. Please refresh the page.' },
     common: { selectedModel: 'Selected model', aboutModel: 'About the model', contact: 'Contact', close: 'Close', inStock: 'In stock', stockUnknown: 'Availability to be confirmed', model: 'model', models: 'Models', colors: 'Colors', fitFor: 'Who it suits', showModel: 'Show model', compare: 'Compare' },
