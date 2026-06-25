@@ -982,6 +982,16 @@ function copyMailCredentials() {
   navigator.clipboard.writeText(text).then(() => showToast('Mail credentials copied'));
 }
 
+function generateMailPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let value = '';
+  for (let i = 0; i < 12; i++) {
+    value += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  document.getElementById('mail-password').value = value;
+  document.getElementById('mail-confirm-password').value = value;
+}
+
 async function renderMailAccounts() {
   const tbody = document.getElementById('mail-accounts-tbody');
   if (!tbody) return;
@@ -1013,18 +1023,24 @@ async function renderMailAccounts() {
 
 async function createMailAccount() {
   const username = document.getElementById('mail-username').value.trim();
+  const password = document.getElementById('mail-password').value;
+  const confirmPassword = document.getElementById('mail-confirm-password').value;
   if (!username) return showToast('Username is required', 'error');
+  if (!password || password.length < 8) return showToast('Password must be at least 8 characters', 'error');
+  if (password !== confirmPassword) return showToast('Passwords do not match', 'error');
   const btn = document.getElementById('mail-create-btn');
   btn.disabled = true;
   try {
     const res = await fetch('/api/admin/mail/accounts', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ username }),
+      body: JSON.stringify({ username, password, confirmPassword }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
     document.getElementById('mail-username').value = '';
+    document.getElementById('mail-password').value = '';
+    document.getElementById('mail-confirm-password').value = '';
     renderMailCredentials(data);
     await renderMailAccounts();
     showToast('Mail account created');

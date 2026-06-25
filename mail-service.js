@@ -178,26 +178,31 @@ async function ensureMailIndexes(db, options = {}) {
   ]);
 }
 
-async function createMailAccount(db, username) {
+async function createMailAccount(db, username, password) {
   const cleanUser = String(username || '').trim().toLowerCase().replace(/@heysmart\.lv$/, '');
   if (!/^[a-z0-9._%+-]{2,64}$/.test(cleanUser)) {
     const err = new Error('Invalid username');
     err.status = 400;
     throw err;
   }
+  const cleanPassword = String(password || '');
+  if (cleanPassword.length < 8) {
+    const err = new Error('Password is required and must be at least 8 characters');
+    err.status = 400;
+    throw err;
+  }
   const email = normalizeMailEmail(`${cleanUser}@${MAIL_DOMAIN}`);
-  const password = generateMailboxPassword();
   const now = new Date();
   const doc = {
     email,
-    passwordHash: await bcrypt.hash(password, 10),
+    passwordHash: await bcrypt.hash(cleanPassword, 10),
     active: true,
     createdAt: now,
     updatedAt: now,
     lastLoginAt: null,
   };
   await db.collection('mail_accounts').insertOne(doc);
-  return { account: publicAccount(doc), password, link: 'https://heysmart.lv/mail' };
+  return { account: publicAccount(doc), password: cleanPassword, link: 'https://heysmart.lv/mail' };
 }
 
 async function resetMailPassword(db, id) {
@@ -379,7 +384,10 @@ function createMailService({ express, dbProvider, jwtSecret, requireAuth, requir
 
   router.post('/api/admin/mail/accounts', requireAuth, requireAdmin, async (req, res) => {
     try {
-      const result = await createMailAccount(db(), req.body?.username);
+      if (String(req.body?.password || '') !== String(req.body?.confirmPassword || '')) {
+        return res.status(400).json({ error: 'Passwords do not match' });
+      }
+      const result = await createMailAccount(db(), req.body?.username, req.body?.password);
       res.status(201).json(result);
     } catch (err) {
       const duplicate = err.code === 11000;

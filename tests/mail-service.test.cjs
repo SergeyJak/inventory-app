@@ -1,12 +1,14 @@
 const assert = require('assert');
 
 const {
+  createMailAccount,
   extractVerificationCode,
   findOriginalRecipient,
   mapParsedMessage,
   normalizeMailEmail,
   sanitizeMailHtml,
 } = require('../mail-service');
+const bcrypt = require('bcryptjs');
 
 function headers(entries) {
   return new Map(entries.map(([key, value]) => [key.toLowerCase(), value]));
@@ -81,4 +83,26 @@ test('mapParsedMessage creates stable duplicate key and sanitized payload', () =
   assert.strictEqual(mapped.html, '<b>Code 123456</b><img src="https://example.com/a.png" />');
   assert.strictEqual(mapped.receivedAt.toISOString(), '2026-06-25T10:00:00.000Z');
   assert.strictEqual(mapped.isRead, false);
+});
+
+test('createMailAccount requires admin-provided password and stores its hash', async () => {
+  let inserted = null;
+  const fakeDb = {
+    collection() {
+      return {
+        async insertOne(doc) {
+          inserted = doc;
+          inserted._id = 'account-1';
+        },
+      };
+    },
+  };
+  await assert.rejects(
+    () => createMailAccount(fakeDb, 'client1', ''),
+    /Password is required/
+  );
+  const result = await createMailAccount(fakeDb, 'client1', 'ManualPass123');
+  assert.strictEqual(result.account.email, 'client1@heysmart.lv');
+  assert.strictEqual(result.password, 'ManualPass123');
+  assert.strictEqual(await bcrypt.compare('ManualPass123', inserted.passwordHash), true);
 });

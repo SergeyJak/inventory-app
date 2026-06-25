@@ -230,9 +230,20 @@
       <div class="form-row">
         <label>Username</label>
         <div class="mail-username-row">
-          <input type="text" id="mail-username" placeholder="alstrix1023" autocomplete="off" />
+          <input type="text" id="mail-username" placeholder="username" autocomplete="off" />
           <span>@heysmart.lv</span>
         </div>
+      </div>
+      <div class="form-row">
+        <label>Password</label>
+        <div class="mail-password-row">
+          <input type="text" id="mail-password" placeholder="Password" autocomplete="new-password" />
+          <button type="button" class="btn-secondary" onclick="generateMailPassword()">Generate</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Confirm password</label>
+        <input type="text" id="mail-confirm-password" placeholder="Confirm password" autocomplete="new-password" />
       </div>
       <div class="form-actions">
         <button onclick="createMailAccount()" class="btn-primary" id="mail-create-btn">Create mailbox</button>
