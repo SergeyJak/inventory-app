@@ -345,6 +345,11 @@ const INVENTORY_PUBLIC_FILES = new Map([
   ['/', 'index.html'],
   ['/index.html', 'index.html'],
   ['/login.html', 'login.html'],
+  ['/reports', 'reports.html'],
+  ['/analytics', 'reports.html'],
+  ['/reports.html', 'reports.html'],
+  ['/reports.css', 'reports.css'],
+  ['/reports.js', 'reports.js'],
   ['/app.js', 'app.js'],
   ['/style.css', 'style.css'],
   ['/favicon.ico', 'favicon.ico'],
@@ -361,7 +366,7 @@ function setSecurityHeaders(req, res, next) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
+      "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://www.google-analytics.com",
       "font-src 'self' data:",
@@ -391,6 +396,109 @@ function setCorsHeaders(req, res, next) {
 
 function sendGenericError(res, status = 500) {
   return res.status(status).json({ error: status === 500 ? 'Internal server error' : 'Request failed' });
+}
+
+function parseReportYears(value, sales) {
+  const explicit = String(value || '')
+    .split(',')
+    .map(year => Number(year.trim()))
+    .filter(year => Number.isInteger(year) && year >= 2000 && year <= 2100);
+  if (explicit.length) return [...new Set(explicit)].sort((a, b) => a - b);
+  const years = sales
+    .map(tx => new Date(tx.date).getFullYear())
+    .filter(year => Number.isInteger(year) && year >= 2000 && year <= 2100);
+  const current = new Date().getFullYear();
+  return [...new Set(years.length ? years : [current])].sort((a, b) => a - b);
+}
+
+function reportPeriods(groupBy) {
+  if (groupBy === 'quarter') {
+    return Array.from({ length: 4 }, (_, index) => ({
+      index,
+      key: `Q${index + 1}`,
+      label: `Q${index + 1}`,
+    }));
+  }
+  if (groupBy === 'year') {
+    return [{ index: 0, key: 'year', label: 'Year' }];
+  }
+  return Array.from({ length: 12 }, (_, index) => ({
+    index,
+    key: String(index + 1).padStart(2, '0'),
+    label: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][index],
+  }));
+}
+
+function salePeriodIndex(date, groupBy) {
+  if (groupBy === 'year') return 0;
+  const month = date.getMonth();
+  return groupBy === 'quarter' ? Math.floor(month / 3) : month;
+}
+
+function emptySalesBucket(year, period) {
+  return {
+    year,
+    period: period.key,
+    label: period.label,
+    qty: 0,
+    revenue: 0,
+    cost: 0,
+    profit: 0,
+    marginPct: 0,
+  };
+}
+
+function buildSalesReport(transactions, options = {}) {
+  const groupBy = ['month', 'quarter', 'year'].includes(options.groupBy) ? options.groupBy : 'month';
+  const sales = (transactions || []).filter(tx => tx.type === 'sale');
+  const years = parseReportYears(options.years, sales);
+  const periods = reportPeriods(groupBy);
+  const buckets = new Map();
+
+  years.forEach(year => {
+    periods.forEach(period => {
+      buckets.set(`${year}:${period.index}`, emptySalesBucket(year, period));
+    });
+  });
+
+  sales.forEach(tx => {
+    const date = new Date(tx.date);
+    if (Number.isNaN(date.getTime())) return;
+    const year = date.getFullYear();
+    if (!years.includes(year)) return;
+    const periodIndex = salePeriodIndex(date, groupBy);
+    const bucket = buckets.get(`${year}:${periodIndex}`);
+    if (!bucket) return;
+    bucket.qty += Number(tx.qty) || 0;
+    bucket.revenue += Number(tx.total) || 0;
+    bucket.cost += Number(tx.costTotal) || 0;
+    bucket.profit += Number(tx.profit) || 0;
+  });
+
+  const rows = [...buckets.values()].map(bucket => ({
+    ...bucket,
+    marginPct: bucket.revenue ? bucket.profit / bucket.revenue * 100 : 0,
+  }));
+  const totals = rows.reduce((sum, row) => {
+    sum.qty += row.qty;
+    sum.revenue += row.revenue;
+    sum.cost += row.cost;
+    sum.profit += row.profit;
+    return sum;
+  }, { qty: 0, revenue: 0, cost: 0, profit: 0, marginPct: 0 });
+  totals.marginPct = totals.revenue ? totals.profit / totals.revenue * 100 : 0;
+
+  return {
+    groupBy,
+    years,
+    periods,
+    rows,
+    totals,
+    availableYears: [...new Set(sales
+      .map(tx => new Date(tx.date).getFullYear())
+      .filter(year => Number.isInteger(year) && year >= 2000 && year <= 2100))]
+      .sort((a, b) => b - a),
+  };
 }
 
 app.use(setSecurityHeaders);
@@ -668,6 +776,19 @@ app.get('/api/data', requireInventoryHost, requireAuth, async (req, res) => {
     res.json(data);
   } catch (e) {
     console.error('Data route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/reports/sales', requireInventoryHost, requireAuth, async (req, res) => {
+  try {
+    const data = await dbGetAll();
+    res.json(buildSalesReport(data.transactions || [], {
+      groupBy: req.query.groupBy,
+      years: req.query.years,
+    }));
+  } catch (e) {
+    console.error('Sales report route error:', e.message);
     sendGenericError(res);
   }
 });

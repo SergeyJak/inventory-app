@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Analytics</title>
+  <link rel="stylesheet" href="/reports.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="/reports.js" defer></script>
+</head>
+<body>
+  <header class="reports-header">
+    <div>
+      <a class="back-link" href="/">Inventory</a>
+      <h1>Sales Analytics</h1>
+      <p>Read-only revenue, profit, cost and margin dashboard.</p>
+    </div>
+    <div class="header-actions">
+      <span id="report-user"></span>
+      <a href="/" class="header-link">Admin</a>
+      <button type="button" id="logout-btn">Logout</button>
+    </div>
+  </header>
+
+  <main class="reports-shell">
+    <section class="summary-grid" id="summary-grid"></section>
+
+    <section class="panel chart-panel">
+      <div class="panel-head">
+        <div>
+          <h2>Sales trend</h2>
+          <p id="report-subtitle">Loading report...</p>
+        </div>
+        <button type="button" id="refresh-btn">Refresh</button>
+      </div>
+
+      <div class="filters">
+        <div class="filter-group" id="metric-filter" aria-label="Metric"></div>
+        <div class="filter-group" id="period-filter" aria-label="Period"></div>
+        <div class="year-filter" id="year-filter"></div>
+      </div>
+
+      <div class="chart-wrap">
+        <canvas id="sales-chart"></canvas>
+        <div class="empty-state" id="empty-state" hidden>No sales data for selected filters.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Details</h2>
+          <p>Grouped by selected period. Empty periods stay visible as 0.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Period</th>
+              <th>Revenue</th>
+              <th>Profit</th>
+              <th>Cost</th>
+              <th>Sold</th>
+              <th>Margin</th>
+            </tr>
+          </thead>
+          <tbody id="report-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
