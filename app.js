@@ -994,6 +994,15 @@ function generateMailPassword() {
   document.getElementById('mail-confirm-password').value = value;
 }
 
+function buildMailUsername(value) {
+  const clean = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/@heysmart\.lv$/i, '')
+    .replace(/^alstrix/i, '');
+  return clean ? `alstrix${clean}` : '';
+}
+
 async function renderMailAccounts() {
   const tbody = document.getElementById('mail-accounts-tbody');
   if (!tbody) return;
@@ -1027,10 +1036,10 @@ async function renderMailAccounts() {
 }
 
 async function createMailAccount() {
-  const username = document.getElementById('mail-username').value.trim();
+  const username = buildMailUsername(document.getElementById('mail-username').value);
   const password = document.getElementById('mail-password').value;
   const confirmPassword = document.getElementById('mail-confirm-password').value;
-  if (!username) return showToast('Username is required', 'error');
+  if (!username) return showToast('Username suffix is required', 'error');
   if (!password || password.length < 8) return showToast('Password must be at least 8 characters', 'error');
   if (password !== confirmPassword) return showToast('Passwords do not match', 'error');
   const btn = document.getElementById('mail-create-btn');

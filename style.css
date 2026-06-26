@@ -165,8 +165,15 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 .mail-admin-grid { display: grid; grid-template-columns: minmax(280px, 420px) 1fr; gap: 18px; align-items: start; }
 .mail-admin-card { max-width: none; }
 .mail-username-row, .mail-password-row { display: flex; align-items: center; gap: 8px; }
+.mail-username-row { flex-wrap: wrap; }
 .mail-username-row input, .mail-password-row input { margin-bottom: 0; }
+.mail-username-row input { flex: 1 1 150px; min-width: 0; }
 .mail-username-row span { color: #64748b; font-weight: 700; white-space: nowrap; }
+.mail-username-row span:first-child {
+  padding-left: 12px;
+  color: #334155;
+}
+.mail-username-row span:last-child { font-size: 0.92rem; }
 .mail-password-row .btn-secondary { flex: 0 0 auto; padding-inline: 14px; }
 .mail-credentials { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px; padding: 12px; margin-top: 14px; color: #1e3a8a; }
 .mail-credentials pre { margin: 8px 0 10px; white-space: pre-wrap; font-size: 0.86rem; color: #0f172a; }
