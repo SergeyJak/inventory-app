@@ -171,8 +171,28 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 .mail-credentials { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px; padding: 12px; margin-top: 14px; color: #1e3a8a; }
 .mail-credentials pre { margin: 8px 0 10px; white-space: pre-wrap; font-size: 0.86rem; color: #0f172a; }
 .mail-admin-messages { display: grid; gap: 8px; }
-.mail-admin-message { border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 10px 12px; display: grid; gap: 4px; }
+.mail-admin-message-layout { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: 12px; min-height: 280px; }
+.mail-admin-message-list { display: grid; align-content: start; gap: 8px; max-height: 520px; overflow: auto; padding-right: 4px; }
+.mail-admin-message { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 10px 12px; display: grid; gap: 4px; text-align: left; cursor: pointer; }
+.mail-admin-message:hover, .mail-admin-message.active { background: #eef6ff; border-color: #bfdbfe; }
 .mail-admin-message span, .mail-admin-message small { color: #64748b; font-size: 0.82rem; overflow-wrap: anywhere; }
+.mail-admin-message-detail { min-width: 0; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; padding: 14px; max-height: 520px; overflow: auto; }
+.mail-admin-message-open { display: grid; gap: 6px; color: #334155; }
+.mail-admin-message-open h4 { margin: 0 0 6px; color: #0f172a; font-size: 1.1rem; overflow-wrap: anywhere; }
+.mail-admin-message-open p { margin: 0; font-size: 0.86rem; overflow-wrap: anywhere; }
+.mail-admin-body { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; line-height: 1.55; overflow-wrap: anywhere; }
+.mail-admin-body img { max-width: 100%; height: auto; }
+.mail-admin-body pre { white-space: pre-wrap; font-family: inherit; }
+.mail-admin-code { margin-bottom: 12px; padding: 12px 14px; border-radius: 10px; background: #111827; color: #fff; display: inline-grid; gap: 2px; }
+.mail-admin-code span { color: rgba(255,255,255,.7); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.mail-admin-code strong { font-size: 1.8rem; line-height: 1; }
+
+@media (max-width: 900px) {
+  .mail-admin-grid { grid-template-columns: 1fr; }
+  .mail-admin-message-layout { grid-template-columns: 1fr; }
+  .mail-admin-message-list, .mail-admin-message-detail { max-height: none; }
+  .accounts-actions { flex-wrap: wrap; white-space: normal; }
+}
 
 /* ========== EMPTY STATE ========== */
 .empty-row td { text-align: center; color: #94a3b8; padding: 28px; font-style: italic; }

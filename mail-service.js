@@ -220,6 +220,26 @@ async function resetMailPassword(db, id) {
   return { account: publicAccount(result), password, link: 'https://heysmart.lv/mail' };
 }
 
+async function changeMailPassword(db, id, password) {
+  const cleanPassword = String(password || '');
+  if (cleanPassword.length < 8) {
+    const err = new Error('Password is required and must be at least 8 characters');
+    err.status = 400;
+    throw err;
+  }
+  const result = await db.collection('mail_accounts').findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    { $set: { passwordHash: await bcrypt.hash(cleanPassword, 10), updatedAt: new Date() } },
+    { returnDocument: 'after' }
+  );
+  if (!result) {
+    const err = new Error('Mail account not found');
+    err.status = 404;
+    throw err;
+  }
+  return { account: publicAccount(result), password: cleanPassword, link: 'https://heysmart.lv/mail' };
+}
+
 async function authenticateMailbox(db, email, password) {
   const normalized = normalizeMailEmail(email);
   if (!normalized || !password) return null;
@@ -404,11 +424,38 @@ function createMailService({ express, dbProvider, jwtSecret, requireAuth, requir
     }
   });
 
+  router.post('/api/admin/mail/accounts/:id/activate', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      await db().collection('mail_accounts').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { active: true, updatedAt: new Date() } });
+      res.json({ ok: true });
+    } catch {
+      res.status(400).json({ error: 'Invalid account id' });
+    }
+  });
+
   router.post('/api/admin/mail/accounts/:id/reset-password', requireAuth, requireAdmin, async (req, res) => {
     try {
+      if (req.body?.password !== undefined) {
+        if (String(req.body?.password || '') !== String(req.body?.confirmPassword || '')) {
+          return res.status(400).json({ error: 'Passwords do not match' });
+        }
+        return res.json(await changeMailPassword(db(), req.params.id, req.body.password));
+      }
       res.json(await resetMailPassword(db(), req.params.id));
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/api/admin/mail/accounts/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const accountId = new ObjectId(req.params.id);
+      const accountResult = await db().collection('mail_accounts').deleteOne({ _id: accountId });
+      await db().collection('mail_messages').deleteMany({ accountId });
+      if (!accountResult.deletedCount) return res.status(404).json({ error: 'Mail account not found' });
+      res.json({ ok: true });
+    } catch {
+      res.status(400).json({ error: 'Invalid account id' });
     }
   });
 
@@ -488,6 +535,7 @@ function createMailService({ express, dbProvider, jwtSecret, requireAuth, requir
 }
 
 module.exports = {
+  changeMailPassword,
   createMailAccount,
   createMailService,
   ensureMailIndexes,

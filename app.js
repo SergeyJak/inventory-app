@@ -948,6 +948,8 @@ function deleteSubAccount(id) {
 
 // ========== HEYSMART MAIL ADMIN ==========
 let mailAccountsCache = [];
+let mailAdminMessagesCache = [];
+let mailAdminSelectedAccount = null;
 
 function formatMailDate(value) {
   if (!value) return '<span style="color:#94a3b8">-</span>';
@@ -1009,8 +1011,11 @@ async function renderMailAccounts() {
           <td>${formatMailDate(account.lastLoginAt)}</td>
           <td><span class="accounts-actions">
             <button class="btn-edit" onclick="openMailAccount('${id}')">Open</button>
-            <button class="btn-edit" onclick="resetMailPassword('${id}')">Reset</button>
-            <button class="btn-delete" onclick="deactivateMailAccount('${id}')" ${account.active ? '' : 'disabled'}>Deactivate</button>
+            <button class="btn-edit" onclick="changeMailPassword('${id}')">Change pass</button>
+            ${account.active
+              ? `<button class="btn-delete" onclick="deactivateMailAccount('${id}')">Deactivate</button>`
+              : `<button class="btn-edit" onclick="activateMailAccount('${id}')">Activate</button>`}
+            <button class="btn-delete" onclick="deleteMailAccount('${id}')">Delete</button>
           </span></td>
         </tr>`;
       });
@@ -1068,6 +1073,30 @@ async function resetMailPassword(id) {
   }
 }
 
+async function changeMailPassword(id) {
+  const selected = mailAccountsCache.find(account => account._id === id);
+  const password = prompt(`New password for ${selected?.email || 'this mailbox'}:`);
+  if (password === null) return;
+  if (!password || password.length < 8) return showToast('Password must be at least 8 characters', 'error');
+  const confirmPassword = prompt('Confirm new password:');
+  if (confirmPassword === null) return;
+  if (password !== confirmPassword) return showToast('Passwords do not match', 'error');
+  try {
+    const res = await fetch(`/api/admin/mail/accounts/${encodeURIComponent(id)}/reset-password`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ password, confirmPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    renderMailCredentials(data);
+    await renderMailAccounts();
+    showToast('Mail password changed');
+  } catch (e) {
+    showToast('Password change error: ' + e.message, 'error');
+  }
+}
+
 async function deactivateMailAccount(id) {
   if (!confirm('Deactivate this mailbox?')) return;
   try {
@@ -1084,8 +1113,48 @@ async function deactivateMailAccount(id) {
   }
 }
 
+async function activateMailAccount(id) {
+  try {
+    const res = await fetch(`/api/admin/mail/accounts/${encodeURIComponent(id)}/activate`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    await renderMailAccounts();
+    showToast('Mail account activated');
+  } catch (e) {
+    showToast('Activate error: ' + e.message, 'error');
+  }
+}
+
+async function deleteMailAccount(id) {
+  const selected = mailAccountsCache.find(account => account._id === id);
+  const label = selected?.email || 'this mailbox';
+  if (!confirm(`Delete ${label} and all saved messages? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`/api/admin/mail/accounts/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    if (mailAdminSelectedAccount?._id === id) {
+      mailAdminSelectedAccount = null;
+      mailAdminMessagesCache = [];
+      document.getElementById('mail-admin-selected').textContent = 'Selected inbox';
+      document.getElementById('mail-admin-messages').innerHTML = '<div class="backup-muted">Select an account to preview messages.</div>';
+    }
+    await renderMailAccounts();
+    showToast('Mail account deleted');
+  } catch (e) {
+    showToast('Delete error: ' + e.message, 'error');
+  }
+}
+
 async function openMailAccount(id) {
   const selected = mailAccountsCache.find(account => account._id === id);
+  mailAdminSelectedAccount = selected || null;
   document.getElementById('mail-admin-selected').textContent = selected ? selected.email : 'Selected mailbox';
   const box = document.getElementById('mail-admin-messages');
   box.innerHTML = '<div class="backup-muted">Loading messages...</div>';
@@ -1093,16 +1162,49 @@ async function openMailAccount(id) {
     const res = await fetch(`/api/admin/mail/accounts/${encodeURIComponent(id)}/messages`, { headers: authHeaders() });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-    box.innerHTML = (data.messages || []).length
-      ? data.messages.map(message => `<article class="mail-admin-message">
-          <strong>${esc(message.subject || '(no subject)')}</strong>
-          <span>${esc(message.from || '')}</span>
-          <small>${formatMailDate(message.receivedAt)}</small>
-        </article>`).join('')
-      : '<div class="backup-muted">No messages saved for this mailbox yet.</div>';
+    mailAdminMessagesCache = data.messages || [];
+    renderMailAdminMessages();
   } catch (e) {
     box.innerHTML = `<div class="backup-muted">Could not load messages: ${esc(e.message)}</div>`;
   }
+}
+
+function renderMailAdminMessages(activeId = '') {
+  const box = document.getElementById('mail-admin-messages');
+  if (!box) return;
+  if (!mailAdminMessagesCache.length) {
+    box.innerHTML = '<div class="backup-muted">No messages saved for this mailbox yet.</div>';
+    return;
+  }
+  const list = mailAdminMessagesCache.map(message => `
+    <button class="mail-admin-message ${message._id === activeId ? 'active' : ''}" type="button" onclick="openMailAdminMessage('${esc(message._id)}')">
+      <strong>${esc(message.subject || '(no subject)')}</strong>
+      <span>${esc(message.from || '')}</span>
+      <small>${formatMailDate(message.receivedAt)}</small>
+    </button>
+  `).join('');
+  const selected = activeId ? mailAdminMessagesCache.find(message => message._id === activeId) : null;
+  box.innerHTML = `<div class="mail-admin-message-layout">
+    <div class="mail-admin-message-list">${list}</div>
+    <div class="mail-admin-message-detail">${selected ? renderMailAdminMessageDetail(selected) : '<div class="backup-muted">Open a message to read it here.</div>'}</div>
+  </div>`;
+}
+
+function openMailAdminMessage(id) {
+  renderMailAdminMessages(id);
+}
+
+function renderMailAdminMessageDetail(message) {
+  const body = message.html || `<pre>${esc(message.text || '')}</pre>`;
+  const code = message.verificationCode ? `<div class="mail-admin-code"><span>Code</span><strong>${esc(message.verificationCode)}</strong></div>` : '';
+  return `${code}
+    <article class="mail-admin-message-open">
+      <h4>${esc(message.subject || '(no subject)')}</h4>
+      <p><strong>From:</strong> ${esc(message.from || '')}</p>
+      <p><strong>To:</strong> ${esc(message.to || '')}</p>
+      <p>${formatMailDate(message.receivedAt)}</p>
+      <div class="mail-admin-body">${body}</div>
+    </article>`;
 }
 
 async function testMailImap() {

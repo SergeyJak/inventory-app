@@ -1,6 +1,7 @@
 const assert = require('assert');
 
 const {
+  changeMailPassword,
   createMailAccount,
   extractVerificationCode,
   findOriginalRecipient,
@@ -105,4 +106,32 @@ test('createMailAccount requires admin-provided password and stores its hash', a
   assert.strictEqual(result.account.email, 'client1@heysmart.lv');
   assert.strictEqual(result.password, 'ManualPass123');
   assert.strictEqual(await bcrypt.compare('ManualPass123', inserted.passwordHash), true);
+});
+
+test('changeMailPassword stores admin-provided password hash', async () => {
+  let update = null;
+  const fakeDb = {
+    collection() {
+      return {
+        async findOneAndUpdate(query, patch) {
+          update = { query, patch };
+          return {
+            _id: 'account-1',
+            email: 'client1@heysmart.lv',
+            active: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastLoginAt: null,
+          };
+        },
+      };
+    },
+  };
+  await assert.rejects(
+    () => changeMailPassword(fakeDb, '507f1f77bcf86cd799439011', 'short'),
+    /at least 8 characters/
+  );
+  const result = await changeMailPassword(fakeDb, '507f1f77bcf86cd799439011', 'NewManual123');
+  assert.strictEqual(result.password, 'NewManual123');
+  assert.strictEqual(await bcrypt.compare('NewManual123', update.patch.$set.passwordHash), true);
 });
