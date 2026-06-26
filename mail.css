@@ -1,5 +1,11 @@
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
+body[data-mail-screen="checking"] .login-view,
+body[data-mail-screen="checking"] .inbox-view,
+body[data-mail-screen="login"] .inbox-view,
+body[data-mail-screen="inbox"] .login-view {
+  display: none !important;
+}
 :root {
   --bg: #f6f7f4;
   --ink: #111114;

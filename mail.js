@@ -16,6 +16,19 @@ let activeMessageId = '';
 let refreshTimer = null;
 let toastTimer = null;
 
+function setScreen(screen) {
+  const mode = screen === 'inbox' ? 'inbox' : screen === 'login' ? 'login' : 'checking';
+  document.body.dataset.mailScreen = mode;
+  const isLogin = mode === 'login';
+  const isInbox = mode === 'inbox';
+  loginView.hidden = !isLogin;
+  inboxView.hidden = !isInbox;
+  loginView.setAttribute('aria-hidden', String(!isLogin));
+  inboxView.setAttribute('aria-hidden', String(!isInbox));
+  loginView.classList.toggle('screen-active', isLogin);
+  inboxView.classList.toggle('screen-active', isInbox);
+}
+
 function escapeHtml(value) {
   return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -44,17 +57,17 @@ function showLoginError(message) {
 }
 
 function showInbox(email) {
-  loginView.hidden = true;
-  inboxView.hidden = false;
+  setScreen('inbox');
   inboxView.classList.remove('detail-open');
   mailboxTitle.textContent = email;
+  loginError.classList.remove('show');
+  loginForm.reset();
   window.clearInterval(refreshTimer);
   refreshTimer = window.setInterval(() => loadMessages({ silent: true }), 12000);
 }
 
 function showLogin() {
-  loginView.hidden = false;
-  inboxView.hidden = true;
+  setScreen('login');
   inboxView.classList.remove('detail-open');
   window.clearInterval(refreshTimer);
   setStatus('');
@@ -72,6 +85,7 @@ async function api(path, options = {}) {
 }
 
 async function checkSession() {
+  setScreen('checking');
   setStatus('Загрузка...', true);
   try {
     const data = await api('/api/mail/me');
