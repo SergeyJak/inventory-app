@@ -158,6 +158,11 @@ button {
   place-items: center;
 }
 
+.mail-link span::before,
+.mail-link span::after {
+  content: none;
+}
+
 .mail-link:hover {
   transform: translateY(-2px);
   border-color: rgba(17, 17, 20, .24);
