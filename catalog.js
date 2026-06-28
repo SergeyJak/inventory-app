@@ -4,6 +4,7 @@ const showroom = document.getElementById('showroom');
 const modelDetails = document.getElementById('model-details');
 const modelSwitcher = document.getElementById('model-switcher');
 const colorGallery = document.getElementById('color-gallery');
+const quickChoose = document.querySelector('.quick-choose');
 const detailsGrid = document.getElementById('details-grid');
 const heroImage = document.getElementById('hero-image');
 const anglePrev = document.getElementById('angle-prev');
@@ -154,6 +155,19 @@ function currentSelection() {
 
 function selectedStockText(photo) {
   return photo?.product?.inStock ? dict('common.inStock') : dict('common.stockUnknown');
+}
+
+function selectModel(index, colorKey) {
+  if (!Number.isInteger(index) || index < 0 || index >= models.length) return false;
+  activeModel = index;
+  activeColor = colorKey ? findColorIndex(models[activeModel], colorKey) : 0;
+  activeAngle = 0;
+  render();
+  return true;
+}
+
+function selectModelById(modelId) {
+  return selectModel(models.findIndex(model => model.id === modelId));
 }
 
 function modelText(model, key) {
@@ -539,11 +553,7 @@ function highlightElement(node) {
 
 function showAssistantModel(modelId, colorKey) {
   const modelIndex = models.findIndex(model => model.id === modelId);
-  if (modelIndex < 0) return;
-  activeModel = modelIndex;
-  activeColor = findColorIndex(models[activeModel], colorKey);
-  activeAngle = 0;
-  render();
+  if (!selectModel(modelIndex, colorKey)) return;
   closeOverlays();
   window.setTimeout(() => {
     showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -708,6 +718,14 @@ function renderLanguageSwitcher() {
   `).join('');
 }
 
+function syncQuickChooseCards() {
+  quickChoose?.querySelectorAll('[data-quick-model]').forEach(card => {
+    const isActive = models[activeModel]?.id === card.dataset.quickModel;
+    card.classList.toggle('active', isActive);
+    card.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
 function render() {
   const model = models[activeModel];
   const photo = model.photos[activeColor] || model.photos[0];
@@ -726,6 +744,7 @@ function render() {
   renderHeroPhoto(photo, model);
   setAngleControls(photo);
   setContactLinks(model);
+  syncQuickChooseCards();
 
   modelSwitcher.innerHTML = models.map((item, index) => `
     <button class="model-btn ${index === activeModel ? 'active' : ''}" data-model="${index}" type="button" aria-pressed="${index === activeModel}">
@@ -757,11 +776,6 @@ function render() {
     <div class="detail-list">
       ${modelText(model, 'details').map((detail, index) => `
     <div class="detail-item"><span class="detail-icon">${detailIcon(index)}</span><span>${detail}</span></div>
-      `).join('')}
-    </div>
-    <div class="fit-list" aria-label="${dict('common.fitFor')}">
-      ${(modelText(model, 'fits') || []).map(fit => `
-        <div class="fit-item"><span>${fit}</span></div>
       `).join('')}
     </div>
     <div class="compare-block" aria-label="${dict('sections.choose.title')}">
@@ -852,10 +866,7 @@ async function loadCatalog() {
 modelSwitcher.addEventListener('click', event => {
   const btn = event.target.closest('[data-model]');
   if (!btn) return;
-  activeModel = Number(btn.dataset.model);
-  activeColor = 0;
-  activeAngle = 0;
-  render();
+  selectModel(Number(btn.dataset.model));
 });
 
 colorGallery.addEventListener('click', event => {
@@ -869,11 +880,22 @@ colorGallery.addEventListener('click', event => {
 detailsGrid.addEventListener('click', event => {
   const btn = event.target.closest('[data-compare-model]');
   if (!btn) return;
-  activeModel = Number(btn.dataset.compareModel);
-  activeColor = 0;
-  activeAngle = 0;
-  render();
+  selectModel(Number(btn.dataset.compareModel));
   showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+quickChoose?.addEventListener('click', event => {
+  const card = event.target.closest('[data-quick-model]');
+  if (!card) return;
+  selectModelById(card.dataset.quickModel);
+});
+
+quickChoose?.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const card = event.target.closest('[data-quick-model]');
+  if (!card) return;
+  event.preventDefault();
+  selectModelById(card.dataset.quickModel);
 });
 
 contactCta.addEventListener('click', () => openContactPanel('availability'));
@@ -933,10 +955,7 @@ assistantResult.addEventListener('click', event => {
   const contactBtn = event.target.closest('[data-contact-topic]');
 
   if (modelBtn) {
-    activeModel = Number(modelBtn.dataset.showModel);
-    activeColor = 0;
-    activeAngle = 0;
-    render();
+    selectModel(Number(modelBtn.dataset.showModel));
     closeOverlays();
     showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
