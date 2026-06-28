@@ -152,15 +152,24 @@ button {
 }
 
 .mail-link span {
+  position: static;
   width: 24px;
   height: 24px;
   display: grid;
   place-items: center;
+  border: 0;
+  background: none;
+  transform: none;
 }
 
 .mail-link span::before,
 .mail-link span::after {
   content: none;
+  display: none;
+}
+
+.mail-link svg {
+  display: block;
 }
 
 .mail-link:hover {
