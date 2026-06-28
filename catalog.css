@@ -133,7 +133,7 @@ button {
 }
 
 .mail-link {
-  width: 38px;
+  width: 42px;
   min-height: 38px;
   display: inline-flex;
   align-items: center;
@@ -143,10 +143,40 @@ button {
   background: rgba(17, 17, 20, .06);
   color: #111114;
   text-decoration: none;
-  font-size: 17px;
   font-weight: 800;
   line-height: 1;
   transition: transform .2s ease, background .2s ease;
+}
+
+.mail-link span {
+  position: relative;
+  width: 18px;
+  height: 14px;
+  display: block;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+}
+
+.mail-link span::before,
+.mail-link span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  width: 11px;
+  height: 2px;
+  background: currentColor;
+}
+
+.mail-link span::before {
+  left: 1px;
+  transform: rotate(34deg);
+  transform-origin: left center;
+}
+
+.mail-link span::after {
+  right: 1px;
+  transform: rotate(-34deg);
+  transform-origin: right center;
 }
 
 .mail-link:hover {
@@ -1436,10 +1466,10 @@ p {
   }
 
   .mail-link {
-    width: 34px;
-    flex: 0 0 34px;
+    width: 40px;
+    flex: 0 0 40px;
     padding: 0;
-    min-height: 34px;
+    min-height: 38px;
   }
 
   .hero {
@@ -1856,8 +1886,9 @@ p {
   }
 
   .mail-link {
-    flex: 0 0 38px;
-    width: 38px;
+    flex: 0 0 44px;
+    width: 44px;
+    min-height: 40px;
     padding: 0;
   }
 }

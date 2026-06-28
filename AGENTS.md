@@ -1,15 +1,16 @@
 # Agent Rules
 
-Before any task:
+Before changing anything in this repository:
 
-1. Analyze the problem.
-2. Create a short plan.
-3. Implement changes.
-4. Run validation.
-5. Self-review.
-6. Report results.
+1. Read `PROJECT_CONTEXT.md`.
+2. Analyze the request and inspect the relevant files.
+3. Share a short plan before edits when the user asks for one or the task spans multiple files.
+4. Make minimal, scoped changes only.
+5. Run validation before claiming success.
+6. Self-review the diff.
+7. Report results with changed files, test steps, risks, and build/deploy impact.
 
-Required output:
+Required final response sections:
 
 ## Analysis
 
@@ -23,31 +24,29 @@ Required output:
 
 ## Build Required
 
-Rules:
+Repository rules:
 
-* Never claim success without verification.
-* Do not modify unrelated code.
-* Prefer minimal changes.
-* Use existing architecture.
-* Ask before major refactoring.
-* Verify before completion.
+* Do not modify unrelated files.
+* Do not rewrite architecture without an explicit request.
+* Prefer existing patterns in `server.js`, `app.js`, and the current static HTML/CSS/JS structure.
+* Keep business logic stable unless the user explicitly asks to change it.
+* Viewer role is read-only. Viewer may read dashboards/reports but must not create, edit, delete, import, restore, or save inventory data.
+* Admin-only routes must keep `requireAdmin`.
+* Public catalog and mail routes must stay separated from inventory admin routes by host/path rules in `server.js`.
+* Do not expose Gmail credentials or mailbox backend details to public clients.
+* Never claim success without verification output.
 
-For UI work:
+UI rules:
 
-* Use UI/UX Pro Max.
-* Mobile first.
-* Premium visual design.
-* Consistent spacing.
-* Strong typography hierarchy.
-* Accessibility.
+* Mobile-first.
+* Keep spacing, typography, and controls consistent with the current app.
+* For inventory/admin UI, keep a practical dashboard style.
+* For public catalog/mail UI, keep a polished HeySmart product style.
+* Before testing any frontend/mobile UI change, state whether a build/deployment is required.
 
-Important:
+Documentation rules:
 
-Before testing any Flutter, Android, iOS, web frontend or mobile UI changes, always state whether a new build/deployment is required.
-
-Use this format:
-
-Build Required: Yes/No
-
-If Yes:
-Explain what must be rebuilt and why.
+* Keep `PROJECT_CONTEXT.md` stable and factual.
+* Put future work in `docs/BACKLOG.md`.
+* Put shipped or existing state in `docs/CHANGELOG.md`.
+* Do not store secrets, passwords, tokens, or full environment values in docs.
