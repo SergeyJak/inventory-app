@@ -698,7 +698,8 @@ function applyStaticTranslations() {
   document.documentElement.lang = currentLang;
   document.title = dict('meta.title');
   document.querySelectorAll('[data-i18n]').forEach(node => {
-    node.textContent = dict(node.dataset.i18n);
+    const text = dict(node.dataset.i18n);
+    if (text != null) node.textContent = text;
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(node => {
     node.setAttribute('placeholder', dict(node.dataset.i18nPlaceholder));
@@ -887,7 +888,9 @@ detailsGrid.addEventListener('click', event => {
 quickChoose?.addEventListener('click', event => {
   const card = event.target.closest('[data-quick-model]');
   if (!card) return;
-  selectModelById(card.dataset.quickModel);
+  if (selectModelById(card.dataset.quickModel)) {
+    showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
 
 quickChoose?.addEventListener('keydown', event => {
@@ -895,7 +898,9 @@ quickChoose?.addEventListener('keydown', event => {
   const card = event.target.closest('[data-quick-model]');
   if (!card) return;
   event.preventDefault();
-  selectModelById(card.dataset.quickModel);
+  if (selectModelById(card.dataset.quickModel)) {
+    showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
 
 contactCta.addEventListener('click', () => openContactPanel('availability'));
