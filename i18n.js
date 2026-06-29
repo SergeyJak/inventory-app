@@ -259,7 +259,7 @@ window.catalogTranslations = {
     sections: {
       quickChoose: {
         kicker: 'Ātrā izvēle',
-        title: 'Kuru Yandex Station izvēlēties?',
+        title: 'Kuru viedo skaļruni izvēlēties?',
         lite: { lead: 'Piemērota kā pirmā viedā kolonna guļamistabai, bērnistabai vai mazai darba vietai, kur svarīga vienkāršība un kompaktums.', point1: 'Vienkārši sākt ar Alisi.', point2: 'Neaizņem daudz vietas.', point3: 'Laba dāvana ikdienas uzdevumiem.', recommend: 'Pirmajai ierīcei', final: 'Izvēlieties, ja vajadzīgs vienkāršākais starts.' },
         mini: { lead: 'Optimāla izvēle lielākajai daļai pircēju: kompakta kolonna ar pārliecinošāku skaņu mūzikai, virtuvei vai viesistabai.', point1: 'Labāk skan ikdienas klausīšanā.', point2: 'Joprojām kompakta un kārtīga.', point3: 'Der lielākajai daļai istabu.', recommend: 'Labākais līdzsvars', final: 'Izvēlieties, ja vajadzīgs universāls variants.' },
         pro: { lead: 'Labākā izvēle, ja kolonnai jākļūst par viedās mājas centru un jāvada saderīgas ierīces caur Zigbee.', point1: 'Spēcīgāka kā viedās mājas centrs.', point2: 'Zigbee saderīgām ierīcēm.', point3: 'Vairāk iespēju nākotnes sistēmai.', recommend: 'Viedajai mājai', final: 'Izvēlieties, ja svarīga automatizācija.' },
@@ -408,7 +408,7 @@ window.catalogTranslations = {
     sections: {
       quickChoose: {
         kicker: 'Quick choice',
-        title: 'Which Yandex Station should you choose?',
+        title: 'Which smart speaker should you choose?',
         lite: { lead: 'Best as a first smart speaker for a bedroom, children\'s room, or small desk where simple setup and compact size matter most.', point1: 'Easy way to start with Alice.', point2: 'Fits comfortably in small spaces.', point3: 'Good gift for everyday tasks.', recommend: 'For a first speaker', final: 'Choose it for the simplest start.' },
         mini: { lead: 'The safest choice for most buyers: a compact speaker with stronger sound for music, the kitchen, or a living room.', point1: 'Better sound for daily listening.', point2: 'Still compact and minimal.', point3: 'Works well in most rooms.', recommend: 'Best balance', final: 'Choose it if you want one universal pick.' },
         pro: { lead: 'Best when the speaker should become a smart-home hub and control compatible devices through Zigbee automation.', point1: 'Stronger smart-home role.', point2: 'Zigbee for compatible devices.', point3: 'More capable for future setup.', recommend: 'For smart home', final: 'Choose it when automation matters.' },
