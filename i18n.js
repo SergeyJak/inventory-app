@@ -1,6 +1,9 @@
 window.catalogTranslations = {
   ru: {
-    meta: { title: 'Яндекс Станции в Латвии — Лайт 2, Мини 3, Мини 3 Про и Стрит | HeySmart' },
+    meta: {
+      title: 'Умные колонки с Алисой в Риге и Латвии | HeySmart',
+      description: 'Умные колонки с Алисой в наличии в Риге. Самовывоз по предварительной договорённости, помощь с выбором и настройкой. Курьерская доставка по Латвии.',
+    },
     nav: { brand: 'Умная колонка', consultation: 'Консультация', lang: 'Язык' },
     state: {
       loading: 'Загружаем модели...',
@@ -198,7 +201,10 @@ window.catalogTranslations = {
     },
   },
   lv: {
-    meta: { title: 'Yandex Station Latvijā — Lite 2, Mini 3, Mini 3 Pro un Street | HeySmart' },
+    meta: {
+      title: 'Viedie skaļruņi ar Alisi Rīgā un Latvijā | HeySmart',
+      description: 'Viedie skaļruņi ar Alisi pieejami Rīgā. Pašizņemšana pēc iepriekšējas vienošanās, palīdzība izvēlē un iestatīšanā. Kurjera piegāde Latvijā.',
+    },
     nav: { brand: 'Viedais skaļrunis', consultation: 'Konsultācija', lang: 'Valoda' },
     state: { loading: 'Ielādējam modeļus...', empty: 'Pašlaik nav pieejamu modeļu ar foto.', error: 'Neizdevās ielādēt modeļus. Mēģiniet atsvaidzināt lapu.' },
     common: { selectedModel: 'Izvēlētais modelis', aboutModel: 'Par modeli', contact: 'Sazināties', close: 'Aizvērt', inStock: 'Pieejams', stockUnknown: 'Pieejamība jāprecizē', model: 'modelis', models: 'Modeļi', colors: 'Krāsas', fitFor: 'Kam piemērots', showModel: 'Parādīt modeli', compare: 'Salīdzināt' },
@@ -347,7 +353,10 @@ window.catalogTranslations = {
     },
   },
   en: {
-    meta: { title: 'Yandex Stations in Latvia — Lite 2, Mini 3, Mini 3 Pro and Street | HeySmart' },
+    meta: {
+      title: 'Smart speakers with Alice in Riga and Latvia | HeySmart',
+      description: 'Smart speakers with Alice available in Riga. Pickup by prior arrangement, help with choosing and setup. Courier delivery across Latvia.',
+    },
     nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language' },
     state: { loading: 'Loading models...', empty: 'No available models with photos right now.', error: 'Could not load models. Please refresh the page.' },
     common: { selectedModel: 'Selected model', aboutModel: 'About the model', contact: 'Contact', close: 'Close', inStock: 'In stock', stockUnknown: 'Availability to be confirmed', model: 'model', models: 'Models', colors: 'Colors', fitFor: 'Who it suits', showModel: 'Show model', compare: 'Compare' },
