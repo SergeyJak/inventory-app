@@ -87,6 +87,14 @@ window.catalogTranslations = {
         pro: { lead: 'Лучший выбор, если колонка должна стать центром умного дома и управлять совместимыми устройствами через Zigbee.', point1: 'Сильнее в роли центра умного дома.', point2: 'Zigbee для совместимых устройств.', point3: 'Больше запаса для будущей системы.', recommend: 'Для умного дома', final: 'Выбирайте, если важна автоматизация.' },
         street: { lead: 'Портативная колонка для тех, кто хочет брать Алису с собой на улицу, в поездки, на балкон или за пределы дома.', point1: 'Удобный формат для движения.', point2: 'Полезна вне рабочего стола.', point3: 'Подходит для поездок и отдыха.', recommend: 'Для улицы и поездок', final: 'Выбирайте, если колонка должна быть мобильной.' }
       },
+      localInfo: {
+        kicker: 'Рига и Латвия',
+        title: 'Покупка в Риге',
+        intro: 'Поможем выбрать подходящую умную колонку, расскажем о наличии и ответим на вопросы перед покупкой.',
+        pickup: { title: 'Самовывоз в Риге', text: 'Встречу и передачу товара согласуем заранее в удобное время. Актуальные модели и цвета лучше уточнить перед договорённостью.' },
+        help: { title: 'Помощь с выбором', text: 'Подскажем, какая модель подойдёт для комнаты, музыки, подарка или базового умного дома, без лишних обещаний и давления.' },
+        shipping: { title: 'Отправка по Европе', text: 'При необходимости возможна отправка по Европе курьерской службой. Стоимость и сроки рассчитываются индивидуально.' },
+      },
       choose: { title: 'Какую Станцию выбрать?', text: 'Коротко о разнице между доступными моделями.' },
       trust: {
         title: 'Почему выбирают нас',
@@ -271,6 +279,14 @@ window.catalogTranslations = {
         pro: { lead: 'Labākā izvēle, ja kolonnai jākļūst par viedās mājas centru un jāvada saderīgas ierīces caur Zigbee.', point1: 'Spēcīgāka kā viedās mājas centrs.', point2: 'Zigbee saderīgām ierīcēm.', point3: 'Vairāk iespēju nākotnes sistēmai.', recommend: 'Viedajai mājai', final: 'Izvēlieties, ja svarīga automatizācija.' },
         street: { lead: 'Pārnēsājama kolonna tiem, kuri vēlas ņemt Alisi līdzi ārā, braucienos, uz balkona vai ārpus mājām.', point1: 'Ērts formāts kustībai.', point2: 'Noderīga ārpus darba galda.', point3: 'Der braucieniem un atpūtai.', recommend: 'Āram un braucieniem', final: 'Izvēlieties, ja kolonnai jābūt mobilai.' }
       },
+      localInfo: {
+        kicker: 'Rīga un Latvija',
+        title: 'Pirkums Rīgā',
+        intro: 'Palīdzēsim izvēlēties piemērotu viedo skaļruni, pastāstīsim par pieejamību un atbildēsim uz jautājumiem pirms pirkuma.',
+        pickup: { title: 'Pašizņemšana Rīgā', text: 'Tikšanos un preces nodošanu saskaņojam iepriekš ērtā laikā. Aktuālos modeļus un krāsas labāk precizēt pirms vienošanās.' },
+        help: { title: 'Palīdzība izvēlē', text: 'Ieteiksim, kurš modelis derēs istabai, mūzikai, dāvanai vai pamata viedajai mājai, bez liekiem solījumiem un spiediena.' },
+        shipping: { title: 'Nosūtīšana Eiropā', text: 'Ja nepieciešams, iespējama nosūtīšana Eiropā ar kurjeru. Izmaksas un termiņi tiek aprēķināti individuāli.' },
+      },
       choose: { title: 'Kuru Station izvēlēties?', text: 'Īsi par atšķirībām starp pieejamajiem modeļiem.' },
       trust: {
         title: 'Kāpēc izvēlas mūs',
@@ -422,6 +438,14 @@ window.catalogTranslations = {
         mini: { lead: 'The safest choice for most buyers: a compact speaker with stronger sound for music, the kitchen, or a living room.', point1: 'Better sound for daily listening.', point2: 'Still compact and minimal.', point3: 'Works well in most rooms.', recommend: 'Best balance', final: 'Choose it if you want one universal pick.' },
         pro: { lead: 'Best when the speaker should become a smart-home hub and control compatible devices through Zigbee automation.', point1: 'Stronger smart-home role.', point2: 'Zigbee for compatible devices.', point3: 'More capable for future setup.', recommend: 'For smart home', final: 'Choose it when automation matters.' },
         street: { lead: 'A portable speaker for people who want to take Alice outside, on trips, to the balcony, or anywhere away from home.', point1: 'Portable format for movement.', point2: 'Useful away from the desk.', point3: 'Good for trips and relaxed use.', recommend: 'For outdoors and trips', final: 'Choose it if the speaker should move with you.' }
+      },
+      localInfo: {
+        kicker: 'Riga and Latvia',
+        title: 'Buying in Riga',
+        intro: 'We will help you choose a suitable smart speaker, explain availability, and answer questions before purchase.',
+        pickup: { title: 'Pickup in Riga', text: 'The meeting and handover are arranged in advance at a convenient time. Current models and colors are best confirmed before arranging pickup.' },
+        help: { title: 'Help choosing', text: 'We will suggest which model fits a room, music, a gift, or a basic smart home setup without overpromising or pressure.' },
+        shipping: { title: 'Shipping across Europe', text: 'If needed, shipping across Europe by courier is possible. Cost and delivery time are calculated individually.' },
       },
       choose: { title: 'Which Station should you choose?', text: 'A quick look at the differences between available models.' },
       trust: {
