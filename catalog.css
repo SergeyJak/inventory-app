@@ -1109,6 +1109,82 @@ p {
   font-weight: 800;
 }
 
+.local-info {
+  padding: clamp(64px, 8vw, 112px) clamp(18px, 5vw, 72px);
+  background: #f7f8fa;
+}
+
+.local-info-copy {
+  width: min(100%, 920px);
+  margin: 0 auto clamp(30px, 4vw, 46px);
+  text-align: center;
+}
+
+.local-info-copy h2 {
+  max-width: 760px;
+  margin: 0 auto;
+  color: #111114;
+  font-size: clamp(34px, 4.6vw, 64px);
+  line-height: .98;
+  letter-spacing: -.06em;
+}
+
+.local-info-copy > p:last-child {
+  max-width: 680px;
+  margin: 22px auto 0;
+  color: #555860;
+  font-size: clamp(17px, 1.7vw, 20px);
+  line-height: 1.5;
+  letter-spacing: -.02em;
+}
+
+.local-info-grid {
+  width: min(100%, 1080px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.local-info-grid article {
+  min-height: 100%;
+  padding: 26px;
+  border: 1px solid rgba(17, 17, 20, .08);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .95), 0 12px 30px rgba(10, 18, 28, .045);
+}
+
+.local-info-grid span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 24px;
+  border-radius: 999px;
+  background: #f2f3f5;
+  color: #111114;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.local-info-grid h3 {
+  margin: 0 0 12px;
+  color: #111114;
+  font-size: 24px;
+  line-height: 1.08;
+  letter-spacing: -.04em;
+}
+
+.local-info-grid p {
+  margin: 0;
+  color: #555860;
+  font-size: 15.5px;
+  line-height: 1.5;
+  letter-spacing: -.015em;
+}
+
 .model-details {
   padding: clamp(72px, 9vw, 128px) clamp(18px, 5vw, 72px);
   background: #fff;
@@ -1760,6 +1836,39 @@ p {
   .quick-card li::before {
     display: block;
     content: "✓";
+  }
+
+  .local-info {
+    padding: 64px 16px;
+  }
+
+  .local-info-copy {
+    margin-bottom: 26px;
+    text-align: left;
+  }
+
+  .local-info-copy h2 {
+    margin-left: 0;
+    font-size: 36px;
+  }
+
+  .local-info-copy > p:last-child {
+    margin-left: 0;
+    font-size: 16.5px;
+  }
+
+  .local-info-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .local-info-grid article {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .local-info-grid span {
+    margin-bottom: 18px;
   }
 
   .model-details {
