@@ -334,6 +334,140 @@ function publicProduct(product) {
   };
 }
 
+function publicProductsFromData(products) {
+  return (products || [])
+    .map(publicProduct)
+    .filter(product => product.inStock)
+    .sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+}
+
+const CATALOG_INITIAL_PRODUCTS = [
+  { id: 'light2', aliases: ['лайт 2', 'light 2', 'light2', 'lite 2', 'lite2'], title: 'Станция Лайт 2', line: 'Компактная умная колонка с Алисой, LED-дисплеем и управлением голосом.', colors: [
+    { key: 'blue', aliases: ['голуб'], image: 'images/catalog/light-2/blue/01.webp', label: 'голубой' },
+    { key: 'violet', aliases: ['фиолет'], image: 'images/catalog/light-2/violet/01.webp', label: 'фиолетовый' },
+    { key: 'green', aliases: ['зелен', 'зелён'], image: 'images/catalog/light-2/green/01.webp', label: 'зелёный' },
+    { key: 'pink', aliases: ['розов'], image: 'images/catalog/light-2/pink/01.webp', label: 'розовый' },
+    { key: 'coral', aliases: ['корал'], image: 'images/catalog/light-2/coral/01.webp', label: 'коралловый' },
+    { key: 'black', aliases: ['черн', 'чёрн', 'графит'], image: 'images/catalog/light-2/black/01.webp', label: 'чёрный' },
+  ] },
+  { id: 'mini3', aliases: ['мини 3', 'mini 3', 'mini3'], title: 'Станция Мини 3', line: 'Компактная колонка с более уверенным звуком для кухни, спальни или гостиной.', colors: [
+    { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/mini-3/gray/01.webp', label: 'серый' },
+  ] },
+  { id: 'miniPro', aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini pro', 'minipro'], title: 'Станция Мини 3 Про', line: 'Колонка для умного дома с насыщенным звуком и управлением совместимыми устройствами.', colors: [
+    { key: 'green', aliases: ['зелен', 'зелён'], image: 'images/catalog/mini-pro/green/01.webp', label: 'зелёный' },
+    { key: 'blue', aliases: ['голуб', 'син'], image: 'images/catalog/mini-pro/blue/01.webp', label: 'голубой' },
+    { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/mini-pro/gray/01.webp', label: 'серый' },
+    { key: 'graphite', aliases: ['черн', 'чёрн', 'графит'], image: 'images/catalog/mini-pro/graphite/01.webp', label: 'графит' },
+  ] },
+  { id: 'street', aliases: ['стрит', 'street'], title: 'Станция Стрит', line: 'Портативная умная колонка для музыки дома и на улице.', colors: [
+    { key: 'green', aliases: ['зелен', 'зелён', 'олив'], image: 'images/catalog/street/green/01.webp', label: 'зелёный' },
+    { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/street/gray/01.webp', label: 'серый' },
+    { key: 'violet', aliases: ['фиолет'], image: 'images/catalog/street/violet/01.webp', label: 'фиолетовый' },
+    { key: 'black', aliases: ['черн', 'чёрн', 'графит'], image: 'images/catalog/street/black/01.webp', label: 'чёрный' },
+  ] },
+];
+
+function normalizeCatalogText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zа-я0-9]+/g, ' ')
+    .trim();
+}
+
+function firstCatalogProduct(publicProducts) {
+  for (const model of CATALOG_INITIAL_PRODUCTS) {
+    const products = productsForCatalogModel(publicProducts, model);
+    for (const color of model.colors) {
+      const product = productForCatalogColor(products, color);
+      if (product) return { model, color, product, price: Number(product.sellPrice) || 0 };
+    }
+  }
+  return null;
+}
+
+function productsForCatalogModel(publicProducts, model) {
+  return publicProducts.filter(product => {
+    const haystack = normalizeCatalogText([product.productType, product.label, product.color].join(' '));
+    return model.aliases.some(alias => haystack.includes(normalizeCatalogText(alias)));
+  });
+}
+
+function productForCatalogColor(products, color) {
+  return products.find(product => {
+    const haystack = normalizeCatalogText([product.color, product.label, product.productType].join(' '));
+    return color.aliases.some(alias => haystack.includes(normalizeCatalogText(alias)));
+  }) || null;
+}
+
+function requestedCatalogProduct(publicProducts, query = {}) {
+  const [selectedModel, selectedColor] = String(query.select || '').split(':');
+  const modelId = String(query.model || selectedModel || '');
+  const rawColor = query.color ?? selectedColor;
+  const hasColor = rawColor !== undefined && rawColor !== '';
+  const colorIndex = hasColor ? Number(rawColor) : 0;
+  if (!modelId || !Number.isInteger(colorIndex) || colorIndex < 0) return null;
+
+  const model = CATALOG_INITIAL_PRODUCTS.find(item => item.id === modelId);
+  const color = model?.colors[colorIndex];
+  if (!model || !color) return null;
+
+  const product = productForCatalogColor(productsForCatalogModel(publicProducts, model), color);
+  return product ? { model, color, product, price: Number(product.sellPrice) || 0 } : null;
+}
+
+async function catalogInitialData(query = {}) {
+  const { products } = await dbGetAll();
+  const publicProducts = publicProductsFromData(products);
+  return {
+    products: publicProducts,
+    initial: requestedCatalogProduct(publicProducts, query) || firstCatalogProduct(publicProducts),
+  };
+}
+
+function escapeJsonForHtml(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+async function sendCatalogPage(req, res, next) {
+  let data;
+  try {
+    data = await catalogInitialData(req.query);
+  } catch (err) {
+    console.error('Catalog page inventory error:', err.message);
+    const fallbackProduct = { id: 'fallback-light2-blue', productType: 'Light 2', color: 'blue', label: 'Light 2 / blue', sellPrice: 90, inStock: true };
+    data = {
+      products: [fallbackProduct],
+      initial: requestedCatalogProduct([fallbackProduct], req.query) || firstCatalogProduct([fallbackProduct]),
+    };
+  }
+
+  try {
+    const initial = data.initial;
+    const template = readTextFile('catalog.html');
+    res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate');
+    res.set('Surrogate-Control', 'no-store');
+    res.type('html').send(template
+      .replace(/__CATALOG_PRELOAD_HREF__/g, initial?.color?.image || '')
+      .replace(/__CATALOG_INITIAL_TITLE__/g, initial?.model?.title || 'Умные колонки с Алисой')
+      .replace(/__CATALOG_INITIAL_LINE__/g, initial?.model?.line || 'Умные колонки с Алисой в наличии в Риге.')
+      .replace(/__CATALOG_INITIAL_PRICE__/g, initial?.price ? `${initial.price.toLocaleString('ru')} €` : '')
+      .replace(/__CATALOG_INITIAL_IMAGE__/g, initial?.color?.image || '')
+      .replace(/__CATALOG_INITIAL_ALT__/g, initial ? `${initial.model.title}, ${initial.color.label}` : 'Умная колонка с Алисой')
+      .replace('__CATALOG_INITIAL_DATA__', escapeJsonForHtml(data)));
+  } catch (err) {
+    console.error('Catalog page render error:', err.message);
+    next(err);
+  }
+}
+
 // ── MIDDLEWARE ───────────────────────────────────────────────
 
 const ALLOWED_ORIGINS = new Set([
@@ -545,17 +679,18 @@ app.use(redirectWwwCatalogHost);
 
 app.get('/', (req, res, next) => {
   if (isCatalogHost(req)) {
-    return res.sendFile(path.join(__dirname, 'catalog.html'));
+    return sendCatalogPage(req, res, next);
   }
   return next();
 });
 
 app.get('/catalog.html', (req, res, next) => {
   if (isCatalogHost(req)) {
-    return res.redirect(302, '/');
+    const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    return res.redirect(302, `/${query}`);
   }
   if (isLocalHost(req)) {
-    return res.sendFile(path.join(__dirname, 'catalog.html'));
+    return sendCatalogPage(req, res, next);
   }
   return next();
 });
@@ -694,11 +829,7 @@ app.use(mail.router);
 app.get('/api/public/products', async (req, res) => {
   try {
     const { products } = await dbGetAll();
-    const publicProducts = products
-      .map(publicProduct)
-      .filter(product => product.inStock)
-      .sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
-    res.json({ products: publicProducts });
+    res.json({ products: publicProductsFromData(products) });
   } catch (e) {
     console.error('Public products error:', e.message);
     sendGenericError(res);

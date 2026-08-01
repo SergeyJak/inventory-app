@@ -119,6 +119,10 @@ let assistantEngine = null;
 let keyboardMeasureTimer = null;
 let assistantKeyboardModeTimer = null;
 
+const FALLBACK_PRODUCTS = [
+  { id: 'fallback-light2-blue', productType: 'Light 2', color: 'blue', label: 'Light 2 / blue', sellPrice: 90, inStock: true },
+];
+
 function isMobileViewport() {
   return window.matchMedia('(max-width: 900px)').matches;
 }
@@ -666,7 +670,7 @@ function renderHeroPhoto(photo, model) {
     heroImage.decoding = 'async';
   };
 
-  if (prefersReducedMotion.matches || !heroImage.src) {
+  if (prefersReducedMotion.matches || !heroImage.src || heroImage.getAttribute('src') === src) {
     applyImage();
     return;
   }
@@ -820,48 +824,66 @@ function applyUrlSelection() {
   const params = new URLSearchParams(window.location.search);
   const [selectedModel, selectedColor] = String(params.get('select') || '').split(':');
   const modelId = params.get('model') || selectedModel;
-  const colorIndex = Number(params.get('color') ?? selectedColor);
+  const rawColor = params.get('color') ?? selectedColor;
+  const hasColor = rawColor !== undefined && rawColor !== '';
+  const colorIndex = hasColor ? Number(rawColor) : 0;
   const modelIndex = models.findIndex(model => model.id === modelId);
-  if (modelIndex >= 0) activeModel = modelIndex;
-  if (Number.isInteger(colorIndex) && colorIndex >= 0) {
-    activeColor = Math.min(colorIndex, models[activeModel].photos.length - 1);
+  if (modelIndex >= 0 && Number.isInteger(colorIndex) && colorIndex >= 0 && colorIndex < models[modelIndex].photos.length) {
+    activeModel = modelIndex;
+    activeColor = colorIndex;
   }
   activeAngle = 0;
 }
 
-async function loadCatalog() {
+function showCatalog(nextModels) {
+  models = nextModels;
+
+  if (!models.length) {
+    content.hidden = true;
+    modelDetails.hidden = true;
+    modelSwitcher.innerHTML = '';
+    colorGallery.innerHTML = '';
+    setState(dict('state.empty'));
+    return false;
+  }
+
+  activeModel = 0;
+  activeColor = 0;
+  activeAngle = 0;
+  applyUrlSelection();
+  content.hidden = false;
+  modelDetails.hidden = false;
+  setState('');
+  render();
+  return true;
+}
+
+function initialProducts() {
+  return Array.isArray(window.catalogInitialData?.products) ? window.catalogInitialData.products : [];
+}
+
+async function refreshCatalog() {
   try {
-    setState(dict('state.loading'));
     const res = await fetch('/api/public/products');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
     const products = Array.isArray(data.products) ? data.products : [];
-    models = buildModels(products);
-
-    if (!models.length) {
-      content.hidden = true;
-      modelDetails.hidden = true;
-      modelSwitcher.innerHTML = '';
-      colorGallery.innerHTML = '';
-      setState(dict('state.empty'));
-      return;
-    }
-
-    activeModel = 0;
-    activeColor = 0;
-    activeAngle = 0;
-    applyUrlSelection();
-    content.hidden = false;
-    modelDetails.hidden = false;
-    setState('');
-    render();
+    showCatalog(buildModels(products));
   } catch (err) {
     console.error('Catalog load error:', err);
-    content.hidden = true;
-    modelDetails.hidden = true;
-    setState(dict('state.error'));
+    if (!models.length) showCatalog(buildModels(FALLBACK_PRODUCTS));
   }
+}
+
+function loadCatalog() {
+  const bootModels = buildModels(initialProducts());
+  if (bootModels.length) {
+    showCatalog(bootModels);
+    refreshCatalog();
+    return;
+  }
+  refreshCatalog();
 }
 
 modelSwitcher.addEventListener('click', event => {
@@ -1030,9 +1052,9 @@ showroom.addEventListener('pointerleave', () => {
 
 applyStaticTranslations();
 renderLanguageSwitcher();
+loadCatalog();
 fetch('/faq.json')
   .then(res => (res.ok ? res.json() : []))
   .then(data => { faqItems = Array.isArray(data) ? data : []; })
-  .catch(() => { faqItems = []; })
-  .finally(loadCatalog);
+  .catch(() => { faqItems = []; });
 
