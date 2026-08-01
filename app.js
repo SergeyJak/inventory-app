@@ -1031,6 +1031,14 @@ function assistantReportPayload() {
   return { ...dates, locale };
 }
 
+function assistantReportQuery(extra = {}) {
+  const params = new URLSearchParams();
+  Object.entries({ ...assistantReportPayload(), ...extra }).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') params.set(key, value);
+  });
+  return params.toString();
+}
+
 function setAssistantReportState(state, text) {
   const box = document.getElementById('assistant-report-state');
   if (!box) return;
@@ -1133,6 +1141,43 @@ async function generateAssistantImprovementReport() {
     btn.disabled = false;
   }
 }
+
+async function exportAssistantAiReport() {
+  const btn = document.getElementById('assistant-report-export');
+  if (btn) btn.disabled = true;
+  setAssistantReportState('generating', 'Preparing AI export...');
+  try {
+    const query = assistantReportQuery({ includeConversations: 'true' });
+    const res = await fetch(`/api/admin/assistant-improvement-report/export?${query}`, { headers: authHeaders() });
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('Export endpoint did not return JSON');
+    }
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const from = (data.parameters?.dateFrom || '').slice(0, 10) || 'from';
+    const to = (data.parameters?.dateTo || '').slice(0, 10) || 'to';
+    const locale = data.parameters?.locale || 'all';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `assistant-ai-report-${from}-${to}-${locale}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setAssistantReportState('generated', 'AI export downloaded.');
+  } catch (e) {
+    setAssistantReportState('failed', 'Failed to export AI report: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+window.exportAssistantAiReport = exportAssistantAiReport;
 
 async function updateAssistantReportAction(index) {
   if (!assistantCurrentReport?.id) return;

@@ -202,6 +202,10 @@ async function main() {
       { id: 'r5', question: 'Latvian only', answer: 'LV', locale: 'lv', matched: false, confidence: 0.1, sessionId: 're', normalizedQuestion: 'latvian only', createdAt: new Date(now - day).toISOString() },
       { id: 'old', question: 'Old topic', answer: 'Old', locale: 'en', matched: false, confidence: 0.1, sessionId: 'rf', normalizedQuestion: 'old topic', createdAt: new Date(now - 40 * day).toISOString() },
     ]);
+    writeJson('products.json', [
+      { id: 'p1', productType: 'Mini Pro', color: 'Blue', sellPrice: 129, lots: [{ qty: 2 }] },
+      { id: 'p2', productType: 'Mini Pro', color: 'Gray', sellPrice: 129, lots: [{ qty: 0 }] },
+    ]);
     writeJson('assistant-improvement-reports.json', []);
 
     const reportUnauth = await request('/api/admin/assistant-improvement-report/data');
@@ -220,6 +224,38 @@ async function main() {
     assert.ok(reportData.body.comparisonWithPreviousPeriod.newlyAppearingQuestionTopics.includes('delivery to riga'), 'trend comparison finds new topics');
     assert.strictEqual(JSON.stringify(reportData.body).includes('test@example.com'), false, 'PII email is redacted from report data');
     assert.strictEqual(JSON.stringify(reportData.body).includes('+371 22222222'), false, 'PII phone is redacted from report data');
+
+    const exportUnauth = await request(`/api/admin/assistant-improvement-report/export?dateFrom=${from}&dateTo=${to}&locale=en`);
+    assert.strictEqual(exportUnauth.res.status, 401, 'AI export requires authentication');
+
+    const exportRes = await request(`/api/admin/assistant-improvement-report/export?dateFrom=${from}&dateTo=${to}&locale=en&includeConversations=true`, { headers: auth(token) });
+    assert.strictEqual(exportRes.res.status, 200);
+    assert.match(exportRes.res.headers.get('content-type') || '', /application\/json/, 'AI export returns JSON');
+    assert.match(exportRes.res.headers.get('content-disposition') || '', /assistant-ai-report-/, 'AI export is downloadable');
+    assert.strictEqual(exportRes.body.purpose, 'assistant_improvement_llm_review');
+    assert.strictEqual(exportRes.body.parameters.includeConversations, true);
+    assert.strictEqual(exportRes.body.overview.totalQuestions, 4);
+    assert.ok(Array.isArray(exportRes.body.faqEntries) && exportRes.body.faqEntries.length > 0, 'AI export includes all FAQ entries');
+    assert.ok(exportRes.body.faqUsageStatistics.some(item => item.faqId === 'setup'), 'AI export includes FAQ usage statistics');
+    assert.ok(exportRes.body.negativeFeedbackSummary.examples.length, 'AI export includes negative feedback examples');
+    assert.ok(exportRes.body.lowConfidenceQuestions.length, 'AI export includes low-confidence questions');
+    assert.ok(exportRes.body.exampleConversations.some(item => item.conversations.length), 'AI export includes representative conversations');
+    assert.ok(exportRes.body.assistantAnswers.some(item => item.assistantAnswer === 'Delivery answer'), 'AI export includes assistant answers');
+    assert.ok(exportRes.body.currentFaqTextsByLanguage.en?.length, 'AI export includes FAQ texts by language');
+    assert.ok(exportRes.body.productCatalogMetadata.some(item => item.id === 'p1'), 'AI export includes in-stock product metadata');
+    assert.strictEqual(exportRes.body.productCatalogMetadata.some(item => item.id === 'p2'), false, 'AI export omits unavailable catalog products');
+    const exportJson = JSON.stringify(exportRes.body);
+    assert.strictEqual(exportJson.includes('test@example.com'), false, 'AI export redacts emails');
+    assert.strictEqual(exportJson.includes('+371 22222222'), false, 'AI export redacts phone numbers');
+    assert.strictEqual(exportJson.includes('userAgent'), false, 'AI export does not include user agents');
+    assert.strictEqual(exportJson.includes('ipAddress'), false, 'AI export does not include IP address fields');
+    assert.strictEqual(exportJson.includes('remoteAddress'), false, 'AI export does not include remote address fields');
+    assert.strictEqual(exportJson.includes('authorization'), false, 'AI export does not include auth fields');
+
+    const exportNoConversations = await request(`/api/admin/assistant-improvement-report/export?dateFrom=${from}&dateTo=${to}&locale=en&includeConversations=false`, { headers: auth(token) });
+    assert.strictEqual(exportNoConversations.res.status, 200);
+    assert.deepStrictEqual(exportNoConversations.body.exampleConversations, [], 'AI export can omit conversations');
+    assert.deepStrictEqual(exportRes.body.overview, exportNoConversations.body.overview, 'AI export overview is deterministic across conversation modes');
 
     const generated = await request('/api/admin/assistant-improvement-report/generate', {
       method: 'POST',

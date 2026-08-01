@@ -1173,6 +1173,10 @@ function redactPii(value, limit = 220) {
     .slice(0, limit);
 }
 
+function sanitizeAiText(value, limit = 1000) {
+  return redactPii(value, limit);
+}
+
 function average(values) {
   const nums = values.filter(value => Number.isFinite(value));
   return nums.length ? Number((nums.reduce((sum, value) => sum + value, 0) / nums.length).toFixed(3)) : null;
@@ -1335,6 +1339,206 @@ async function buildAssistantImprovementReportData(query = {}) {
     dailyQuestionCounts: dailyCounts(current),
     comparisonWithPreviousPeriod: comparePeriods(current, previous),
     thresholds: { lowConfidence: ASSISTANT_LOW_CONFIDENCE_THRESHOLD, weakFaqNegativeRate: ASSISTANT_WEAK_FAQ_NEGATIVE_RATE },
+  };
+}
+
+function readAllFaqEntries() {
+  return readJsonArrayFile(path.join(__dirname, 'faq.json'))
+    .map(item => ({
+      id: sanitizeAiText(item.id, 80),
+      category: sanitizeAiText(item.category, 160),
+      questions: Array.isArray(item.questions) ? item.questions.map(question => sanitizeAiText(question, 220)).filter(Boolean).sort((a, b) => a.localeCompare(b)) : [],
+      answers: Object.keys(item.answer || {}).sort().reduce((answers, lang) => {
+        const safeLang = sanitizeAiText(lang, 12);
+        const text = sanitizeAiText(item.answer?.[lang], 1200);
+        if (safeLang && text) answers[safeLang] = text;
+        return answers;
+      }, {}),
+    }))
+    .filter(item => item.id)
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function productCatalogMetadata(products) {
+  return publicProductsFromData(products)
+    .map(product => ({
+      id: sanitizeAiText(product.id, 80),
+      productType: sanitizeAiText(product.productType, 160),
+      color: sanitizeAiText(product.color, 120),
+      label: sanitizeAiText(product.label, 180),
+      sellPrice: Number(product.sellPrice) || 0,
+      inStock: Boolean(product.inStock),
+      accent: sanitizeAiText(product.accent, 80),
+    }))
+    .sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color) || a.id.localeCompare(b.id));
+}
+
+function assistantAnswerExamples(records) {
+  return records
+    .map(toPublicAssistantRecord)
+    .filter(item => item.normalizedQuestion || item.answer)
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || a.id.localeCompare(b.id))
+    .slice(0, 100)
+    .map(item => ({
+      id: item.id,
+      createdAt: item.createdAt,
+      locale: item.locale,
+      normalizedQuestion: sanitizeAiText(item.normalizedQuestion, 180),
+      question: sanitizeAiText(item.question, 300),
+      assistantAnswer: sanitizeAiText(item.answer, 1200),
+      matched: item.matched,
+      matchedFaqId: item.matchedFaqId || null,
+      confidence: item.hasConfidence ? item.confidence : null,
+      feedback: item.feedback || '',
+      improvementReasons: item.improvementReasons,
+    }));
+}
+
+function representativeConversations(records, repeatedQuestions, includeConversations) {
+  if (!includeConversations) return [];
+  const publicRecords = records
+    .map(toPublicAssistantRecord)
+    .filter(item => item.sessionId && item.normalizedQuestion)
+    .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || a.id.localeCompare(b.id));
+  const bySession = new Map();
+  publicRecords.forEach(item => {
+    if (!bySession.has(item.sessionId)) bySession.set(item.sessionId, []);
+    bySession.get(item.sessionId).push(item);
+  });
+  return repeatedQuestions.slice(0, 20).map(topic => {
+    const conversations = [];
+    for (const [sessionId, items] of bySession.entries()) {
+      if (!items.some(item => item.normalizedQuestion === topic.normalizedQuestion)) continue;
+      conversations.push({
+        sessionRef: crypto.createHash('sha256').update(sessionId).digest('hex').slice(0, 16),
+        messages: items.slice(0, 20).map(item => ({
+          createdAt: item.createdAt,
+          locale: item.locale,
+          normalizedQuestion: sanitizeAiText(item.normalizedQuestion, 180),
+          userQuestion: sanitizeAiText(item.question, 300),
+          assistantAnswer: sanitizeAiText(item.answer, 1200),
+          matched: item.matched,
+          matchedFaqId: item.matchedFaqId || null,
+          confidence: item.hasConfidence ? item.confidence : null,
+          feedback: item.feedback || '',
+          improvementReasons: item.improvementReasons,
+        })),
+      });
+      if (conversations.length >= 10) break;
+    }
+    return {
+      topic: sanitizeAiText(topic.normalizedQuestion, 180),
+      count: topic.count,
+      conversations,
+    };
+  }).filter(item => item.conversations.length);
+}
+
+function negativeFeedbackSummary(records) {
+  const items = records
+    .map(toPublicAssistantRecord)
+    .filter(item => item.feedback === 'not_helpful')
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || a.id.localeCompare(b.id));
+  const byFaq = new Map();
+  items.forEach(item => {
+    const key = item.matchedFaqId || 'none';
+    byFaq.set(key, (byFaq.get(key) || 0) + 1);
+  });
+  return {
+    total: items.length,
+    byFaqId: [...byFaq.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([faqId, count]) => ({ faqId: faqId === 'none' ? null : faqId, count })),
+    examples: items.slice(0, 50).map(item => ({
+      createdAt: item.createdAt,
+      locale: item.locale,
+      question: sanitizeAiText(item.question, 300),
+      assistantAnswer: sanitizeAiText(item.answer, 1200),
+      matchedFaqId: item.matchedFaqId || null,
+      confidence: item.hasConfidence ? item.confidence : null,
+    })),
+  };
+}
+
+function lowConfidenceQuestions(records) {
+  return records
+    .map(toPublicAssistantRecord)
+    .filter(item => item.hasConfidence && item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD)
+    .sort((a, b) => a.confidence - b.confidence || String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || a.id.localeCompare(b.id))
+    .slice(0, 100)
+    .map(item => ({
+      createdAt: item.createdAt,
+      locale: item.locale,
+      question: sanitizeAiText(item.question, 300),
+      assistantAnswer: sanitizeAiText(item.answer, 1200),
+      matched: item.matched,
+      matchedFaqId: item.matchedFaqId || null,
+      confidence: item.confidence,
+      feedback: item.feedback || '',
+    }));
+}
+
+async function buildAssistantImprovementAiExport(query = {}) {
+  const data = await buildAssistantImprovementReportData(query);
+  const locale = assistantReportLocale(query);
+  const includeConversations = String(query.includeConversations || '').toLowerCase() === 'true';
+  const records = (await allAssistantRecords()).filter(record => assistantRecordInRange(record, data.dateFrom, data.dateTo, locale));
+  const repeatedQuestions = groupRepeatedQuestions(records);
+  const faqEntries = readAllFaqEntries();
+  const faqUsage = new Map(data.matchedFaqStats.map(stat => [stat.faqId, stat]));
+  const faqIds = [...new Set([...faqEntries.map(faq => faq.id), ...faqUsage.keys()].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const { products } = await dbGetAll();
+  return {
+    exportVersion: 1,
+    purpose: 'assistant_improvement_llm_review',
+    parameters: {
+      dateFrom: data.dateFrom,
+      dateTo: data.dateTo,
+      locale: data.locale || '',
+      includeConversations,
+    },
+    thresholds: data.thresholds,
+    overview: {
+      totalQuestions: data.totalQuestions,
+      uniqueSessions: data.uniqueSessions,
+      matchedCount: data.matchedCount,
+      unmatchedCount: data.unmatchedCount,
+      lowConfidenceCount: data.lowConfidenceCount,
+      negativeFeedbackCount: data.negativeFeedbackCount,
+      averageConfidence: data.averageConfidence,
+      needsImprovementCount: data.needsImprovementCount,
+      dailyQuestionCounts: data.dailyQuestionCounts,
+      comparisonWithPreviousPeriod: data.comparisonWithPreviousPeriod,
+    },
+    topRepeatedQuestions: repeatedQuestions.slice(0, 50),
+    missingFaqCandidates: data.missingFaqCandidates,
+    weakFaqStatistics: data.weakFaqStats,
+    faqEntries,
+    faqUsageStatistics: faqIds.map(faqId => {
+      const stat = faqUsage.get(faqId);
+      return stat || {
+        faqId,
+        usageCount: 0,
+        averageConfidence: null,
+        positiveFeedbackCount: 0,
+        negativeFeedbackCount: 0,
+        negativeFeedbackRate: 0,
+        unmatchedFollowUpCount: 0,
+        exampleQuestions: [],
+        weak: false,
+        weakReasons: [],
+      };
+    }),
+    negativeFeedbackSummary: negativeFeedbackSummary(records),
+    lowConfidenceQuestions: lowConfidenceQuestions(records),
+    exampleConversations: representativeConversations(records, repeatedQuestions, includeConversations),
+    assistantAnswers: assistantAnswerExamples(records),
+    currentFaqTextsByLanguage: faqEntries.reduce((acc, faq) => {
+      Object.entries(faq.answers).forEach(([lang, answer]) => {
+        if (!acc[lang]) acc[lang] = [];
+        acc[lang].push({ id: faq.id, category: faq.category, questions: faq.questions, answer });
+      });
+      return acc;
+    }, {}),
+    productCatalogMetadata: productCatalogMetadata(products),
   };
 }
 
@@ -1644,6 +1848,21 @@ app.get('/api/admin/assistant-improvement-report/data', requireInventoryHost, re
     res.json(await buildAssistantImprovementReportData(req.query));
   } catch (e) {
     console.error('Assistant improvement report data error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/admin/assistant-improvement-report/export', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const data = await buildAssistantImprovementAiExport(req.query);
+    const from = String(data.parameters.dateFrom || '').slice(0, 10) || 'from';
+    const to = String(data.parameters.dateTo || '').slice(0, 10) || 'to';
+    const locale = data.parameters.locale || 'all';
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="assistant-ai-report-${from}-${to}-${locale}.json"`);
+    res.send(JSON.stringify(data));
+  } catch (e) {
+    console.error('Assistant improvement report export error:', e.message);
     sendGenericError(res);
   }
 });
