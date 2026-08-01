@@ -15,7 +15,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Лайт 2. Для детской подходит компактная модель."
+          "text": "Рекомендую: Станция Лайт 2 90 €. Для детской подходит компактная модель."
         }
       },
       {
@@ -30,7 +30,7 @@
             "alternative",
             "back"
           ],
-          "text": "Можно посмотреть более доступный вариант: Станция Лайт 2. Для базовых сценариев это хороший старт."
+          "text": "Можно посмотреть более доступный вариант: Станция Лайт 2 90 €. Для базовых сценариев это хороший старт."
         }
       },
       {
@@ -45,7 +45,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про. Для музыки лучше модель с более мощным звуком."
+          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для музыки лучше модель с более мощным звуком."
         }
       },
       {
@@ -120,7 +120,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для дома подойдёт модель для повседневных сценариев."
         }
       },
       {
@@ -150,7 +150,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для дома подойдёт модель для повседневных сценариев."
         }
       },
       {
@@ -233,7 +233,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Лайт 2. Для подарка лучше понятная универсальная модель."
+          "text": "Рекомендую: Станция Лайт 2 90 €. Для подарка лучше понятная универсальная модель."
         }
       },
       {
@@ -248,7 +248,7 @@
             "alternative",
             "back"
           ],
-          "text": "Можно посмотреть более доступный вариант: Станция Лайт 2. Для базовых сценариев это хороший старт."
+          "text": "Можно посмотреть более доступный вариант: Станция Лайт 2 90 €. Для базовых сценариев это хороший старт."
         }
       },
       {
@@ -308,7 +308,7 @@
             "alternative",
             "back"
           ],
-          "text": "Recommended: Station Mini 3 Pro. For music, choose stronger sound."
+          "text": "Recommended: Station Mini 3 Pro 160 €. For music, choose stronger sound."
         }
       },
       {
@@ -377,6 +377,21 @@
       {
         "input": "Для дома",
         "response": {
+          "type": "clarify",
+          "modelId": "",
+          "colorKey": "",
+          "actions": [
+            "scenario",
+            "scenario",
+            "scenario",
+            "scenario"
+          ],
+          "text": "Для чего подбираем колонку?"
+        }
+      },
+      {
+        "input": "Light 2",
+        "response": {
           "type": "recommendation",
           "modelId": "miniPro",
           "colorKey": "",
@@ -386,22 +401,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
-        }
-      },
-      {
-        "input": "Light 2",
-        "response": {
-          "type": "model",
-          "modelId": "light2",
-          "colorKey": "",
-          "actions": [
-            "show_product",
-            "compare",
-            "alternative",
-            "back"
-          ],
-          "text": "Станция Лайт 2. Компактная модель"
+          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для дома подойдёт модель для повседневных сценариев."
         }
       },
       {
@@ -423,15 +423,14 @@
         "input": "Ещё вариант",
         "response": {
           "type": "recommendation",
-          "modelId": "miniPro",
+          "modelId": "light2",
           "colorKey": "",
           "actions": [
             "show_product",
             "compare",
-            "alternative",
             "back"
           ],
-          "text": "Ещё можно посмотреть Станция Мини 3 Про."
+          "text": "Ещё можно посмотреть Станция Лайт 2."
         }
       }
     ]
@@ -443,46 +442,45 @@
       {
         "input": "For home",
         "response": {
-          "type": "recommendation",
-          "modelId": "miniPro",
+          "type": "clarify",
+          "modelId": "",
           "colorKey": "",
           "actions": [
-            "show_product",
-            "compare",
-            "alternative",
-            "back"
+            "scenario",
+            "scenario",
+            "scenario",
+            "scenario"
           ],
-          "text": "Recommended: Station Mini 3 Pro. For home, choose a daily model."
+          "text": "What will the speaker be used for?"
         }
       },
       {
         "input": "Another option",
         "response": {
           "type": "recommendation",
-          "modelId": "mini3",
+          "modelId": "light2",
           "colorKey": "",
           "actions": [
             "show_product",
             "compare",
-            "alternative",
             "back"
           ],
-          "text": "Another option is Station Mini 3."
+          "text": "Another option is Station Lite 2."
         }
       },
       {
         "input": "Back",
         "response": {
           "type": "back",
-          "modelId": "miniPro",
+          "modelId": "",
           "colorKey": "",
           "actions": [
-            "show_product",
-            "compare",
-            "alternative",
-            "back"
+            "scenario",
+            "scenario",
+            "scenario",
+            "scenario"
           ],
-          "text": "Recommended: Station Mini 3 Pro. For home, choose a daily model."
+          "text": "What will the speaker be used for?"
         }
       }
     ]
@@ -503,7 +501,7 @@
             "alternative",
             "back"
           ],
-          "text": "Ieteikums: Station Mini 3 Pro. Mūzikai labāk der jaudīgāks modelis."
+          "text": "Ieteikums: Station Mini 3 Pro 160 €. Mūzikai labāk der jaudīgāks modelis."
         }
       },
       {
@@ -533,7 +531,7 @@
             "alternative",
             "back"
           ],
-          "text": "Ieteikums: Station Mini 3 Pro. Mūzikai labāk der jaudīgāks modelis."
+          "text": "Ieteikums: Station Mini 3 Pro 160 €. Mūzikai labāk der jaudīgāks modelis."
         }
       }
     ]
@@ -572,7 +570,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для дома подойдёт модель для повседневных сценариев."
         }
       },
       {
@@ -608,7 +606,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Лайт 2. Для детской подходит компактная модель."
+          "text": "Рекомендую: Станция Лайт 2 90 €. Для детской подходит компактная модель."
         }
       },
       {
@@ -644,7 +642,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Стрит. Для дома подойдёт модель для повседневных сценариев."
+          "text": "Рекомендую: Станция Стрит 160 €. Для дома подойдёт модель для повседневных сценариев."
         }
       },
       {
@@ -680,7 +678,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3. Для дома подойдёт модель для повседневных сценариев."
+          "text": "Рекомендую: Станция Мини 3 140 €. Для дома подойдёт модель для повседневных сценариев."
         }
       },
       {
@@ -949,7 +947,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Лайт 2. Для детской подходит компактная модель."
+          "text": "Рекомендую: Станция Лайт 2 90 €. Для детской подходит компактная модель."
         }
       }
     ]
@@ -985,7 +983,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про. Для дома подойдёт модель для повседневных сценариев."
+          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для дома подойдёт модель для повседневных сценариев."
         }
       }
     ]
@@ -1036,7 +1034,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про. Для музыки лучше модель с более мощным звуком."
+          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для музыки лучше модель с более мощным звуком."
         }
       }
     ]
@@ -1048,16 +1046,11 @@
       {
         "input": "",
         "response": {
-          "type": "clarify",
+          "type": "noise_or_test",
           "modelId": "",
           "colorKey": "",
-          "actions": [
-            "scenario",
-            "scenario",
-            "scenario",
-            "scenario"
-          ],
-          "text": "Для чего подбираем колонку?"
+          "actions": [],
+          "text": "Я пока не нашёл точный ответ."
         }
       },
       {
@@ -1072,7 +1065,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Лайт 2. Для подарка лучше понятная универсальная модель."
+          "text": "Рекомендую: Станция Лайт 2 90 €. Для подарка лучше понятная универсальная модель."
         }
       }
     ]

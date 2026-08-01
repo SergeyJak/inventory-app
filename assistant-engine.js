@@ -79,8 +79,10 @@
     ru(1076,1083,1103,32,1087,1086,1078,1080,1083,1086,1075,1086),
     ru(1087,1086,1078,1080,1083,1086,1075,1086),
     ru(1076,1083,1103,32,1089,1077,1073,1103),
-    ru(1089,1077,1073,1103)
+    ru(1089,1077,1073,1103),
+    ru(1076,1086,1084,1086,1081)
   );
+  SYNONYMS.home.push('РўРµРїРµСЂСЊ РґРѕРјРѕР№', 'РґРѕРјРѕР№');
   SYNONYMS.gift.push(ru(1087,1086,1076,1072,1088,1086,1082), ru(1076,1072,1088,1080,1090,1100));
   SYNONYMS.cheaper.push(
     ru(1087,1086,1076,1077,1096,1077,1074,1083,1077),
@@ -151,6 +153,40 @@
     });
   }
 
+  const INTENTS = {
+    faq_question: 'faq_question',
+    product_selection: 'product_selection',
+    product_size: 'product_size',
+    music_use_case: 'music_use_case',
+    budget_request: 'budget_request',
+    smart_home: 'smart_home',
+    human_handoff: 'human_handoff',
+    conversation_end: 'conversation_end',
+    noise_or_test: 'noise_or_test',
+  };
+
+  function classifyIntent(input) {
+    const normalized = normalize(input);
+    const tokenCount = normalized ? normalized.split(' ').length : 0;
+    const exact = words => words.some(word => normalized === normalize(word));
+    if (!normalized || /^[?.!,\s-]+$/.test(String(input || ''))) return INTENTS.noise_or_test;
+    if (exact(['ok', 'okay', 'thanks', 'thank you', 'bye', 'спасибо', 'ок', 'хорошо', 'пока', 'paldies']) || hasAny(input, ['спасибо', 'подумаю', 'thank you', 'thanks', 'paldies'])) return INTENTS.conversation_end;
+    if (exact(['test', 'тест', 'asdf', '123', 'qwerty'])) return INTENTS.noise_or_test;
+    if (hasAny(input, ['оператор', 'менеджер', 'связаться', 'позвонить', 'с человеком', 'whatsapp', 'telegram', 'human operator', 'contact person']) || /\b(phone|call)\b/.test(normalized)) return INTENTS.human_handoff;
+    if (hasAny(input, SYNONYMS.cheaper) || /\b(under|budget|max|up to)\b/.test(normalized)) return INTENTS.budget_request;
+    if (hasAny(input, ['большую', 'большая', 'мощную', 'погромче', 'маленькую', 'компактную', 'large', 'big', 'small', 'compact'])) return INTENTS.product_size;
+    if (hasAny(input, SYNONYMS.music)) return INTENTS.music_use_case;
+    if (hasAny(input, ['умный дом', 'smart home', 'датчики', 'лампы', 'свет', 'zigbee'])) return INTENTS.smart_home;
+    const specificHomeUse = hasAny(input, [
+      ru(1082,1091,1093,1085,1103), ru(1082,1091,1093,1085,1080),
+      ru(1089,1087,1072,1083,1100,1085,1103), ru(1089,1087,1072,1083,1100,1085,1080),
+      ru(1076,1072,1095,1072), ru(1076,1072,1095,1080),
+      ru(1087,1086,1078,1080,1083,1086,1075,1086),
+    ]);
+    if (hasAny(input, SYNONYMS.home) && tokenCount <= 4 && !specificHomeUse && /^(для|for|kam|m[aā]j)/.test(normalized)) return INTENTS.product_selection;
+    return INTENTS.faq_question;
+  }
+
   function isUnsupportedProduct(text) {
     return hasAny(text, [
       'iphone',
@@ -178,11 +214,21 @@
   }
 
   function createContext() {
-    return {
-      lastModelId: null,
-      selectedScenario: null,
-      budget: null,
-      purpose: null,
+      return {
+        lastModelId: null,
+        selectedScenario: null,
+        intent: null,
+        recommendationShown: false,
+        followupAsked: false,
+        preferences: {
+          useCase: null,
+          budget: null,
+          soundPriority: null,
+          smartHome: null,
+          portable: null,
+        },
+        budget: null,
+        purpose: null,
       color: null,
       previousQuestions: [],
       awaiting: null,
@@ -238,6 +284,8 @@
     }
 
     function pushResponse(response) {
+      if (!response.intent) response.intent = context.intent || response.type || '';
+      if (response.type === 'recommendation') context.recommendationShown = true;
       responseHistory.push(response);
       responseHistory = responseHistory.slice(-8);
       return response;
@@ -250,6 +298,11 @@
       if (context.alternatives.length) actions.push({ id: 'alternative', label: options.t('assistantV2.anotherOption') });
       actions.push({ id: 'back', label: options.t('assistantV2.back') });
       return actions;
+    }
+
+    function priceText(model) {
+      const price = Number(model?.price) || 0;
+      return price > 0 ? ` ${price} €` : '';
     }
 
     function showAvailableActions() {
@@ -298,6 +351,7 @@
       context.awaiting = null;
       context.selectedScenario = scenarioId;
       context.purpose = scenarioId;
+      context.preferences.useCase = scenarioId;
       context.lastModelId = selected?.id || null;
       context.alternatives = choices.slice(1).map(model => model.id);
       return selected;
@@ -312,6 +366,7 @@
 
     function scenarioAnswer(scenarioId) {
       const model = recommendForScenario(scenarioId);
+      context.recommendationShown = Boolean(model);
       const reasonKey = {
         kitchen: 'home',
         bedroom: 'child',
@@ -320,7 +375,7 @@
       }[scenarioId] || scenarioId;
       return pushResponse({
         type: 'recommendation',
-        text: `${options.t('assistant.recommend')} ${options.modelText(model, 'title')}. ${options.t(`assistant.scenarios.${reasonKey}.reason`)}`,
+        text: `${options.t('assistant.recommend')} ${options.modelText(model, 'title')}${priceText(model)}. ${options.t(`assistant.scenarios.${reasonKey}.reason`)}`,
         modelId: model?.id,
         colorKey: context.color,
         actions: recommendationActions(model),
@@ -329,8 +384,10 @@
 
     function clarify() {
       context.awaiting = 'purpose';
+      context.followupAsked = true;
       return pushResponse({
         type: 'clarify',
+        intent: INTENTS.product_selection,
         text: options.t('assistantV2.clarifyPurpose'),
         actions: [
           { id: 'scenario', scenarioId: 'music', label: options.t('assistant.scenarios.music.label') },
@@ -338,6 +395,27 @@
           { id: 'scenario', scenarioId: 'child', label: options.t('assistant.scenarios.child.label') },
           { id: 'scenario', scenarioId: 'gift', label: options.t('assistant.scenarios.gift.label') },
         ],
+      });
+    }
+
+    function handoffResponse() {
+      const methods = typeof options.contactMethods === 'function' ? options.contactMethods() : [];
+      return pushResponse({
+        type: 'human_handoff',
+        intent: INTENTS.human_handoff,
+        text: methods.length
+          ? `${options.t('assistantV2.handoff') || 'You can contact us directly'}: ${methods.map(item => item.label).join(', ')}.`
+          : (options.t('assistantV2.handoff') || 'You can contact us directly.'),
+        actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
+      });
+    }
+
+    function endResponse(intent) {
+      return pushResponse({
+        type: intent,
+        intent,
+        text: intent === INTENTS.noise_or_test ? options.t('faq.fallback') : (options.t('assistantV2.goodbye') || 'Thanks.'),
+        actions: [],
       });
     }
 
@@ -550,10 +628,23 @@
 
     function handle(input) {
       remember(input);
+      const intent = classifyIntent(input);
+      context.intent = intent;
+      if (intent === INTENTS.conversation_end || intent === INTENTS.noise_or_test) return endResponse(intent);
+      if (intent === INTENTS.human_handoff) return handoffResponse();
+      if (intent === INTENTS.smart_home) {
+        context.preferences.smartHome = true;
+        return scenarioAnswer('home');
+      }
+      if (intent === INTENTS.product_size) {
+        context.preferences.soundPriority = 'high';
+        return scenarioAnswer('music');
+      }
       if (!normalize(input)) return clarify();
       if (isSmallTalk(input)) {
         return pushResponse({
           type: 'smalltalk',
+          intent,
           text: options.t('assistantV2.clarifyPurpose'),
           actions: [
             { id: 'scenario', scenarioId: 'music', label: options.t('assistant.scenarios.music.label') },
@@ -566,6 +657,7 @@
       if (isUnsupportedProduct(input)) {
         return pushResponse({
           type: 'fallback',
+          intent,
           text: options.t('faq.fallback'),
           actions: [{ id: 'back', label: options.t('assistantV2.back') }],
         });
@@ -601,6 +693,7 @@
       if (hasAny(input, [ru(1089,1087,1072,1083,1100,1085,1103), ru(1089,1087,1072,1083,1100,1085,1080)])) return scenarioAnswer('bedroom');
       if (hasAny(input, [ru(1076,1072,1095,1072), ru(1076,1072,1095,1080)])) return scenarioAnswer('country');
       if (hasAny(input, [ru(1087,1086,1078,1080,1083,1086,1075,1086), ru(1076,1083,1103,32,1087,1086,1078,1080,1083,1086,1075,1086)])) return scenarioAnswer('elderly');
+      if (intent === INTENTS.product_selection) return clarify();
       if (hasAny(input, SYNONYMS.home)) return scenarioAnswer('home');
 
       if (hasAny(input, SYNONYMS.compare)) return compareResponse();
@@ -626,10 +719,12 @@
         const scope = context.selectedScenario === 'child' ? ['light2', 'mini3'] : null;
         const selected = cheapestModel(scope);
         context.budget = 'low';
+        context.preferences.budget = 'low';
         context.lastModelId = selected?.id || context.lastModelId;
         return pushResponse({
           type: 'recommendation',
-          text: `${options.t('assistantV2.cheaperLead')} ${options.modelText(selected, 'title')}. ${options.t('assistantV2.cheaperReason')}`,
+          intent: INTENTS.budget_request,
+          text: `${options.t('assistantV2.cheaperLead')} ${options.modelText(selected, 'title')}${priceText(selected)}. ${options.t('assistantV2.cheaperReason')}`,
           modelId: selected?.id,
           colorKey: context.color,
           actions: recommendationActions(selected),

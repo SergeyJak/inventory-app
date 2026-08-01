@@ -81,10 +81,14 @@ async function main() {
         matchedFaqId: 'faq-mini',
         confidence: 0.91,
         responseType: 'faq',
+        intent: 'faq_question',
         modelId: 'miniPro',
         colorKey: 'blue',
         pageUrl: '/?model=miniPro&color=1&token=secret',
         sessionId: 'sess-1',
+        messageId: 'msg-1',
+        assistantAnswer: 'Mini answer exact',
+        sessionContext: { intent: 'faq_question', recommendationShown: false, followupAsked: false, selectedScenario: '', preferences: {} },
       }),
     });
     assert.strictEqual(first.res.status, 200);
@@ -120,12 +124,25 @@ async function main() {
     assert.match(unknownApi.res.headers.get('content-type') || '', /application\/json/, 'unknown API routes return JSON, not HTML');
 
     const token = await login();
-    const list = await request('/api/admin/assistant-questions?locale=en&page=1&limit=1', { headers: auth(token) });
+    const list = await request('/api/admin/assistant-questions?locale=en&page=1&limit=10', { headers: auth(token) });
     assert.strictEqual(list.res.status, 200);
-    assert.strictEqual(list.body.items.length, 1);
+    assert.ok(list.body.items.length >= 1);
     assert.strictEqual(list.body.total, 2);
     assert.ok(list.body.summary.total >= 2);
     assert.ok(!list.body.items[0].answer.includes('<'), 'stored answer is sanitized');
+    const persisted = list.body.items.find(item => item.messageId === 'msg-1');
+    assert.ok(persisted, 'messageId is stored');
+    assert.ok(persisted.sessionId, 'sessionId is persisted');
+    assert.ok(persisted.timestamp, 'timestamp is persisted');
+    assert.strictEqual(persisted.role, 'assistant', 'role is persisted');
+    assert.strictEqual(persisted.question, 'Mini?', 'question is persisted sanitized');
+    assert.strictEqual(persisted.assistantAnswer, 'Mini answer exact', 'assistantAnswer is persisted exactly after generation');
+    assert.strictEqual(persisted.intent, 'faq_question', 'intent is persisted');
+    assert.strictEqual(persisted.responseType, 'faq', 'responseType is persisted');
+    assert.strictEqual(persisted.matched, true, 'matched is persisted');
+    assert.strictEqual(persisted.matchedFaqId, 'faq-mini', 'matchedFaqId is persisted');
+    assert.strictEqual(persisted.confidence, 0.91, 'confidence is persisted');
+    assert.ok(persisted.sessionContext && typeof persisted.sessionContext === 'object', 'sanitized session context is persisted');
     assert.strictEqual(list.body.items[0].pageUrl.includes('token='), false, 'sensitive URL params are removed');
 
     const unmatched = await request('/api/admin/assistant-questions?matched=false', { headers: auth(token) });
@@ -199,6 +216,11 @@ async function main() {
       { id: 'r2', question: 'Delivery to Riga? +371 22222222 test@example.com', answer: 'Delivery answer', locale: 'en', matched: false, confidence: 0.3, feedback: 'not_helpful', sessionId: 'rb', normalizedQuestion: 'delivery to riga', createdAt: new Date(now - day + 1000).toISOString() },
       { id: 'r3', question: 'Setup help', answer: 'Setup answer', locale: 'en', matched: true, matchedFaqId: 'setup', confidence: 0.4, feedback: 'not_helpful', sessionId: 'rc', normalizedQuestion: 'setup help', createdAt: new Date(now - 2 * day).toISOString() },
       { id: 'r4', question: 'Setup help again', answer: 'Setup answer', locale: 'en', matched: true, matchedFaqId: 'setup', confidence: 0.45, feedback: 'helpful', sessionId: 'rd', normalizedQuestion: 'setup help again', createdAt: new Date(now - 2 * day + 1000).toISOString() },
+      { id: 'c1', messageId: 'c1', question: 'For home', assistantAnswer: 'What matters most?', answer: 'What matters most?', locale: 'en', matched: true, confidence: 0.8, intent: 'product_selection', responseType: 'clarify', sessionId: 'conv-a', normalizedQuestion: 'for home', sessionContext: { followupAsked: true, recommendationShown: false }, createdAt: new Date(now - day + 2000).toISOString() },
+      { id: 'c2', messageId: 'c2', question: 'For music', assistantAnswer: 'Recommended Mini Pro', answer: 'Recommended Mini Pro', locale: 'en', matched: true, confidence: 0.9, intent: 'music_use_case', responseType: 'recommendation', modelId: 'miniPro', sessionId: 'conv-a', normalizedQuestion: 'for music', sessionContext: { followupAsked: true, recommendationShown: true }, createdAt: new Date(now - day + 3000).toISOString() },
+      { id: 'handoff', question: 'Contact human', answer: 'WhatsApp Telegram', locale: 'en', matched: true, confidence: 1, intent: 'human_handoff', responseType: 'human_handoff', sessionId: 'conv-b', normalizedQuestion: 'contact human', createdAt: new Date(now - day + 4000).toISOString() },
+      { id: 'end', question: 'Thanks', answer: 'Thanks', locale: 'en', matched: false, confidence: 0.1, intent: 'conversation_end', responseType: 'conversation_end', sessionId: 'conv-c', normalizedQuestion: 'thanks', createdAt: new Date(now - day + 5000).toISOString() },
+      { id: 'noise', question: 'Test', answer: 'Fallback', locale: 'en', matched: false, confidence: 0.1, intent: 'noise_or_test', responseType: 'noise_or_test', sessionId: 'conv-d', normalizedQuestion: 'test', createdAt: new Date(now - day + 6000).toISOString() },
       { id: 'r5', question: 'Latvian only', answer: 'LV', locale: 'lv', matched: false, confidence: 0.1, sessionId: 're', normalizedQuestion: 'latvian only', createdAt: new Date(now - day).toISOString() },
       { id: 'old', question: 'Old topic', answer: 'Old', locale: 'en', matched: false, confidence: 0.1, sessionId: 'rf', normalizedQuestion: 'old topic', createdAt: new Date(now - 40 * day).toISOString() },
     ]);
@@ -215,12 +237,22 @@ async function main() {
     const to = new Date(now).toISOString().slice(0, 10);
     const reportData = await request(`/api/admin/assistant-improvement-report/data?dateFrom=${from}&dateTo=${to}&locale=en`, { headers: auth(token) });
     assert.strictEqual(reportData.res.status, 200);
-    assert.strictEqual(reportData.body.totalQuestions, 4, 'date and locale filtering are applied');
-    assert.strictEqual(reportData.body.uniqueSessions, 4);
-    assert.strictEqual(reportData.body.unmatchedCount, 2);
+    assert.strictEqual(reportData.body.totalQuestions, 9, 'date and locale filtering are applied');
+    assert.strictEqual(reportData.body.uniqueSessions, 8);
+    assert.strictEqual(reportData.body.unmatchedCount, 4);
     assert.ok(reportData.body.repeatedQuestions.some(group => group.normalizedQuestion === 'delivery to riga' && group.count === 2), 'repeated question grouping works');
     assert.ok(reportData.body.missingFaqCandidates[0].priorityScore >= reportData.body.missingFaqCandidates.at(-1).priorityScore, 'missing FAQ candidates are priority sorted');
     assert.ok(reportData.body.weakFaqStats.some(item => item.faqId === 'setup'), 'weak FAQ is identified');
+    assert.ok(reportData.body.intentDistribution.some(item => item.intent === 'product_selection'), 'intent distribution is included');
+    assert.strictEqual(reportData.body.conversationFunnels.startedSelection, 1, 'conversation funnel tracks selection starts');
+    assert.strictEqual(reportData.body.conversationFunnels.recommendationShown, 1, 'conversation funnel tracks recommendations');
+    assert.ok(reportData.body.failedConversations.some(item => item.reasons.includes('human_handoff_requested')), 'human handoff is a failed conversation');
+    assert.strictEqual(reportData.body.missingFaqCandidates.some(item => ['thanks', 'test'].includes(item.title)), false, 'end/noise messages are excluded from missing FAQ candidates');
+    assert.strictEqual(reportData.body.conversationFunnels.failedConversations, 1, 'end/noise are excluded from failed conversation counts');
+
+    const cleanQueue = await request('/api/admin/assistant-questions?preset=needs_improvement&page=1&limit=50', { headers: auth(token) });
+    assert.strictEqual(cleanQueue.res.status, 200);
+    assert.strictEqual(cleanQueue.body.items.some(item => ['end', 'noise'].includes(item.id)), false, 'end/noise messages are excluded from improvement queue');
     assert.ok(reportData.body.comparisonWithPreviousPeriod.newlyAppearingQuestionTopics.includes('delivery to riga'), 'trend comparison finds new topics');
     assert.strictEqual(JSON.stringify(reportData.body).includes('test@example.com'), false, 'PII email is redacted from report data');
     assert.strictEqual(JSON.stringify(reportData.body).includes('+371 22222222'), false, 'PII phone is redacted from report data');
@@ -234,12 +266,18 @@ async function main() {
     assert.match(exportRes.res.headers.get('content-disposition') || '', /assistant-ai-report-/, 'AI export is downloadable');
     assert.strictEqual(exportRes.body.purpose, 'assistant_improvement_llm_review');
     assert.strictEqual(exportRes.body.parameters.includeConversations, true);
-    assert.strictEqual(exportRes.body.overview.totalQuestions, 4);
+    assert.strictEqual(exportRes.body.overview.totalQuestions, 9);
     assert.ok(Array.isArray(exportRes.body.faqEntries) && exportRes.body.faqEntries.length > 0, 'AI export includes all FAQ entries');
     assert.ok(exportRes.body.faqUsageStatistics.some(item => item.faqId === 'setup'), 'AI export includes FAQ usage statistics');
     assert.ok(exportRes.body.negativeFeedbackSummary.examples.length, 'AI export includes negative feedback examples');
     assert.ok(exportRes.body.lowConfidenceQuestions.length, 'AI export includes low-confidence questions');
     assert.ok(exportRes.body.exampleConversations.some(item => item.conversations.length), 'AI export includes representative conversations');
+    const exportedConversation = exportRes.body.conversationHistory.find(item => item.intentSequence.includes('product_selection') && item.intentSequence.includes('music_use_case'));
+    assert.ok(exportedConversation, 'AI export includes grouped conversation history and intent sequence');
+    assert.ok(exportedConversation.messages.some(item => item.assistantAnswer === 'What matters most?'), 'AI export includes assistant answers');
+    assert.ok(exportedConversation.followUpQuestions.includes('What matters most?'), 'AI export includes follow-up questions');
+    assert.strictEqual(exportedConversation.recommendationShown.modelId, 'miniPro', 'AI export includes recommendation shown');
+    assert.strictEqual(exportedConversation.sessionOutcome, 'recommendation_shown', 'AI export includes session outcome');
     assert.ok(exportRes.body.assistantAnswers.some(item => item.assistantAnswer === 'Delivery answer'), 'AI export includes assistant answers');
     assert.ok(exportRes.body.currentFaqTextsByLanguage.en?.length, 'AI export includes FAQ texts by language');
     assert.ok(exportRes.body.productCatalogMetadata.some(item => item.id === 'p1'), 'AI export includes in-stock product metadata');
@@ -251,6 +289,7 @@ async function main() {
     assert.strictEqual(exportJson.includes('ipAddress'), false, 'AI export does not include IP address fields');
     assert.strictEqual(exportJson.includes('remoteAddress'), false, 'AI export does not include remote address fields');
     assert.strictEqual(exportJson.includes('authorization'), false, 'AI export does not include auth fields');
+    assert.strictEqual(exportJson.includes('cookie'), false, 'AI export does not include cookies');
 
     const exportNoConversations = await request(`/api/admin/assistant-improvement-report/export?dateFrom=${from}&dateTo=${to}&locale=en&includeConversations=false`, { headers: auth(token) });
     assert.strictEqual(exportNoConversations.res.status, 200);

@@ -958,10 +958,15 @@ function toPublicAssistantRecord(record) {
   const normalizedQuestion = record.normalizedQuestion || normalizeQuestionText(record.question);
   const matchedFaqId = assistantMatchedFaqId(record);
   const confidence = assistantConfidence(record);
+  const answer = record.assistantAnswer || record.answer || '';
   const item = {
     id: assistantRecordId(record),
+    messageId: sanitizeAssistantText(record.messageId, 100) || assistantRecordId(record),
+    timestamp: record.timestamp || record.createdAt || '',
+    role: ['user', 'assistant'].includes(record.role) ? record.role : 'assistant',
     question: record.question || '',
-    answer: record.answer || '',
+    answer,
+    assistantAnswer: answer,
     locale: record.locale || 'ru',
     matched: assistantMatched(record),
     matchedFaqId,
@@ -976,6 +981,7 @@ function toPublicAssistantRecord(record) {
     feedback: record.feedback || '',
     reviewed: Boolean(record.reviewed),
     adminNote: record.adminNote || '',
+    sessionContext: record.sessionContext && typeof record.sessionContext === 'object' ? record.sessionContext : null,
     normalizedQuestion,
     createdAt: record.createdAt || '',
   };
@@ -995,6 +1001,7 @@ function assistantImprovementReasons(record) {
 function isAssistantImprovementCandidate(record, reviewedMode = false) {
   const item = toPublicAssistantRecord(record);
   if (!item.normalizedQuestion) return false;
+  if (['conversation_end', 'noise_or_test'].includes(item.intent)) return false;
   if (reviewedMode ? !item.reviewed : item.reviewed) return false;
   return item.improvementReasons.length > 0;
 }
@@ -1196,6 +1203,7 @@ function groupRepeatedQuestions(records) {
       negativeFeedbackCount: 0,
       latestCreatedAt: '',
       unmatchedCount: 0,
+      intents: new Map(),
     };
     group.count++;
     if (group.exampleQuestions.length < 5) group.exampleQuestions.push(redactPii(item.question, 180));
@@ -1205,6 +1213,7 @@ function groupRepeatedQuestions(records) {
     if (item.feedback === 'not_helpful') group.negativeFeedbackCount++;
     if (!item.matched) group.unmatchedCount++;
     if (!group.latestCreatedAt || String(item.createdAt) > group.latestCreatedAt) group.latestCreatedAt = item.createdAt;
+    if (item.intent) group.intents.set(item.intent, (group.intents.get(item.intent) || 0) + 1);
     groups.set(item.normalizedQuestion, group);
   });
   return [...groups.values()].map(group => ({
@@ -1216,6 +1225,7 @@ function groupRepeatedQuestions(records) {
     matchedFaqIds: [...group.matchedFaqIds],
     negativeFeedbackCount: group.negativeFeedbackCount,
     unmatchedCount: group.unmatchedCount,
+    intent: [...group.intents.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || '',
     latestCreatedAt: group.latestCreatedAt,
   })).sort((a, b) => b.count - a.count || String(b.latestCreatedAt).localeCompare(String(a.latestCreatedAt)));
 }
@@ -1257,6 +1267,7 @@ function buildMatchedFaqStats(records, repeatedQuestions) {
 
 function buildMissingFaqCandidates(repeatedQuestions) {
   return repeatedQuestions
+    .filter(group => !['conversation_end', 'noise_or_test'].includes(group.intent))
     .filter(group => !group.matchedFaqIds.length || group.unmatchedCount > 0 || group.negativeFeedbackCount > 0 || (group.averageConfidence != null && group.averageConfidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD))
     .map(group => {
       const recencyDays = Math.max(0, (Date.now() - new Date(group.latestCreatedAt || 0).getTime()) / (24 * 60 * 60 * 1000));
@@ -1305,6 +1316,65 @@ function comparePeriods(currentRecords, previousRecords) {
   };
 }
 
+function assistantConversationGroups(records) {
+  const groups = new Map();
+  records.map(toPublicAssistantRecord).forEach(item => {
+    const key = item.sessionId || `legacy:${item.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+  return [...groups.entries()].map(([sessionId, items]) => ({
+    sessionId,
+    sessionRef: sessionId.startsWith('legacy:') ? '' : crypto.createHash('sha256').update(sessionId).digest('hex').slice(0, 16),
+    messages: items.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || a.id.localeCompare(b.id)),
+  })).sort((a, b) => String(a.messages[0]?.createdAt || '').localeCompare(String(b.messages[0]?.createdAt || '')));
+}
+
+function assistantIntentDistribution(records) {
+  const counts = new Map();
+  records.map(toPublicAssistantRecord).forEach(item => {
+    const key = item.intent || 'legacy_unknown';
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([intent, count]) => ({ intent, count }));
+}
+
+function assistantConversationFunnels(records) {
+  const sessions = assistantConversationGroups(records);
+  const summary = {
+    startedSelection: 0,
+    answeredFollowup: 0,
+    recommendationShown: 0,
+    contactClicked: 0,
+    failedConversations: 0,
+  };
+  const failed = [];
+  sessions.forEach(session => {
+    const relevant = session.messages.filter(item => !['conversation_end', 'noise_or_test'].includes(item.intent));
+    const intents = relevant.map(item => item.intent).filter(Boolean);
+    if (intents.includes('product_selection')) summary.startedSelection++;
+    if (intents.some(intent => ['music_use_case', 'budget_request', 'product_size', 'smart_home'].includes(intent))) summary.answeredFollowup++;
+    if (relevant.some(item => ['recommendation', 'model', 'availability'].includes(item.responseType) || item.sessionContext?.recommendationShown)) summary.recommendationShown++;
+    if (relevant.some(item => item.responseType === 'contact_clicked')) summary.contactClicked++;
+    const consecutiveUnmatched = relevant.some((item, index, arr) => index > 0 && !item.matched && !arr[index - 1].matched);
+    const repeatedLow = relevant.filter(item => item.hasConfidence && item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD).length >= 2;
+    const handoff = intents.includes('human_handoff');
+    if (consecutiveUnmatched || repeatedLow || handoff) {
+      summary.failedConversations++;
+      failed.push({
+        sessionRef: session.sessionRef,
+        reasons: [
+          consecutiveUnmatched ? 'multiple_consecutive_unmatched' : '',
+          repeatedLow ? 'repeated_low_confidence' : '',
+          handoff ? 'human_handoff_requested' : '',
+        ].filter(Boolean),
+        intentSequence: intents,
+      });
+    }
+  });
+  return { summary, failed: failed.slice(0, 50) };
+}
+
 async function buildAssistantImprovementReportData(query = {}) {
   const { dateFrom, dateTo } = assistantReportRange(query);
   const locale = assistantReportLocale(query);
@@ -1319,6 +1389,7 @@ async function buildAssistantImprovementReportData(query = {}) {
   const matchedFaqStats = buildMatchedFaqStats(current, repeatedQuestions);
   const weakFaqStats = matchedFaqStats.filter(stat => stat.weak);
   const summary = summarizeAssistantRecords(current);
+  const funnels = assistantConversationFunnels(current);
   const confidenceValues = publicCurrent.filter(item => item.hasConfidence).map(item => item.confidence);
   return {
     dateFrom,
@@ -1332,6 +1403,9 @@ async function buildAssistantImprovementReportData(query = {}) {
     negativeFeedbackCount: publicCurrent.filter(item => item.feedback === 'not_helpful').length,
     averageConfidence: average(confidenceValues),
     needsImprovementCount: summary.improvement.total,
+    intentDistribution: assistantIntentDistribution(current),
+    conversationFunnels: funnels.summary,
+    failedConversations: funnels.failed,
     repeatedQuestions: repeatedQuestions.slice(0, 20),
     matchedFaqStats: matchedFaqStats.slice(0, 20),
     weakFaqStats: weakFaqStats.slice(0, 15),
@@ -1417,6 +1491,8 @@ function representativeConversations(records, repeatedQuestions, includeConversa
           normalizedQuestion: sanitizeAiText(item.normalizedQuestion, 180),
           userQuestion: sanitizeAiText(item.question, 300),
           assistantAnswer: sanitizeAiText(item.answer, 1200),
+          intent: item.intent || '',
+          responseType: item.responseType || '',
           matched: item.matched,
           matchedFaqId: item.matchedFaqId || null,
           confidence: item.hasConfidence ? item.confidence : null,
@@ -1476,6 +1552,38 @@ function lowConfidenceQuestions(records) {
     }));
 }
 
+function aiConversationHistory(records, includeConversations) {
+  if (!includeConversations) return [];
+  return assistantConversationGroups(records).slice(0, 200).map(session => {
+    const messages = session.messages.map(item => ({
+      messageId: sanitizeAiText(item.messageId, 100),
+      timestamp: item.timestamp || item.createdAt,
+      role: item.role || 'assistant',
+      question: sanitizeAiText(item.question, 300),
+      assistantAnswer: sanitizeAiText(item.assistantAnswer, 1200),
+      matchedFaqId: item.matchedFaqId || null,
+      matched: item.matched,
+      confidence: item.hasConfidence ? item.confidence : null,
+      intent: item.intent || '',
+      responseType: item.responseType || '',
+    }));
+    const intentSequence = messages.map(item => item.intent).filter(Boolean);
+    const recommendation = session.messages.find(item => ['recommendation', 'model', 'availability'].includes(item.responseType) || item.sessionContext?.recommendationShown);
+    const handoff = intentSequence.includes('human_handoff');
+    const ended = intentSequence.includes('conversation_end');
+    return {
+      sessionRef: session.sessionRef,
+      startedAt: messages[0]?.timestamp || '',
+      endedAt: messages.at(-1)?.timestamp || '',
+      intentSequence,
+      sessionOutcome: handoff ? 'human_handoff' : recommendation ? 'recommendation_shown' : ended ? 'ended' : 'open_or_unresolved',
+      recommendationShown: recommendation ? { modelId: recommendation.modelId || '', colorKey: recommendation.colorKey || '', answer: sanitizeAiText(recommendation.assistantAnswer, 1200) } : null,
+      followUpQuestions: messages.filter(item => ['product_selection', 'clarify'].includes(item.intent) || item.responseType === 'clarify').map(item => item.assistantAnswer).filter(Boolean),
+      messages,
+    };
+  });
+}
+
 async function buildAssistantImprovementAiExport(query = {}) {
   const data = await buildAssistantImprovementReportData(query);
   const locale = assistantReportLocale(query);
@@ -1505,6 +1613,9 @@ async function buildAssistantImprovementAiExport(query = {}) {
       negativeFeedbackCount: data.negativeFeedbackCount,
       averageConfidence: data.averageConfidence,
       needsImprovementCount: data.needsImprovementCount,
+      intentDistribution: data.intentDistribution,
+      conversationFunnels: data.conversationFunnels,
+      failedConversations: data.failedConversations,
       dailyQuestionCounts: data.dailyQuestionCounts,
       comparisonWithPreviousPeriod: data.comparisonWithPreviousPeriod,
     },
@@ -1529,6 +1640,7 @@ async function buildAssistantImprovementAiExport(query = {}) {
     }),
     negativeFeedbackSummary: negativeFeedbackSummary(records),
     lowConfidenceQuestions: lowConfidenceQuestions(records),
+    conversationHistory: aiConversationHistory(records, includeConversations),
     exampleConversations: representativeConversations(records, repeatedQuestions, includeConversations),
     assistantAnswers: assistantAnswerExamples(records),
     currentFaqTextsByLanguage: faqEntries.reduce((acc, faq) => {
@@ -1783,9 +1895,28 @@ app.post('/api/public/assistant-question', async (req, res) => {
     const matched = Boolean(req.body?.matched) || Boolean(matchedFaqId);
     const confidence = Math.max(0, Math.min(1, Number(req.body?.confidence) || 0));
     const sessionId = sanitizeAssistantText(req.body?.sessionId, 80).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+    const messageId = sanitizeAssistantText(req.body?.messageId, 100).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100) || crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    const sessionContext = req.body?.sessionContext && typeof req.body.sessionContext === 'object' ? {
+      intent: sanitizeAssistantText(req.body.sessionContext.intent, 60),
+      recommendationShown: Boolean(req.body.sessionContext.recommendationShown),
+      followupAsked: Boolean(req.body.sessionContext.followupAsked),
+      selectedScenario: sanitizeAssistantText(req.body.sessionContext.selectedScenario, 60),
+      preferences: {
+        useCase: sanitizeAssistantText(req.body.sessionContext.preferences?.useCase, 80) || null,
+        budget: sanitizeAssistantText(req.body.sessionContext.preferences?.budget, 80) || null,
+        soundPriority: sanitizeAssistantText(req.body.sessionContext.preferences?.soundPriority, 80) || null,
+        smartHome: req.body.sessionContext.preferences?.smartHome == null ? null : Boolean(req.body.sessionContext.preferences.smartHome),
+        portable: req.body.sessionContext.preferences?.portable == null ? null : Boolean(req.body.sessionContext.preferences.portable),
+      },
+    } : null;
     const entry = {
+      messageId,
+      timestamp: createdAt,
+      role: 'assistant',
       question,
       answer,
+      assistantAnswer: sanitizeAssistantText(req.body?.assistantAnswer || answer, 1200),
       locale,
       matched,
       matchedFaqId,
@@ -1796,10 +1927,11 @@ app.post('/api/public/assistant-question', async (req, res) => {
       colorKey: sanitizeAssistantText(req.body?.colorKey, 60),
       pageUrl: sanitizeAssistantUrl(req.body?.pageUrl),
       sessionId,
+      sessionContext,
       normalizedQuestion: normalizeQuestionText(question),
       reviewed: false,
       adminNote: '',
-      createdAt: new Date().toISOString(),
+      createdAt,
     };
     const id = await createAssistantQuestion(entry);
     res.json({ ok: true, id });

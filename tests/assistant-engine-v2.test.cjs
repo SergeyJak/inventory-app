@@ -200,12 +200,16 @@ const faqAnswers = {
   },
 };
 
-function createEngine(lang = 'ru') {
+function createEngine(lang = 'ru', overrides = {}) {
+  const activeModels = overrides.models || models;
+  const activeKnownModels = overrides.knownModels || knownModels;
+  const activeCopy = overrides.modelCopy || modelCopy;
   return context.window.AssistantEngine.createAssistantEngine({
-    models: () => models,
-    knownModels: () => knownModels,
+    models: () => activeModels,
+    knownModels: () => activeKnownModels,
     t: key => translationSets[lang][key] || key,
-    modelText: (model, key) => modelCopy[lang][model.id][key] || '',
+    modelText: (model, key) => activeCopy[lang][model.id][key] || '',
+    contactMethods: () => overrides.contactMethods || [],
     findFaq: input => {
       const normalized = String(input).toLowerCase();
       const matched =
@@ -436,7 +440,6 @@ function testAvailabilityUsesCatalogStock() {
 
 function testScenarioMatrix() {
   const cases = [
-    [words.homeScenario, 'miniPro'],
     [words.music, 'miniPro'],
     [words.childScenario, 'light2'],
     [words.giftScenario, 'light2'],
@@ -451,6 +454,9 @@ function testScenarioMatrix() {
     assert.strictEqual(response.modelId, modelId, input);
     assertAction(response, 'show_product', input);
   }
+  const homeStart = createEngine('ru').handle(words.homeScenario);
+  assert.strictEqual(homeStart.type, 'clarify', 'home starts product-selection follow-up');
+  assert.strictEqual(homeStart.intent, 'product_selection');
 }
 
 function testContextSwitchMatrix() {
@@ -650,8 +656,98 @@ function testSmallTalkAndEmptyInput() {
   }
   for (const input of ['', ' ', '......', '???']) {
     const response = createEngine('ru').handle(input);
-    assert.strictEqual(response.type, 'clarify', JSON.stringify(input));
+    assert.strictEqual(response.type, 'noise_or_test', JSON.stringify(input));
   }
+}
+
+function testConsultantIntentClassification() {
+  const cases = [
+    [words.homeScenario, 'product_selection', 'clarify'],
+    [words.music, 'music_use_case', 'recommendation'],
+    [words.cheaper, 'budget_request', 'recommendation'],
+    [ru(1061,1086,1095,1091,32,1073,1086,1083,1100,1096,1091,1102), 'product_size', 'recommendation'],
+    [ru(1057,1074,1103,1079,1072,1090,1100,1089,1103,32,1089,32,1095,1077,1083,1086,1074,1077,1082,1086,1084), 'human_handoff', 'human_handoff'],
+    [ru(1057,1087,1072,1089,1080,1073,1086), 'conversation_end', 'conversation_end'],
+    [ru(1058,1077,1089,1090), 'noise_or_test', 'noise_or_test'],
+  ];
+  for (const [input, intent, type] of cases) {
+    const response = createEngine('ru').handle(input);
+    assert.strictEqual(response.intent, intent, input);
+    assert.strictEqual(response.type, type, input);
+  }
+}
+
+function testConsultantSessionContext() {
+  const engine = createEngine('ru');
+  const start = engine.handle(words.homeScenario);
+  assert.strictEqual(start.type, 'clarify');
+  assert.strictEqual(engine.snapshot().followupAsked, true);
+  const followup = engine.handle(words.music);
+  assert.strictEqual(followup.modelId, 'miniPro');
+  assert.strictEqual(engine.snapshot().preferences.useCase, 'music');
+  assert.strictEqual(engine.snapshot().recommendationShown, true);
+}
+
+function testConversationalAssistantRequestedScenarios() {
+  const unavailableCheap = { id: 'midi', price: 50, aliases: ['midi', ru(1084,1080,1076,1080)], photos: [] };
+  const availableExpensive = { id: 'miniPro', price: 240, aliases: ['mini pro', ru(1084,1080,1085,1080,32,51,32,1087,1088,1086)], photos: [{ colorKey: 'blue' }] };
+  const availableCheaper = { id: 'street', price: 135, aliases: ['street', ru(1089,1090,1088,1080,1090)], photos: [{ colorKey: 'green' }] };
+  const activeModels = [availableExpensive, availableCheaper];
+  const activeKnownModels = [unavailableCheap, availableExpensive, availableCheaper];
+  const engine = createEngine('ru', {
+    models: activeModels,
+    knownModels: activeKnownModels,
+    contactMethods: [{ id: 'whatsapp', label: 'WhatsApp' }, { id: 'telegram', label: 'Telegram' }],
+  });
+
+  const home = engine.handle(words.homeScenario);
+  assert.strictEqual(home.intent, 'product_selection', 'home intent');
+  assert.strictEqual(home.type, 'clarify', 'home responseType is consultant follow-up');
+  assert.ok(home.text.includes(ru(1087,1086,1076,1073,1080,1088,1072,1077,1084)) || home.text.includes(ru(1076,1083,1103,32,1095,1077,1075,1086)), 'home asks a clarifying question');
+  assert.strictEqual(Boolean(home.faq), false, 'home does not force FAQ');
+  assert.strictEqual(home.modelId, undefined, 'home does not show recommendation yet');
+  assert.strictEqual(engine.snapshot().recommendationShown, false, 'home does not mark recommendation shown');
+
+  const music = engine.handle(words.music);
+  assert.strictEqual(music.intent, 'music_use_case', 'music follow-up intent');
+  assert.strictEqual(engine.snapshot().previousQuestions[0], words.homeScenario, 'session context preserves first message');
+  assert.strictEqual(engine.snapshot().preferences.useCase, 'music', 'music preference stored');
+  assert.strictEqual(music.type, 'recommendation', 'music continues selection flow');
+  assert.ok(activeModels.some(model => model.id === music.modelId), 'music recommends only available products');
+  assert.notStrictEqual(music.modelId, unavailableCheap.id, 'music does not recommend unavailable cheap product');
+  assert.ok(music.text.includes(`${availableExpensive.price} €`), 'music displayed price comes from inventory fixture');
+
+  const budget = engine.handle(words.cheaper);
+  assert.strictEqual(budget.intent, 'budget_request', 'budget follow-up intent');
+  assert.strictEqual(engine.snapshot().preferences.useCase, 'music', 'budget keeps previous music preference');
+  assert.strictEqual(engine.snapshot().preferences.budget, 'low', 'budget preference stored');
+  assert.strictEqual(budget.modelId, availableCheaper.id, 'budget recommends cheapest in-stock suitable product');
+  assert.notStrictEqual(budget.modelId, unavailableCheap.id, 'budget never recommends unavailable product');
+  assert.ok(budget.text.includes(`${availableCheaper.price} €`), 'budget price is data-driven');
+
+  const handoff = createEngine('ru', {
+    contactMethods: [{ id: 'whatsapp', label: 'WhatsApp' }, { id: 'telegram', label: 'Telegram' }],
+  }).handle(ru(1061,1086,1095,1091,32,1087,1086,1086,1073,1097,1072,1090,1100,1089,1103,32,1089,32,1095,1077,1083,1086,1074,1077,1082,1086,1084));
+  assert.strictEqual(handoff.intent, 'human_handoff', 'handoff intent');
+  assert.strictEqual(handoff.type, 'human_handoff', 'handoff responseType');
+  assert.deepStrictEqual(handoff.actions.map(action => action.label), ['WhatsApp', 'Telegram'], 'handoff contains configured contact actions');
+  assert.strictEqual(Boolean(handoff.faq), false, 'handoff does not use FAQ');
+
+  const end = createEngine('ru').handle(ru(1057,1087,1072,1089,1080,1073,1086,44,32,1087,1086,1076,1091,1084,1072,1102));
+  assert.strictEqual(end.intent, 'conversation_end', 'conversation end intent');
+  assert.strictEqual(end.type, 'conversation_end', 'conversation end responseType');
+  assert.ok(end.text && end.text !== translationSets.ru['faq.fallback'], 'conversation end returns natural closing');
+
+  const noise = createEngine('ru').handle(ru(1090,1077,1089,1090));
+  assert.strictEqual(noise.intent, 'noise_or_test', 'noise intent');
+  assert.strictEqual(noise.type, 'noise_or_test', 'noise responseType');
+
+  const isolatedA = createEngine('ru');
+  isolatedA.handle(words.homeScenario);
+  isolatedA.handle(words.music);
+  const isolatedB = createEngine('ru');
+  assert.strictEqual(isolatedB.snapshot().preferences.useCase, null, 'preferences do not leak into new session');
+  assert.strictEqual(isolatedB.snapshot().previousQuestions.length, 0, 'new session starts without previous messages');
 }
 
 function testLongInputDoesNotCrash() {
@@ -757,7 +853,7 @@ function testRequiredRegressionFlow() {
     [words.childScenario, 'light2'],
     [words.cheaper, 'light2'],
     [words.musicSwitch, 'miniPro'],
-    [words.homeScenario, 'miniPro'],
+    [ru(1053,1077,1090,44,32,1074,1089,1077,32,1090,1072,1082,1080,32,1088,1077,1073,1105,1085,1082,1091), 'light2'],
     ['Midi', 'midi'],
     [words.another, 'light2'],
     [words.back, 'midi'],
@@ -836,14 +932,16 @@ function testGoldenConversationsAndIntentCoverage() {
   ], coverage);
 
   runDialog('G', 'ru', [
-    { input: words.homeScenario, intent: 'home', modelId: 'miniPro', showProduct: true },
+    { input: words.homeScenario, intent: 'product_selection', type: 'clarify' },
+    { input: words.music, intent: 'music', modelId: 'miniPro', showProduct: true },
     { input: 'Light 2', intent: 'model', modelId: 'light2', showProduct: true },
     { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
     { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
   ], coverage);
 
   runDialog('H', 'en', [
-    { input: 'For home', intent: 'home', scenario: 'home', modelId: 'miniPro', showProduct: true },
+    { input: 'For home', intent: 'product_selection', type: 'clarify' },
+    { input: 'For music', intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
     { input: 'Another option', intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
     { input: 'Back', intent: 'back', modelId: 'miniPro' },
   ], coverage);
@@ -906,6 +1004,9 @@ testNegativeInputs();
 testLanguageSwitchKeepsContext();
 testMixedLanguages();
 testSmallTalkAndEmptyInput();
+testConsultantIntentClassification();
+testConsultantSessionContext();
+testConversationalAssistantRequestedScenarios();
 testLongInputDoesNotCrash();
 testActionButtonsAsClickAndText();
 testCatalogRecommendationIntegrity();

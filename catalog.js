@@ -380,6 +380,11 @@ function createAssistantEngine() {
     t: path => dict(path),
     modelText,
     findFaq: findFaqAnswer,
+    contactMethods: () => [
+      CONTACT_CONFIG.whatsappPhone ? { id: 'whatsapp', label: 'WhatsApp' } : null,
+      CONTACT_CONFIG.telegramUsername ? { id: 'telegram', label: 'Telegram' } : null,
+      CONTACT_CONFIG.whatsappPhone ? { id: 'phone', label: `+${CONTACT_CONFIG.whatsappPhone}` } : null,
+    ].filter(Boolean),
   });
 }
 
@@ -519,6 +524,9 @@ function logAssistantQuestion(question, answer, result = {}) {
       colorKey: result.colorKey || '',
       pageUrl: safePageUrl(),
       sessionId: assistantSessionId(),
+      messageId: crypto?.randomUUID?.() || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`,
+      assistantAnswer: String(answer || '').slice(0, 1200),
+      sessionContext: assistantEngine?.snapshot?.() || null,
     }),
   })
     .then(res => (res.ok ? res.json() : null))
@@ -542,6 +550,7 @@ function appendAssistantResponse(response) {
             data-action="${escapeHtml(action.id)}"
             ${action.modelId ? `data-model-id="${escapeHtml(action.modelId)}"` : ''}
             ${action.colorKey ? `data-color-key="${escapeHtml(action.colorKey)}"` : ''}
+            ${action.channel ? `data-channel="${escapeHtml(action.channel)}"` : ''}
             ${action.scenarioId ? `data-scenario="${escapeHtml(action.scenarioId)}"` : ''}>
             ${escapeHtml(action.label)}
           </button>
@@ -656,6 +665,17 @@ function handleAssistantAction(action) {
   if (action.dataset.action === 'scenario') {
     answerFaq(action.textContent);
     trackAssistantEvent('assistant_followup', { scenario: action.dataset.scenario || '' });
+    return;
+  }
+  if (action.dataset.action === 'contact') {
+    trackAssistantEvent('assistant_contact_clicked', { channel: action.dataset.channel || '' });
+    logAssistantQuestion('contact clicked', action.textContent || 'Contact', {
+      matched: true,
+      confidence: 1,
+      type: 'contact_clicked',
+      intent: 'human_handoff',
+    });
+    openContactPanel('question');
     return;
   }
   if (action.dataset.action === 'back') {
