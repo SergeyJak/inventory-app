@@ -857,6 +857,36 @@ p {
   box-shadow: inset 0 0 0 1px rgba(17, 17, 20, .12), 0 10px 24px rgba(10, 18, 28, .08);
 }
 
+.assistant-feedback {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  color: rgba(39, 40, 45, .62);
+  font-size: 11px;
+}
+
+.assistant-feedback button {
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, .72);
+  color: #343741;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.assistant-feedback button:disabled {
+  cursor: default;
+  opacity: .58;
+}
+
+.assistant-feedback.is-sent button {
+  display: none;
+}
+
 .assistant-highlight {
   animation: assistantHighlight 2s ease both;
 }

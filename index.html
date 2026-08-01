@@ -50,6 +50,7 @@
   <button class="tab-btn" data-tab="history">📋 История</button>
   <button class="tab-btn admin-only" data-tab="accounts">&#x410;&#x43A;&#x43A;&#x430;&#x443;&#x43D;&#x442;&#x44B;</button>
   <button class="tab-btn admin-only" data-tab="mail-accounts">Mail Accounts</button>
+  <button class="tab-btn admin-only" data-tab="assistant-questions">Assistant questions</button>
   <button class="tab-btn admin-only" data-tab="backups">Резервные копии</button>
   <button class="tab-btn" data-tab="annual">📅 Отчётность</button>
   <a class="tab-btn" href="/reports" style="text-decoration:none">📈 Analytics</a>
@@ -223,6 +224,49 @@
   </table>
 </section>
 <!-- ===== MAIL ACCOUNTS ===== -->
+<section id="tab-assistant-questions" class="tab-content admin-only">
+  <h2>Assistant questions</h2>
+  <div class="assistant-admin-presets">
+    <button class="accounts-view-btn active" type="button" data-assistant-preset="" onclick="setAssistantPreset('')">All</button>
+    <button class="accounts-view-btn" type="button" data-assistant-preset="needs_improvement" onclick="setAssistantPreset('needs_improvement')">Needs improvement <span id="assistant-needs-badge">0</span></button>
+    <button class="accounts-view-btn" type="button" data-assistant-preset="needs_improvement_reviewed" onclick="setAssistantPreset('needs_improvement_reviewed')">Reviewed improvement items</button>
+  </div>
+  <div class="assistant-admin-summary" id="assistant-admin-summary"></div>
+  <div class="accounts-toolbar assistant-admin-filters">
+    <input type="search" id="assistant-search" placeholder="Search question text..." />
+    <select id="assistant-filter-focus">
+      <option value="">All questions</option>
+      <option value="unmatched">Unanswered / unmatched</option>
+      <option value="low">Low confidence</option>
+      <option value="negative">Negative feedback</option>
+    </select>
+    <select id="assistant-filter-locale">
+      <option value="">Any language</option>
+      <option value="ru">RU</option>
+      <option value="lv">LV</option>
+      <option value="en">EN</option>
+    </select>
+    <select id="assistant-filter-reviewed">
+      <option value="">Any review status</option>
+      <option value="false">Unreviewed</option>
+      <option value="true">Reviewed</option>
+    </select>
+    <input type="date" id="assistant-filter-from" />
+    <input type="date" id="assistant-filter-to" />
+    <button class="btn-secondary" type="button" onclick="renderAssistantQuestions()">Apply</button>
+  </div>
+  <div class="accounts-summary" id="assistant-questions-summary"></div>
+  <table id="assistant-questions-table">
+    <thead><tr><th>Date</th><th>Session</th><th>Question / answer</th><th>Lang</th><th>FAQ</th><th>Confidence</th><th>Status</th><th>Feedback</th><th>Review</th><th>Note</th><th>Actions</th></tr></thead>
+    <tbody id="assistant-questions-tbody"></tbody>
+  </table>
+  <div class="assistant-admin-pager">
+    <button class="btn-secondary" type="button" onclick="changeAssistantPage(-1)">Prev</button>
+    <span id="assistant-page-label"></span>
+    <button class="btn-secondary" type="button" onclick="changeAssistantPage(1)">Next</button>
+  </div>
+</section>
+
 <section id="tab-mail-accounts" class="tab-content admin-only">
   <h2>HeySmart Mail Accounts</h2>
 

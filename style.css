@@ -194,11 +194,30 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 .mail-admin-code span { color: rgba(255,255,255,.7); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .mail-admin-code strong { font-size: 1.8rem; line-height: 1; }
 
+/* ========== ASSISTANT QUESTIONS ADMIN ========== */
+.assistant-admin-summary { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.assistant-admin-presets { display: inline-flex; gap: 4px; background: #e2e8f0; border-radius: 8px; padding: 4px; margin: 0 0 16px; }
+.assistant-admin-presets span { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; min-height: 18px; margin-left: 6px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.74rem; }
+.assistant-admin-toplist { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 14px; display: grid; gap: 6px; color: #475569; font-size: 0.84rem; }
+.assistant-admin-toplist strong { color: #0f172a; }
+.assistant-admin-toplist span { overflow-wrap: anywhere; }
+.assistant-admin-filters { flex-wrap: wrap; align-items: stretch; }
+.assistant-admin-filters select, .assistant-admin-filters input[type="date"] { border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; font-size: 0.92rem; background: #fff; color: #1a1a2e; }
+#assistant-questions-table { font-size: 0.84rem; }
+#assistant-questions-table td { vertical-align: top; padding-top: 8px; padding-bottom: 8px; }
+.assistant-answer-preview { margin: 6px 0 4px; color: #475569; line-height: 1.35; max-width: 340px; }
+.assistant-bad-status { display: inline-block; background: #fef2f2; color: #991b1b; border-radius: 10px; padding: 2px 8px; font-size: 0.78rem; font-weight: 700; }
+.assistant-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.assistant-reason { display: inline-block; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; border-radius: 999px; padding: 1px 7px; font-size: 0.72rem; font-weight: 700; }
+.assistant-note { min-width: 150px; min-height: 56px; border: 1px solid #cbd5e1; border-radius: 7px; padding: 7px 8px; font: inherit; color: #334155; resize: vertical; }
+.assistant-admin-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 14px; color: #64748b; font-size: 0.88rem; font-weight: 700; }
+
 @media (max-width: 900px) {
   .mail-admin-grid { grid-template-columns: 1fr; }
   .mail-admin-message-layout { grid-template-columns: 1fr; }
   .mail-admin-message-list, .mail-admin-message-detail { max-height: none; }
   .accounts-actions { flex-wrap: wrap; white-space: normal; }
+  .assistant-admin-summary { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
 }
 
 /* ========== EMPTY STATE ========== */
@@ -223,4 +242,4 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 
 /* ========== RESPONSIVE ========== */
 @media (max-width: 760px) { .accounts-forms, .backup-grid, .mail-admin-grid { grid-template-columns: 1fr; } .accounts-toolbar { align-items: stretch; flex-direction: column; } .accounts-summary { white-space: normal; } .backup-checks { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .tab-content { padding: 16px; } .form-card { padding: 16px; } .stats-grid { grid-template-columns: 1fr 1fr; } header h1 { font-size: 1.2rem; } }
+@media (max-width: 640px) { .tab-content { padding: 16px; } .form-card { padding: 16px; } .stats-grid, .assistant-admin-summary { grid-template-columns: 1fr 1fr; } header h1 { font-size: 1.2rem; } }

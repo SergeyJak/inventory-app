@@ -229,6 +229,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'products')  renderProducts();
     if (btn.dataset.tab === 'accounts')  renderAccounts();
     if (btn.dataset.tab === 'mail-accounts') renderMailAccounts();
+    if (btn.dataset.tab === 'assistant-questions') renderAssistantQuestions();
     if (btn.dataset.tab === 'backups')   renderBackups();
     if (btn.dataset.tab === 'sales')     populateProductSelect('sale-product');
     if (btn.dataset.tab === 'restock')   populateProductSelect('restock-product');
@@ -946,6 +947,162 @@ function deleteSubAccount(id) {
   renderAccounts();
 }
 
+// ========== ASSISTANT QUESTIONS ADMIN ==========
+let assistantQuestionsPage = 1;
+let assistantQuestionsTotal = 0;
+let assistantQuestionsLimit = 25;
+let assistantQuestionsPreset = '';
+
+function assistantQueryParams() {
+  const params = new URLSearchParams({ page: String(assistantQuestionsPage), limit: String(assistantQuestionsLimit), sort: 'newest' });
+  const focus = document.getElementById('assistant-filter-focus')?.value || '';
+  const locale = document.getElementById('assistant-filter-locale')?.value || '';
+  const reviewed = document.getElementById('assistant-filter-reviewed')?.value || '';
+  const search = document.getElementById('assistant-search')?.value || '';
+  const from = document.getElementById('assistant-filter-from')?.value || '';
+  const to = document.getElementById('assistant-filter-to')?.value || '';
+  if (assistantQuestionsPreset === 'needs_improvement') params.set('preset', 'needs_improvement');
+  if (assistantQuestionsPreset === 'needs_improvement_reviewed') {
+    params.set('preset', 'needs_improvement');
+    params.set('reviewed', 'true');
+  }
+  if (focus === 'unmatched') params.set('matched', 'false');
+  if (focus === 'low') params.set('maxConfidence', '0.59');
+  if (focus === 'negative') params.set('feedback', 'not_helpful');
+  if (locale) params.set('locale', locale);
+  if (reviewed && assistantQuestionsPreset !== 'needs_improvement_reviewed') params.set('reviewed', reviewed);
+  if (search.trim()) params.set('search', search.trim());
+  if (from) params.set('from', `${from}T00:00:00`);
+  if (to) params.set('to', `${to}T23:59:59`);
+  return params;
+}
+
+function setAssistantPreset(preset) {
+  assistantQuestionsPreset = preset;
+  assistantQuestionsPage = 1;
+  document.querySelectorAll('[data-assistant-preset]').forEach(btn => btn.classList.toggle('active', btn.dataset.assistantPreset === preset));
+  renderAssistantQuestions();
+}
+
+function formatAssistantDate(value) {
+  if (!value) return '<span style="color:#94a3b8">-</span>';
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? esc(value) : date.toLocaleString('ru-RU');
+}
+
+function renderAssistantAdminSummary(summary = {}) {
+  const box = document.getElementById('assistant-admin-summary');
+  if (!box) return;
+  const repeated = (summary.repeatedQuestions || []).map(item => `<span>${esc(item.text)} (${item.count})</span>`).join('') || '<span>-</span>';
+  const faqs = (summary.matchedFaqs || []).map(item => `<span>${esc(item.id)} (${item.count})</span>`).join('') || '<span>-</span>';
+  const improvement = summary.improvement || {};
+  const threshold = summary.lowConfidenceThreshold;
+  box.innerHTML = `
+    <div class="stat-card"><span class="stat-label">Total</span><span class="stat-value">${Number(summary.total) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Unmatched</span><span class="stat-value">${Number(summary.unmatched) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Low confidence</span><span class="stat-value">${Number(summary.lowConfidence) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Negative feedback</span><span class="stat-value">${Number(summary.negativeFeedback) || 0}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">Unresolved improvement items</span><span class="stat-value">${Number(improvement.total) || 0}</span><span class="stat-sub">${threshold == null ? '' : `threshold < ${Number(threshold)}`}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">Queue negative feedback</span><span class="stat-value">${Number(improvement.negativeFeedback) || 0}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">Queue unmatched</span><span class="stat-value">${Number(improvement.unmatched) || 0}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">Queue low confidence</span><span class="stat-value">${Number(improvement.lowConfidence) || 0}</span></div>
+    <div class="assistant-admin-toplist"><strong>Repeated questions</strong>${repeated}</div>
+    <div class="assistant-admin-toplist"><strong>Matched FAQ</strong>${faqs}</div>
+  `;
+}
+
+function renderAssistantRows(items) {
+  const tbody = document.getElementById('assistant-questions-tbody');
+  if (!tbody) return;
+  if (!items.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="11">No assistant questions found.</td></tr>';
+    return;
+  }
+  let lastSession = '';
+  tbody.innerHTML = items.map(item => {
+    const session = item.sessionId || '-';
+    const sessionLabel = session && session === lastSession ? 'same session' : session;
+    lastSession = session;
+    const status = item.matched ? '<span class="account-status">matched</span>' : '<span class="assistant-bad-status">unmatched</span>';
+    const reasons = (item.improvementReasons || []).map(reason => `<span class="assistant-reason">${esc(reason)}</span>`).join('');
+    const reviewed = item.reviewed ? 'checked' : '';
+    return `<tr>
+      <td>${formatAssistantDate(item.createdAt)}</td>
+      <td><code>${esc(sessionLabel)}</code></td>
+      <td><strong>${esc(item.question)}</strong><p class="assistant-answer-preview">${esc(item.answer || '-')}</p><small>${esc(item.pageUrl || '')}</small></td>
+      <td>${esc(item.locale || '-')}</td>
+      <td>${esc(item.matchedFaqId || '-')}</td>
+      <td>${Math.round((Number(item.confidence) || 0) * 100)}%</td>
+      <td>${status}<div class="assistant-reasons">${reasons}</div></td>
+      <td>${esc(item.feedback || '-')}</td>
+      <td><label class="backup-confirm"><input type="checkbox" ${reviewed} onchange="updateAssistantQuestion('${esc(item.id)}', { reviewed: this.checked }, this)" /> reviewed</label></td>
+      <td><textarea class="assistant-note" data-assistant-note="${esc(item.id)}" maxlength="500">${esc(item.adminNote || '')}</textarea></td>
+      <td><span class="accounts-actions">
+        <button class="btn-edit" onclick="saveAssistantNote('${esc(item.id)}')">Save note</button>
+        <button class="btn-edit" onclick="copyAssistantQuestion('${esc(item.id)}')">Copy</button>
+      </span></td>
+    </tr>`;
+  }).join('');
+}
+
+async function renderAssistantQuestions() {
+  const tbody = document.getElementById('assistant-questions-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Loading assistant questions...</td></tr>';
+  try {
+    const res = await fetch(`/api/admin/assistant-questions?${assistantQueryParams()}`, { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    assistantQuestionsTotal = Number(data.total) || 0;
+    assistantQuestionsLimit = Number(data.limit) || assistantQuestionsLimit;
+    const summary = data.summary || {};
+    summary.lowConfidenceThreshold = data.meta?.lowConfidenceThreshold;
+    renderAssistantAdminSummary(summary);
+    document.getElementById('assistant-needs-badge').textContent = Number(summary.improvement?.total) || 0;
+    renderAssistantRows(data.items || []);
+    document.getElementById('assistant-questions-summary').textContent = `${assistantQuestionsTotal} records`;
+    document.getElementById('assistant-page-label').textContent = `Page ${data.page || assistantQuestionsPage} / ${Math.max(1, Math.ceil(assistantQuestionsTotal / assistantQuestionsLimit))}`;
+  } catch (e) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="11">Could not load assistant questions: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function changeAssistantPage(delta) {
+  const pages = Math.max(1, Math.ceil(assistantQuestionsTotal / assistantQuestionsLimit));
+  assistantQuestionsPage = Math.max(1, Math.min(pages, assistantQuestionsPage + delta));
+  renderAssistantQuestions();
+}
+
+async function updateAssistantQuestion(id, patch, control) {
+  const res = await fetch(`/api/admin/assistant-questions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    showToast('Could not update assistant question', 'error');
+    return;
+  }
+  if (assistantQuestionsPreset === 'needs_improvement' && patch.reviewed === true) {
+    control?.closest('tr')?.remove();
+    assistantQuestionsTotal = Math.max(0, assistantQuestionsTotal - 1);
+    document.getElementById('assistant-questions-summary').textContent = `${assistantQuestionsTotal} records`;
+    const badge = document.getElementById('assistant-needs-badge');
+    if (badge) badge.textContent = Math.max(0, Number(badge.textContent) - 1);
+  }
+}
+
+function saveAssistantNote(id) {
+  const note = document.querySelector(`[data-assistant-note="${CSS.escape(id)}"]`)?.value || '';
+  updateAssistantQuestion(id, { adminNote: note }).then(() => showToast('Assistant note saved'));
+}
+
+function copyAssistantQuestion(id) {
+  const row = document.querySelector(`[data-assistant-note="${CSS.escape(id)}"]`)?.closest('tr');
+  const question = row?.querySelector('td:nth-child(3) strong')?.textContent || '';
+  navigator.clipboard?.writeText(question).then(() => showToast('Question copied'));
+}
+
 // ========== HEYSMART MAIL ADMIN ==========
 let mailAccountsCache = [];
 let mailAdminMessagesCache = [];
@@ -1423,6 +1580,9 @@ function toggleHistoryDateSort() {
 document.getElementById('history-filter').addEventListener('change', e => { renderHistory(e.target.value); });
 document.getElementById('accounts-search')?.addEventListener('input', renderAccounts);
 document.getElementById('mail-accounts-search')?.addEventListener('input', renderMailAccounts);
+['assistant-search','assistant-filter-focus','assistant-filter-locale','assistant-filter-reviewed','assistant-filter-from','assistant-filter-to'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', () => { assistantQuestionsPage = 1; renderAssistantQuestions(); });
+});
 document.addEventListener('dblclick', e => {
   const cell = e.target.closest('.editable-start-date');
   if (!cell) return;

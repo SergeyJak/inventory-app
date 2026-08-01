@@ -4,7 +4,8 @@ const fs        = require('fs');
 const path      = require('path');
 const jwt       = require('jsonwebtoken');
 const bcrypt    = require('bcryptjs');
-const { MongoClient } = require('mongodb');
+const crypto    = require('crypto');
+const { MongoClient, ObjectId } = require('mongodb');
 const { createMailService } = require('./mail-service');
 
 const app      = express();
@@ -58,11 +59,14 @@ const COLL = {
   assistantQuestions: 'assistantQuestions',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
+const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
+const ASSISTANT_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 
 async function connectMongo() {
   const client = new MongoClient(process.env.MONGODB_URI);
   await client.connect();
   db = client.db('inventory');
+  await ensureAssistantQuestionIndexes(db);
   console.log('✅  MongoDB connected');
 }
 
@@ -760,6 +764,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   const publicCatalogApi = req.path === '/api/public/products'
     || req.path === '/api/public/assistant-question'
+    || req.path.startsWith('/api/public/assistant-question/')
     || req.path.startsWith('/api/mail/');
   if (isCatalogHost(req) && req.path.startsWith('/api/') && !publicCatalogApi) {
     return res.status(404).json({ error: 'Not found' });
@@ -845,17 +850,39 @@ function sanitizeAssistantQuestion(value) {
     .slice(0, 300);
 }
 
-function assistantRateKey(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+function sanitizeAssistantText(value, limit = 1000) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, limit);
 }
 
-function assistantRateAllowed(req) {
-  const key = assistantRateKey(req);
+function sanitizeAssistantUrl(value) {
+  try {
+    const url = new URL(String(value || ''), 'https://heysmart.lv');
+    const allowed = new Set(['model', 'color', 'select', 'lang']);
+    [...url.searchParams.keys()].forEach(key => {
+      if (!allowed.has(key)) url.searchParams.delete(key);
+    });
+    return `${url.pathname}${url.search}${url.hash}`.slice(0, 300);
+  } catch {
+    return '';
+  }
+}
+
+function normalizeQuestionText(value) {
+  return String(value || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim().slice(0, 180);
+}
+
+function assistantRateAllowed(req, bucket = 'create', limit = 12) {
+  const key = `${bucket}:${assistantRateKey(req)}`;
   const now = Date.now();
   const windowMs = 60 * 1000;
   const current = assistantQuestionRate.get(key) || [];
   const recent = current.filter(time => now - time < windowMs);
-  if (recent.length >= 12) {
+  if (recent.length >= limit) {
     assistantQuestionRate.set(key, recent);
     return false;
   }
@@ -864,37 +891,350 @@ function assistantRateAllowed(req) {
   return true;
 }
 
-async function logAssistantQuestion(entry) {
-  if (USE_MONGO) {
-    await db.collection(COLL.assistantQuestions).insertOne(entry);
-    return;
+function assistantRateKey(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+}
+
+function readAssistantQuestionsFile() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(FILES.assistantQuestions, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
-  const existing = JSON.parse(fs.readFileSync(FILES.assistantQuestions, 'utf8'));
-  existing.push(entry);
-  fs.writeFileSync(FILES.assistantQuestions, JSON.stringify(existing.slice(-1000), null, 2), 'utf8');
+}
+
+function writeAssistantQuestionsFile(records) {
+  fs.writeFileSync(FILES.assistantQuestions, JSON.stringify(records.slice(-1000), null, 2), 'utf8');
+}
+
+async function ensureAssistantQuestionIndexes(database) {
+  if (!database) return;
+  const coll = database.collection(COLL.assistantQuestions);
+  await Promise.all([
+    coll.createIndex({ createdAt: -1 }),
+    coll.createIndex({ matched: 1 }),
+    coll.createIndex({ matchedFaqId: 1 }),
+    coll.createIndex({ confidence: 1 }),
+    coll.createIndex({ feedback: 1 }),
+    coll.createIndex({ reviewed: 1 }),
+    coll.createIndex({ sessionId: 1 }),
+  ]);
+}
+
+function isMongoId(value) {
+  return /^[a-f0-9]{24}$/i.test(String(value || ''));
+}
+
+function assistantRecordId(record) {
+  return String(record._id || record.id || '');
+}
+
+function toPublicAssistantRecord(record) {
+  const normalizedQuestion = record.normalizedQuestion || normalizeQuestionText(record.question);
+  const item = {
+    id: assistantRecordId(record),
+    question: record.question || '',
+    answer: record.answer || '',
+    locale: record.locale || 'ru',
+    matched: Boolean(record.matched),
+    matchedFaqId: record.matchedFaqId || null,
+    confidence: Number(record.confidence) || 0,
+    responseType: record.responseType || record.intent || '',
+    intent: record.intent || record.responseType || '',
+    modelId: record.modelId || '',
+    colorKey: record.colorKey || '',
+    pageUrl: record.pageUrl || '',
+    sessionId: record.sessionId || '',
+    feedback: record.feedback || '',
+    reviewed: Boolean(record.reviewed),
+    adminNote: record.adminNote || '',
+    normalizedQuestion,
+    createdAt: record.createdAt || '',
+  };
+  item.improvementReasons = assistantImprovementReasons(item);
+  return item;
+}
+
+function assistantImprovementReasons(record) {
+  const item = record.normalizedQuestion !== undefined ? record : toPublicAssistantRecord(record);
+  const reasons = [];
+  if (item.feedback === 'not_helpful') reasons.push('Negative feedback');
+  if (item.matched === false) reasons.push('No FAQ match');
+  if ((Number(item.confidence) || 0) < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) reasons.push('Low confidence');
+  return reasons;
+}
+
+function isAssistantImprovementCandidate(record, reviewedMode = false) {
+  const item = toPublicAssistantRecord(record);
+  if (!item.normalizedQuestion) return false;
+  if (reviewedMode ? !item.reviewed : item.reviewed) return false;
+  return item.improvementReasons.length > 0;
+}
+
+function assistantImprovementPriority(record) {
+  const item = toPublicAssistantRecord(record);
+  return [
+    item.feedback === 'not_helpful' ? 0 : 1,
+    item.matched === false ? 0 : 1,
+    Number(item.confidence) || 0,
+    -new Date(item.createdAt || 0).getTime(),
+  ];
+}
+
+function compareAssistantImprovement(a, b) {
+  const ap = assistantImprovementPriority(a);
+  const bp = assistantImprovementPriority(b);
+  for (let i = 0; i < ap.length; i++) {
+    if (ap[i] !== bp[i]) return ap[i] < bp[i] ? -1 : 1;
+  }
+  return 0;
+}
+
+function removeAssistantSessionDuplicates(records) {
+  const seen = new Map();
+  return records.filter(record => {
+    const item = toPublicAssistantRecord(record);
+    if (!item.sessionId || !item.normalizedQuestion) return true;
+    const time = new Date(item.createdAt || 0).getTime();
+    const key = `${item.sessionId}:${item.normalizedQuestion}`;
+    const previous = seen.get(key);
+    if (previous != null && Math.abs(time - previous) <= ASSISTANT_DUPLICATE_WINDOW_MS) return false;
+    seen.set(key, Number.isFinite(time) ? time : 0);
+    return true;
+  });
+}
+
+async function createAssistantQuestion(entry) {
+  const id = crypto.randomUUID();
+  const record = { id, ...entry };
+  if (USE_MONGO) {
+    const result = await db.collection(COLL.assistantQuestions).insertOne(record);
+    return String(result.insertedId);
+  }
+  const existing = readAssistantQuestionsFile();
+  existing.push(record);
+  writeAssistantQuestionsFile(existing);
+  return id;
+}
+
+async function updateAssistantFeedback(id, feedback) {
+  if (USE_MONGO) {
+    if (!isMongoId(id)) return false;
+    const result = await db.collection(COLL.assistantQuestions).updateOne({ _id: new ObjectId(id) }, { $set: { feedback } });
+    return result.matchedCount > 0;
+  }
+  const existing = readAssistantQuestionsFile();
+  const idx = existing.findIndex(record => assistantRecordId(record) === id);
+  if (idx < 0) return false;
+  existing[idx].feedback = feedback;
+  writeAssistantQuestionsFile(existing);
+  return true;
+}
+
+function assistantFilterFromQuery(query) {
+  const filter = {};
+  if (query.preset === 'needs_improvement') filter.preset = 'needs_improvement';
+  if (['ru', 'en', 'lv'].includes(query.locale)) filter.locale = query.locale;
+  if (query.matched === 'true') filter.matched = true;
+  if (query.matched === 'false') filter.matched = false;
+  if (query.faqId) filter.matchedFaqId = sanitizeAssistantText(query.faqId, 80);
+  if (['helpful', 'not_helpful', 'none'].includes(query.feedback)) filter.feedback = query.feedback;
+  if (query.reviewed === 'true') filter.reviewed = true;
+  if (query.reviewed === 'false') filter.reviewed = false;
+  const minConfidence = Number(query.minConfidence);
+  const maxConfidence = Number(query.maxConfidence);
+  if (!Number.isNaN(minConfidence)) filter.minConfidence = Math.max(0, Math.min(1, minConfidence));
+  if (!Number.isNaN(maxConfidence)) filter.maxConfidence = Math.max(0, Math.min(1, maxConfidence));
+  if (query.from) filter.from = String(query.from).slice(0, 40);
+  if (query.to) filter.to = String(query.to).slice(0, 40);
+  if (query.search) filter.search = sanitizeAssistantText(query.search, 120).toLowerCase();
+  filter.sort = ['oldest', 'lowest_confidence'].includes(query.sort) ? query.sort : 'newest';
+  filter.page = Math.max(1, Math.min(10000, Number(query.page) || 1));
+  filter.limit = Math.max(1, Math.min(100, Number(query.limit) || 25));
+  return filter;
+}
+
+function assistantRecordMatches(record, filter) {
+  const item = toPublicAssistantRecord(record);
+  if (filter.preset === 'needs_improvement' && !isAssistantImprovementCandidate(item, filter.reviewed === true)) return false;
+  if (filter.locale && item.locale !== filter.locale) return false;
+  if (typeof filter.matched === 'boolean' && item.matched !== filter.matched) return false;
+  if (filter.matchedFaqId && item.matchedFaqId !== filter.matchedFaqId) return false;
+  if (filter.feedback === 'none' && item.feedback) return false;
+  if (filter.feedback && filter.feedback !== 'none' && item.feedback !== filter.feedback) return false;
+  if (typeof filter.reviewed === 'boolean' && item.reviewed !== filter.reviewed) return false;
+  if (filter.minConfidence != null && item.confidence < filter.minConfidence) return false;
+  if (filter.maxConfidence != null && item.confidence > filter.maxConfidence) return false;
+  if (filter.from && String(item.createdAt) < filter.from) return false;
+  if (filter.to && String(item.createdAt) > filter.to) return false;
+  if (filter.search && !String(item.question).toLowerCase().includes(filter.search)) return false;
+  return true;
+}
+
+function summarizeAssistantRecords(records) {
+  const normalized = new Map();
+  const faq = new Map();
+  const summary = { total: records.length, unmatched: 0, lowConfidence: 0, negativeFeedback: 0, improvement: { total: 0, negativeFeedback: 0, unmatched: 0, lowConfidence: 0 }, repeatedQuestions: [], matchedFaqs: [] };
+  records.forEach(record => {
+    const item = toPublicAssistantRecord(record);
+    if (!item.matched) summary.unmatched++;
+    if (item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) summary.lowConfidence++;
+    if (item.feedback === 'not_helpful') summary.negativeFeedback++;
+    const nq = item.normalizedQuestion;
+    if (nq) normalized.set(nq, (normalized.get(nq) || 0) + 1);
+    if (item.matchedFaqId) faq.set(item.matchedFaqId, (faq.get(item.matchedFaqId) || 0) + 1);
+  });
+  summary.repeatedQuestions = [...normalized.entries()].filter(([, count]) => count > 1).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([text, count]) => ({ text, count }));
+  summary.matchedFaqs = [...faq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, count]) => ({ id, count }));
+  const improvementItems = removeAssistantSessionDuplicates(records.filter(record => isAssistantImprovementCandidate(record, false)));
+  summary.improvement.total = improvementItems.length;
+  improvementItems.forEach(record => {
+    const item = toPublicAssistantRecord(record);
+    if (item.feedback === 'not_helpful') summary.improvement.negativeFeedback++;
+    if (item.matched === false) summary.improvement.unmatched++;
+    if (item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) summary.improvement.lowConfidence++;
+  });
+  return summary;
+}
+
+async function listAssistantQuestions(query) {
+  const filter = assistantFilterFromQuery(query);
+  if (USE_MONGO) {
+    const mongoFilter = {};
+    if (filter.locale) mongoFilter.locale = filter.locale;
+    if (typeof filter.matched === 'boolean') mongoFilter.matched = filter.matched;
+    if (filter.matchedFaqId) mongoFilter.matchedFaqId = filter.matchedFaqId;
+    if (filter.feedback === 'none') mongoFilter.feedback = { $in: [null, ''] };
+    else if (filter.feedback) mongoFilter.feedback = filter.feedback;
+    if (typeof filter.reviewed === 'boolean') mongoFilter.reviewed = filter.reviewed;
+    if (filter.minConfidence != null || filter.maxConfidence != null) mongoFilter.confidence = {};
+    if (filter.minConfidence != null) mongoFilter.confidence.$gte = filter.minConfidence;
+    if (filter.maxConfidence != null) mongoFilter.confidence.$lte = filter.maxConfidence;
+    if (filter.from || filter.to) mongoFilter.createdAt = {};
+    if (filter.from) mongoFilter.createdAt.$gte = filter.from;
+    if (filter.to) mongoFilter.createdAt.$lte = filter.to;
+    if (filter.search) mongoFilter.question = { $regex: filter.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+    const sort = filter.sort === 'oldest' ? { createdAt: 1 } : filter.sort === 'lowest_confidence' ? { confidence: 1, createdAt: -1 } : { createdAt: -1 };
+    const coll = db.collection(COLL.assistantQuestions);
+    if (filter.preset === 'needs_improvement') {
+      const candidates = await coll.find(mongoFilter, { projection: { userAgent: 0 } }).sort({ createdAt: -1 }).limit(5000).toArray();
+      const filtered = removeAssistantSessionDuplicates(candidates.filter(record => assistantRecordMatches(record, filter))).sort(compareAssistantImprovement);
+      const start = (filter.page - 1) * filter.limit;
+      return {
+        items: filtered.slice(start, start + filter.limit).map(toPublicAssistantRecord),
+        total: filtered.length,
+        page: filter.page,
+        limit: filter.limit,
+        summary: summarizeAssistantRecords(candidates),
+        meta: { lowConfidenceThreshold: ASSISTANT_LOW_CONFIDENCE_THRESHOLD, preset: filter.preset || '' },
+      };
+    }
+    const [total, records, summaryRecords] = await Promise.all([
+      coll.countDocuments(mongoFilter),
+      coll.find(mongoFilter, { projection: { userAgent: 0 } }).sort(sort).skip((filter.page - 1) * filter.limit).limit(filter.limit).toArray(),
+      coll.find(mongoFilter, { projection: { question: 1, matched: 1, matchedFaqId: 1, confidence: 1, feedback: 1, normalizedQuestion: 1 } }).limit(5000).toArray(),
+    ]);
+    return { items: records.map(toPublicAssistantRecord), total, page: filter.page, limit: filter.limit, summary: summarizeAssistantRecords(summaryRecords), meta: { lowConfidenceThreshold: ASSISTANT_LOW_CONFIDENCE_THRESHOLD, preset: filter.preset || '' } };
+  }
+  const all = readAssistantQuestionsFile().filter(record => assistantRecordMatches(record, filter));
+  const deduped = filter.preset === 'needs_improvement' ? removeAssistantSessionDuplicates(all) : all;
+  const sorted = deduped.sort((a, b) => {
+    if (filter.preset === 'needs_improvement') return compareAssistantImprovement(a, b);
+    if (filter.sort === 'oldest') return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    if (filter.sort === 'lowest_confidence') return (Number(a.confidence) || 0) - (Number(b.confidence) || 0);
+    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  });
+  const start = (filter.page - 1) * filter.limit;
+  return { items: sorted.slice(start, start + filter.limit).map(toPublicAssistantRecord), total: sorted.length, page: filter.page, limit: filter.limit, summary: summarizeAssistantRecords(readAssistantQuestionsFile().filter(record => assistantRecordMatches(record, { ...filter, preset: '' }))), meta: { lowConfidenceThreshold: ASSISTANT_LOW_CONFIDENCE_THRESHOLD, preset: filter.preset || '' } };
+}
+
+async function updateAssistantAdminRecord(id, body) {
+  const patch = {};
+  if (typeof body.reviewed === 'boolean') patch.reviewed = body.reviewed;
+  if (body.adminNote !== undefined) patch.adminNote = sanitizeAssistantText(body.adminNote, 500);
+  if (!Object.keys(patch).length) return false;
+  if (USE_MONGO) {
+    if (!isMongoId(id)) return false;
+    const result = await db.collection(COLL.assistantQuestions).updateOne({ _id: new ObjectId(id) }, { $set: patch });
+    return result.matchedCount > 0;
+  }
+  const existing = readAssistantQuestionsFile();
+  const idx = existing.findIndex(record => assistantRecordId(record) === id);
+  if (idx < 0) return false;
+  existing[idx] = { ...existing[idx], ...patch };
+  writeAssistantQuestionsFile(existing);
+  return true;
 }
 
 app.post('/api/public/assistant-question', async (req, res) => {
   try {
-    if (!assistantRateAllowed(req)) return res.status(429).json({ ok: false });
+    if (!assistantRateAllowed(req, 'create', 12)) return res.status(429).json({ ok: false });
     const question = sanitizeAssistantQuestion(req.body?.question);
     if (!question) return res.status(400).json({ ok: false });
     const locale = ['ru', 'en', 'lv'].includes(req.body?.locale) ? req.body.locale : 'ru';
-    const matchedFaqId = sanitizeAssistantQuestion(req.body?.matchedFaqId).slice(0, 80) || null;
+    const answer = sanitizeAssistantText(req.body?.answer, 1200);
+    const matched = Boolean(req.body?.matched);
+    const matchedFaqId = sanitizeAssistantText(req.body?.matchedFaqId, 80) || null;
     const confidence = Math.max(0, Math.min(1, Number(req.body?.confidence) || 0));
+    const sessionId = sanitizeAssistantText(req.body?.sessionId, 80).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
     const entry = {
       question,
+      answer,
       locale,
+      matched,
       matchedFaqId,
       confidence,
+      responseType: sanitizeAssistantText(req.body?.responseType, 60),
+      intent: sanitizeAssistantText(req.body?.intent, 60),
+      modelId: sanitizeAssistantText(req.body?.modelId, 80),
+      colorKey: sanitizeAssistantText(req.body?.colorKey, 60),
+      pageUrl: sanitizeAssistantUrl(req.body?.pageUrl),
+      sessionId,
+      normalizedQuestion: normalizeQuestionText(question),
+      reviewed: false,
+      adminNote: '',
       createdAt: new Date().toISOString(),
-      userAgent: String(req.headers['user-agent'] || '').slice(0, 240),
     };
-    logAssistantQuestion(entry).catch(err => console.error('Assistant question log error:', err.message));
-    res.json({ ok: true });
+    const id = await createAssistantQuestion(entry);
+    res.json({ ok: true, id });
   } catch (e) {
     console.error('Assistant question route error:', e.message);
     res.json({ ok: true });
+  }
+});
+
+app.patch('/api/public/assistant-question/:id/feedback', async (req, res) => {
+  try {
+    if (!assistantRateAllowed(req, 'feedback', 30)) return res.status(429).json({ ok: false });
+    const feedback = req.body?.feedback;
+    if (!['helpful', 'not_helpful'].includes(feedback)) return res.status(400).json({ error: 'Invalid feedback' });
+    const ok = await updateAssistantFeedback(req.params.id, feedback);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Assistant feedback route error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/assistant-questions', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await listAssistantQuestions(req.query));
+  } catch (e) {
+    console.error('Assistant questions admin list error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.patch('/api/admin/assistant-questions/:id', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const ok = await updateAssistantAdminRecord(req.params.id, req.body || {});
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Assistant questions admin update error:', e.message);
+    sendGenericError(res);
   }
 });
 

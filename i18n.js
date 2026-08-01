@@ -59,6 +59,10 @@ window.catalogTranslations = {
       greeting: 'Задайте вопрос про Станции, настройку, доставку или музыку.',
       fallback: 'Я пока не нашёл точный ответ. Напишите мне в Telegram или WhatsApp — я помогу лично.',
       quick: ['Работает ли в Латвии?', 'Чем отличаются модели?', 'Помощь с настройкой', 'Доставка'],
+      feedbackPrompt: 'Полезно?',
+      feedbackHelpful: 'Да',
+      feedbackNotHelpful: 'Нет',
+      feedbackThanks: 'Спасибо за оценку',
     },
     assistantV2: {
       showProduct: 'Показать в каталоге',
@@ -251,6 +255,10 @@ window.catalogTranslations = {
       greeting: 'Uzdodiet jautājumu par Station, iestatīšanu, piegādi vai mūziku.',
       fallback: 'Es vēl neatradu precīzu atbildi. Uzrakstiet Telegram vai WhatsApp — palīdzēšu personīgi.',
       quick: ['Vai darbojas Latvijā?', 'Ar ko atšķiras modeļi?', 'Palīdzība ar iestatīšanu', 'Piegāde'],
+      feedbackPrompt: 'Vai noderēja?',
+      feedbackHelpful: 'Noderēja',
+      feedbackNotHelpful: 'Nenoderēja',
+      feedbackThanks: 'Paldies par vērtējumu',
     },
     assistantV2: {
       showProduct: 'Parādīt katalogā',
@@ -411,6 +419,10 @@ window.catalogTranslations = {
       greeting: 'Ask about Stations, setup, delivery or music.',
       fallback: 'I have not found an exact answer yet. Message me on Telegram or WhatsApp — I will help personally.',
       quick: ['Does it work in Latvia?', 'How are the models different?', 'Setup help', 'Delivery'],
+      feedbackPrompt: 'Useful?',
+      feedbackHelpful: 'Useful',
+      feedbackNotHelpful: 'Not useful',
+      feedbackThanks: 'Thanks for the feedback',
     },
     assistantV2: {
       showProduct: 'Show in catalog',

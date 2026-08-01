@@ -122,6 +122,7 @@ let assistantKeyboardModeTimer = null;
 const FALLBACK_PRODUCTS = [
   { id: 'fallback-light2-blue', productType: 'Light 2', color: 'blue', label: 'Light 2 / blue', sellPrice: 90, inStock: true },
 ];
+const ASSISTANT_SESSION_KEY = 'heysmartAssistantSessionId';
 
 function isMobileViewport() {
   return window.matchMedia('(max-width: 900px)').matches;
@@ -145,6 +146,24 @@ function escapeHtml(value) {
     '"': '&quot;',
     "'": '&#39;',
   }[char]));
+}
+
+function assistantSessionId() {
+  let value = sessionStorage.getItem(ASSISTANT_SESSION_KEY);
+  if (!value) {
+    value = (crypto?.randomUUID?.() || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`).replace(/[^a-zA-Z0-9_-]/g, '');
+    sessionStorage.setItem(ASSISTANT_SESSION_KEY, value);
+  }
+  return value;
+}
+
+function safePageUrl() {
+  const allowed = new Set(['model', 'color', 'select', 'lang']);
+  const url = new URL(window.location.href);
+  [...url.searchParams.keys()].forEach(key => {
+    if (!allowed.has(key)) url.searchParams.delete(key);
+  });
+  return `${url.pathname}${url.search}${url.hash}`.slice(0, 300);
 }
 
 function setState(message) {
@@ -406,7 +425,6 @@ function answerScenario(scenarioId) {
   appendFaqMessage('user', scenarioPrompt(scenario));
   appendFaqMessage('assistant', `${dict('assistant.recommend')} ${modelText(model, 'title')}. ${scenario.reason}`);
   sendAssistantAnalytics({ matched: true, faq: { id: `scenario_${scenario.id}` }, confidence: 1 });
-  logAssistantQuestion(scenario.label, { faq: { id: `scenario_${scenario.id}` }, confidence: 1 });
 }
 
 function renderFaq() {
@@ -484,17 +502,28 @@ function trackAssistantEvent(name, params = {}) {
   } catch {}
 }
 
-function logAssistantQuestion(question, result) {
-  fetch('/api/public/assistant-question', {
+function logAssistantQuestion(question, answer, result = {}) {
+  return fetch('/api/public/assistant-question', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      question,
+      question: String(question || '').slice(0, 300),
+      answer: String(answer || '').slice(0, 1200),
       locale: currentLang,
+      matched: Boolean(result.matched),
       matchedFaqId: result.faq?.id || null,
       confidence: result.confidence || 0,
+      responseType: result.type || '',
+      intent: result.intent || result.type || '',
+      modelId: result.modelId || '',
+      colorKey: result.colorKey || '',
+      pageUrl: safePageUrl(),
+      sessionId: assistantSessionId(),
     }),
-  }).catch(() => {});
+  })
+    .then(res => (res.ok ? res.json() : null))
+    .then(data => data?.id || null)
+    .catch(() => null);
 }
 
 function appendFaqMessage(role, text) {
@@ -524,6 +553,19 @@ function appendAssistantResponse(response) {
   if (response.type === 'recommendation') {
     trackAssistantEvent('assistant_recommendation', { model_id: response.modelId || '', scenario: assistantEngine?.snapshot().selectedScenario || '' });
   }
+  return message;
+}
+
+function attachAssistantFeedback(message, recordId) {
+  if (!message || !recordId) return;
+  message.insertAdjacentHTML('beforeend', `
+    <div class="assistant-feedback" data-question-id="${escapeHtml(recordId)}">
+      <span>${escapeHtml(dict('faq.feedbackPrompt') || 'Was this useful?')}</span>
+      <button type="button" data-feedback="helpful">${escapeHtml(dict('faq.feedbackHelpful') || 'Useful')}</button>
+      <button type="button" data-feedback="not_helpful">${escapeHtml(dict('faq.feedbackNotHelpful') || 'Not useful')}</button>
+    </div>
+  `);
+  faqMessages.scrollTop = faqMessages.scrollHeight;
 }
 
 function answerFaq(question) {
@@ -533,13 +575,21 @@ function answerFaq(question) {
   appendFaqMessage('user', cleanQuestion);
   const response = assistantEngine?.handle(cleanQuestion);
   const result = response?.faq || findFaqAnswer(cleanQuestion);
-  appendAssistantResponse(response || {
+  const assistantResponse = response || {
     type: result.matched ? 'faq' : 'fallback',
     text: result.matched ? result.answer : dict('faq.fallback'),
     faq: result,
-  });
+  };
+  const message = appendAssistantResponse(assistantResponse);
   sendAssistantAnalytics(result);
-  logAssistantQuestion(cleanQuestion, result);
+  const answerText = assistantResponse.text || dict('faq.fallback');
+  logAssistantQuestion(cleanQuestion, answerText, {
+    ...result,
+    type: assistantResponse.type,
+    intent: assistantResponse.intent,
+    modelId: assistantResponse.modelId,
+    colorKey: assistantResponse.colorKey,
+  }).then(id => attachAssistantFeedback(message, id));
 }
 
 function findColorIndex(model, colorKey) {
@@ -971,6 +1021,26 @@ assistantOptions.addEventListener('click', event => {
 });
 
 faqMessages.addEventListener('click', event => {
+  const feedbackBtn = event.target.closest('[data-feedback]');
+  if (feedbackBtn) {
+    const box = feedbackBtn.closest('[data-question-id]');
+    const id = box?.dataset.questionId;
+    const feedback = feedbackBtn.dataset.feedback;
+    if (!id || !feedback) return;
+    box.querySelectorAll('button').forEach(btn => { btn.disabled = true; });
+    fetch(`/api/public/assistant-question/${encodeURIComponent(id)}/feedback`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback }),
+    }).then(res => {
+      if (!res.ok) throw new Error('feedback failed');
+      box.classList.add('is-sent');
+      box.querySelector('span').textContent = dict('faq.feedbackThanks') || 'Thanks';
+    }).catch(() => {
+      box.querySelectorAll('button').forEach(btn => { btn.disabled = false; });
+    });
+    return;
+  }
   const btn = event.target.closest('[data-action]');
   if (!btn) return;
   handleAssistantAction(btn);
