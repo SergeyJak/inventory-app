@@ -930,16 +930,33 @@ function assistantRecordId(record) {
   return String(record._id || record.id || '');
 }
 
+function assistantMatchedFaqId(record) {
+  return sanitizeAssistantText(record.matchedFaqId, 80) || null;
+}
+
+function assistantMatched(record) {
+  return record.matched === true || Boolean(assistantMatchedFaqId(record));
+}
+
+function assistantConfidence(record) {
+  if (record.hasConfidence === false) return null;
+  const value = Number(record.confidence);
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null;
+}
+
 function toPublicAssistantRecord(record) {
   const normalizedQuestion = record.normalizedQuestion || normalizeQuestionText(record.question);
+  const matchedFaqId = assistantMatchedFaqId(record);
+  const confidence = assistantConfidence(record);
   const item = {
     id: assistantRecordId(record),
     question: record.question || '',
     answer: record.answer || '',
     locale: record.locale || 'ru',
-    matched: Boolean(record.matched),
-    matchedFaqId: record.matchedFaqId || null,
-    confidence: Number(record.confidence) || 0,
+    matched: assistantMatched(record),
+    matchedFaqId,
+    confidence: confidence == null ? 0 : confidence,
+    hasConfidence: confidence != null,
     responseType: record.responseType || record.intent || '',
     intent: record.intent || record.responseType || '',
     modelId: record.modelId || '',
@@ -961,7 +978,7 @@ function assistantImprovementReasons(record) {
   const reasons = [];
   if (item.feedback === 'not_helpful') reasons.push('Negative feedback');
   if (item.matched === false) reasons.push('No FAQ match');
-  if ((Number(item.confidence) || 0) < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) reasons.push('Low confidence');
+  if (item.hasConfidence && item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) reasons.push('Low confidence');
   return reasons;
 }
 
@@ -1079,7 +1096,7 @@ function summarizeAssistantRecords(records) {
   records.forEach(record => {
     const item = toPublicAssistantRecord(record);
     if (!item.matched) summary.unmatched++;
-    if (item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) summary.lowConfidence++;
+    if (item.hasConfidence && item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) summary.lowConfidence++;
     if (item.feedback === 'not_helpful') summary.negativeFeedback++;
     const nq = item.normalizedQuestion;
     if (nq) normalized.set(nq, (normalized.get(nq) || 0) + 1);
@@ -1093,7 +1110,7 @@ function summarizeAssistantRecords(records) {
     const item = toPublicAssistantRecord(record);
     if (item.feedback === 'not_helpful') summary.improvement.negativeFeedback++;
     if (item.matched === false) summary.improvement.unmatched++;
-    if (item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) summary.improvement.lowConfidence++;
+    if (item.hasConfidence && item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) summary.improvement.lowConfidence++;
   });
   return summary;
 }
@@ -1103,7 +1120,6 @@ async function listAssistantQuestions(query) {
   if (USE_MONGO) {
     const mongoFilter = {};
     if (filter.locale) mongoFilter.locale = filter.locale;
-    if (typeof filter.matched === 'boolean') mongoFilter.matched = filter.matched;
     if (filter.matchedFaqId) mongoFilter.matchedFaqId = filter.matchedFaqId;
     if (filter.feedback === 'none') mongoFilter.feedback = { $in: [null, ''] };
     else if (filter.feedback) mongoFilter.feedback = filter.feedback;
@@ -1117,9 +1133,12 @@ async function listAssistantQuestions(query) {
     if (filter.search) mongoFilter.question = { $regex: filter.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
     const sort = filter.sort === 'oldest' ? { createdAt: 1 } : filter.sort === 'lowest_confidence' ? { confidence: 1, createdAt: -1 } : { createdAt: -1 };
     const coll = db.collection(COLL.assistantQuestions);
-    if (filter.preset === 'needs_improvement') {
+    if (filter.preset === 'needs_improvement' || typeof filter.matched === 'boolean') {
       const candidates = await coll.find(mongoFilter, { projection: { userAgent: 0 } }).sort({ createdAt: -1 }).limit(5000).toArray();
-      const filtered = removeAssistantSessionDuplicates(candidates.filter(record => assistantRecordMatches(record, filter))).sort(compareAssistantImprovement);
+      const filteredBase = candidates.filter(record => assistantRecordMatches(record, filter));
+      const filtered = (filter.preset === 'needs_improvement' ? removeAssistantSessionDuplicates(filteredBase) : filteredBase).sort((a, b) => (
+        filter.preset === 'needs_improvement' ? compareAssistantImprovement(a, b) : String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+      ));
       const start = (filter.page - 1) * filter.limit;
       return {
         items: filtered.slice(start, start + filter.limit).map(toPublicAssistantRecord),
@@ -1174,8 +1193,8 @@ app.post('/api/public/assistant-question', async (req, res) => {
     if (!question) return res.status(400).json({ ok: false });
     const locale = ['ru', 'en', 'lv'].includes(req.body?.locale) ? req.body.locale : 'ru';
     const answer = sanitizeAssistantText(req.body?.answer, 1200);
-    const matched = Boolean(req.body?.matched);
     const matchedFaqId = sanitizeAssistantText(req.body?.matchedFaqId, 80) || null;
+    const matched = Boolean(req.body?.matched) || Boolean(matchedFaqId);
     const confidence = Math.max(0, Math.min(1, Number(req.body?.confidence) || 0));
     const sessionId = sanitizeAssistantText(req.body?.sessionId, 80).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
     const entry = {

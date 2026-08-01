@@ -131,6 +131,16 @@ async function main() {
     assert.strictEqual(unmatched.res.status, 200);
     assert.strictEqual(unmatched.body.items.every(item => item.matched === false), true);
 
+    const matchedFromFaq = await request('/api/public/assistant-question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: 'FAQ id but no matched flag', answer: 'Answer', locale: 'en', matched: false, matchedFaqId: 'faq-derived', confidence: 0.8, sessionId: 'sess-derived' }),
+    });
+    assert.strictEqual(matchedFromFaq.res.status, 200);
+    const derivedList = await request('/api/admin/assistant-questions?faqId=faq-derived', { headers: auth(token) });
+    assert.strictEqual(derivedList.res.status, 200);
+    assert.strictEqual(derivedList.body.items[0].matched, true, 'matchedFaqId derives matched=true');
+
     const update = await request(`/api/admin/assistant-questions/${first.body.id}`, {
       method: 'PATCH',
       headers: auth(token),
@@ -149,6 +159,7 @@ async function main() {
       { id: 'dup-b', question: 'duplicate', answer: 'b', locale: 'en', matched: false, confidence: 0.1, reviewed: false, sessionId: 's6', normalizedQuestion: 'duplicate', createdAt: new Date(now - 9000).toISOString() },
       { id: 'empty', question: '!!!', answer: 'empty', locale: 'en', matched: false, confidence: 0.1, reviewed: false, sessionId: 's7', normalizedQuestion: '', createdAt: new Date(now - 8000).toISOString() },
       { id: 'legacy', question: 'legacy record', answer: '', locale: 'en', sessionId: 's8', createdAt: new Date(now - 7000).toISOString() },
+      { id: 'legacy-faq', question: 'legacy faq record', answer: '', locale: 'en', matchedFaqId: 'faq-legacy', sessionId: 's9', normalizedQuestion: 'legacy faq record', createdAt: new Date(now - 6000).toISOString() },
     ]);
 
     const queue = await request('/api/admin/assistant-questions?preset=needs_improvement&page=1&limit=20', { headers: auth(token) });
@@ -158,6 +169,7 @@ async function main() {
     assert.ok(queueIds.includes('low'), 'low confidence enters queue');
     assert.ok(queueIds.includes('neg'), 'negative feedback enters queue');
     assert.ok(queueIds.includes('legacy'), 'legacy records are handled safely');
+    assert.ok(!queueIds.includes('legacy-faq'), 'legacy records with matchedFaqId are treated as matched');
     assert.ok(!queueIds.includes('reviewed'), 'reviewed item leaves active queue');
     assert.ok(!queueIds.includes('empty'), 'empty normalized question is excluded');
     assert.strictEqual(queueIds.filter(id => id === 'multi').length, 1, 'multi-condition record is returned once');
@@ -170,7 +182,7 @@ async function main() {
     assert.strictEqual(queue.body.summary.improvement.total, 6, 'summary counts unresolved improvement items');
     assert.strictEqual(queue.body.summary.improvement.negativeFeedback, 2);
     assert.ok(queue.body.summary.improvement.unmatched >= 4);
-    assert.ok(queue.body.summary.improvement.lowConfidence >= 4);
+    assert.ok(queue.body.summary.improvement.lowConfidence >= 3);
 
     const reviewedQueue = await request('/api/admin/assistant-questions?preset=needs_improvement&reviewed=true', { headers: auth(token) });
     assert.strictEqual(reviewedQueue.res.status, 200);
