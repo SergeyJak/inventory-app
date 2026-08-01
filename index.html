@@ -232,6 +232,29 @@
     <button class="accounts-view-btn" type="button" data-assistant-preset="needs_improvement_reviewed" onclick="setAssistantPreset('needs_improvement_reviewed')">Reviewed improvement items</button>
   </div>
   <div class="assistant-admin-summary" id="assistant-admin-summary"></div>
+  <div class="form-card assistant-report-card">
+    <h3>Improvement report</h3>
+    <div class="accounts-toolbar assistant-admin-filters">
+      <select id="assistant-report-preset">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="custom">Custom period</option>
+      </select>
+      <select id="assistant-report-locale">
+        <option value="">Any language</option>
+        <option value="ru">RU</option>
+        <option value="lv">LV</option>
+        <option value="en">EN</option>
+      </select>
+      <input type="date" id="assistant-report-from" />
+      <input type="date" id="assistant-report-to" />
+      <button class="btn-primary" type="button" id="assistant-report-generate" onclick="generateAssistantImprovementReport()">Generate report</button>
+    </div>
+    <div class="backup-muted" id="assistant-report-state">Report not generated.</div>
+    <div class="assistant-report-output" id="assistant-report-output"></div>
+    <h4>Report history</h4>
+    <div class="assistant-report-history" id="assistant-report-history"></div>
+  </div>
   <div class="accounts-toolbar assistant-admin-filters">
     <input type="search" id="assistant-search" placeholder="Search question text..." />
     <select id="assistant-filter-focus">

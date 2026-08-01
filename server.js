@@ -40,6 +40,7 @@ const FILES = {
   subAccounts: path.join(DATA_DIR, 'sub-accounts.json'),
   hostSubscriptions: path.join(DATA_DIR, 'host-subscriptions.json'),
   assistantQuestions: path.join(DATA_DIR, 'assistant-questions.json'),
+  assistantImprovementReports: path.join(DATA_DIR, 'assistant-improvement-reports.json'),
 };
 if (!USE_MONGO) {
   Object.values(FILES).forEach(f => {
@@ -57,10 +58,13 @@ const COLL = {
   subAccounts: 'subAccounts',
   hostSubscriptions: 'hostSubscriptions',
   assistantQuestions: 'assistantQuestions',
+  assistantImprovementReports: 'assistantImprovementReports',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
 const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
 const ASSISTANT_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
+const ASSISTANT_WEAK_FAQ_NEGATIVE_RATE = 0.25;
+const ASSISTANT_REPORT_PROMPT_VERSION = 1;
 
 async function connectMongo() {
   const client = new MongoClient(process.env.MONGODB_URI);
@@ -920,6 +924,12 @@ async function ensureAssistantQuestionIndexes(database) {
     coll.createIndex({ reviewed: 1 }),
     coll.createIndex({ sessionId: 1 }),
   ]);
+  const reportColl = database.collection(COLL.assistantImprovementReports);
+  await Promise.all([
+    reportColl.createIndex({ generatedAt: -1 }),
+    reportColl.createIndex({ dateFrom: 1, dateTo: 1, locale: 1 }),
+    reportColl.createIndex({ status: 1 }),
+  ]);
 }
 
 function isMongoId(value) {
@@ -1115,6 +1125,378 @@ function summarizeAssistantRecords(records) {
   return summary;
 }
 
+function readJsonArrayFile(file) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeJsonArrayFile(file, records, limit = 1000) {
+  fs.writeFileSync(file, JSON.stringify(records.slice(-limit), null, 2), 'utf8');
+}
+
+function assistantReportRange(query = {}) {
+  const now = new Date();
+  const to = query.dateTo ? new Date(`${String(query.dateTo).slice(0, 10)}T23:59:59.999Z`) : now;
+  const from = query.dateFrom ? new Date(`${String(query.dateFrom).slice(0, 10)}T00:00:00.000Z`) : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const safeTo = Number.isFinite(to.getTime()) ? to : now;
+  const safeFrom = Number.isFinite(from.getTime()) && from <= safeTo ? from : new Date(safeTo.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return { dateFrom: safeFrom.toISOString(), dateTo: safeTo.toISOString() };
+}
+
+function assistantReportLocale(query = {}) {
+  return ['ru', 'en', 'lv'].includes(query.locale) ? query.locale : '';
+}
+
+function assistantRecordInRange(record, dateFrom, dateTo, locale = '') {
+  const item = toPublicAssistantRecord(record);
+  const createdAt = new Date(item.createdAt || 0).getTime();
+  return createdAt >= new Date(dateFrom).getTime()
+    && createdAt <= new Date(dateTo).getTime()
+    && (!locale || item.locale === locale);
+}
+
+async function allAssistantRecords() {
+  if (USE_MONGO) {
+    return db.collection(COLL.assistantQuestions).find({}, { projection: { userAgent: 0 } }).limit(10000).toArray();
+  }
+  return readAssistantQuestionsFile();
+}
+
+function redactPii(value, limit = 220) {
+  return sanitizeAssistantText(value, limit)
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+    .replace(/(?:\+?\d[\s().-]*){7,}/g, '[phone]')
+    .slice(0, limit);
+}
+
+function average(values) {
+  const nums = values.filter(value => Number.isFinite(value));
+  return nums.length ? Number((nums.reduce((sum, value) => sum + value, 0) / nums.length).toFixed(3)) : null;
+}
+
+function groupRepeatedQuestions(records) {
+  const groups = new Map();
+  records.map(toPublicAssistantRecord).forEach(item => {
+    if (!item.normalizedQuestion) return;
+    const group = groups.get(item.normalizedQuestion) || {
+      normalizedQuestion: item.normalizedQuestion,
+      count: 0,
+      exampleQuestions: [],
+      locales: new Set(),
+      confidences: [],
+      matchedFaqIds: new Set(),
+      negativeFeedbackCount: 0,
+      latestCreatedAt: '',
+      unmatchedCount: 0,
+    };
+    group.count++;
+    if (group.exampleQuestions.length < 5) group.exampleQuestions.push(redactPii(item.question, 180));
+    if (item.locale) group.locales.add(item.locale);
+    if (item.hasConfidence) group.confidences.push(item.confidence);
+    if (item.matchedFaqId) group.matchedFaqIds.add(item.matchedFaqId);
+    if (item.feedback === 'not_helpful') group.negativeFeedbackCount++;
+    if (!item.matched) group.unmatchedCount++;
+    if (!group.latestCreatedAt || String(item.createdAt) > group.latestCreatedAt) group.latestCreatedAt = item.createdAt;
+    groups.set(item.normalizedQuestion, group);
+  });
+  return [...groups.values()].map(group => ({
+    normalizedQuestion: group.normalizedQuestion,
+    count: group.count,
+    exampleQuestions: group.exampleQuestions,
+    locales: [...group.locales],
+    averageConfidence: average(group.confidences),
+    matchedFaqIds: [...group.matchedFaqIds],
+    negativeFeedbackCount: group.negativeFeedbackCount,
+    unmatchedCount: group.unmatchedCount,
+    latestCreatedAt: group.latestCreatedAt,
+  })).sort((a, b) => b.count - a.count || String(b.latestCreatedAt).localeCompare(String(a.latestCreatedAt)));
+}
+
+function buildMatchedFaqStats(records, repeatedQuestions) {
+  const stats = new Map();
+  records.map(toPublicAssistantRecord).forEach(item => {
+    if (!item.matchedFaqId) return;
+    const stat = stats.get(item.matchedFaqId) || { faqId: item.matchedFaqId, usageCount: 0, confidences: [], positiveFeedbackCount: 0, negativeFeedbackCount: 0, exampleQuestions: [] };
+    stat.usageCount++;
+    if (item.hasConfidence) stat.confidences.push(item.confidence);
+    if (item.feedback === 'helpful') stat.positiveFeedbackCount++;
+    if (item.feedback === 'not_helpful') stat.negativeFeedbackCount++;
+    if (stat.exampleQuestions.length < 5) stat.exampleQuestions.push(redactPii(item.question, 180));
+    stats.set(item.matchedFaqId, stat);
+  });
+  return [...stats.values()].map(stat => {
+    const averageConfidence = average(stat.confidences);
+    const negativeRate = stat.usageCount ? stat.negativeFeedbackCount / stat.usageCount : 0;
+    const sameTopicUnmatched = repeatedQuestions.filter(group => !group.matchedFaqIds.length && group.unmatchedCount > 0 && stat.exampleQuestions.some(q => normalizeQuestionText(q).split(' ').some(token => token.length > 4 && group.normalizedQuestion.includes(token)))).length;
+    const weakReasons = [];
+    if (averageConfidence != null && averageConfidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD) weakReasons.push('Low average confidence');
+    if (negativeRate >= ASSISTANT_WEAK_FAQ_NEGATIVE_RATE) weakReasons.push('Significant negative feedback');
+    if (sameTopicUnmatched > 0) weakReasons.push('Related unmatched follow-up questions');
+    return {
+      faqId: stat.faqId,
+      usageCount: stat.usageCount,
+      averageConfidence,
+      positiveFeedbackCount: stat.positiveFeedbackCount,
+      negativeFeedbackCount: stat.negativeFeedbackCount,
+      negativeFeedbackRate: Number(negativeRate.toFixed(3)),
+      unmatchedFollowUpCount: sameTopicUnmatched,
+      exampleQuestions: stat.exampleQuestions,
+      weak: weakReasons.length > 0,
+      weakReasons,
+    };
+  }).sort((a, b) => b.usageCount - a.usageCount);
+}
+
+function buildMissingFaqCandidates(repeatedQuestions) {
+  return repeatedQuestions
+    .filter(group => !group.matchedFaqIds.length || group.unmatchedCount > 0 || group.negativeFeedbackCount > 0 || (group.averageConfidence != null && group.averageConfidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD))
+    .map(group => {
+      const recencyDays = Math.max(0, (Date.now() - new Date(group.latestCreatedAt || 0).getTime()) / (24 * 60 * 60 * 1000));
+      const recencyScore = Math.max(0, 5 - Math.min(5, recencyDays));
+      const priorityScore = Number((group.count * 2 + group.unmatchedCount * 3 + group.negativeFeedbackCount * 4 + recencyScore).toFixed(2));
+      const reason = group.unmatchedCount ? 'Repeated unmatched question' : group.negativeFeedbackCount ? 'Negative feedback pattern' : 'Low confidence or repeated unclear topic';
+      return {
+        title: group.exampleQuestions[0] || group.normalizedQuestion,
+        questionCount: group.count,
+        exampleQuestions: group.exampleQuestions,
+        languages: group.locales,
+        reason,
+        priorityScore,
+      };
+    })
+    .sort((a, b) => b.priorityScore - a.priorityScore)
+    .slice(0, 15);
+}
+
+function dailyCounts(records) {
+  const counts = new Map();
+  records.map(toPublicAssistantRecord).forEach(item => {
+    const day = String(item.createdAt || '').slice(0, 10);
+    if (day) counts.set(day, (counts.get(day) || 0) + 1);
+  });
+  return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, count]) => ({ date, count }));
+}
+
+function comparePeriods(currentRecords, previousRecords) {
+  const currentRepeated = groupRepeatedQuestions(currentRecords);
+  const previousRepeated = groupRepeatedQuestions(previousRecords);
+  const prevMap = new Map(previousRepeated.map(group => [group.normalizedQuestion, group.count]));
+  const curMap = new Map(currentRepeated.map(group => [group.normalizedQuestion, group.count]));
+  const change = (current, previous) => previous === 0 ? (current === 0 ? 0 : current) : Number(((current - previous) / previous).toFixed(3));
+  const currentSummary = summarizeAssistantRecords(currentRecords);
+  const previousSummary = summarizeAssistantRecords(previousRecords);
+  const rising = currentRepeated.map(group => ({ normalizedQuestion: group.normalizedQuestion, currentCount: group.count, previousCount: prevMap.get(group.normalizedQuestion) || 0, change: group.count - (prevMap.get(group.normalizedQuestion) || 0) })).filter(item => item.change > 0).sort((a, b) => b.change - a.change).slice(0, 5);
+  const declining = previousRepeated.map(group => ({ normalizedQuestion: group.normalizedQuestion, currentCount: curMap.get(group.normalizedQuestion) || 0, previousCount: group.count, change: (curMap.get(group.normalizedQuestion) || 0) - group.count })).filter(item => item.change < 0).sort((a, b) => a.change - b.change).slice(0, 5);
+  return {
+    totalQuestionChange: change(currentSummary.total, previousSummary.total),
+    unmatchedChange: change(currentSummary.unmatched, previousSummary.unmatched),
+    negativeFeedbackChange: change(currentSummary.negativeFeedback, previousSummary.negativeFeedback),
+    topRisingNormalizedQuestions: rising,
+    topDecliningNormalizedQuestions: declining,
+    newlyAppearingQuestionTopics: rising.filter(item => item.previousCount === 0).map(item => item.normalizedQuestion).slice(0, 5),
+  };
+}
+
+async function buildAssistantImprovementReportData(query = {}) {
+  const { dateFrom, dateTo } = assistantReportRange(query);
+  const locale = assistantReportLocale(query);
+  const records = await allAssistantRecords();
+  const current = records.filter(record => assistantRecordInRange(record, dateFrom, dateTo, locale));
+  const duration = new Date(dateTo).getTime() - new Date(dateFrom).getTime();
+  const prevTo = new Date(new Date(dateFrom).getTime() - 1).toISOString();
+  const prevFrom = new Date(new Date(dateFrom).getTime() - duration - 1).toISOString();
+  const previous = records.filter(record => assistantRecordInRange(record, prevFrom, prevTo, locale));
+  const publicCurrent = current.map(toPublicAssistantRecord);
+  const repeatedQuestions = groupRepeatedQuestions(current);
+  const matchedFaqStats = buildMatchedFaqStats(current, repeatedQuestions);
+  const weakFaqStats = matchedFaqStats.filter(stat => stat.weak);
+  const summary = summarizeAssistantRecords(current);
+  const confidenceValues = publicCurrent.filter(item => item.hasConfidence).map(item => item.confidence);
+  return {
+    dateFrom,
+    dateTo,
+    locale,
+    totalQuestions: publicCurrent.length,
+    uniqueSessions: new Set(publicCurrent.map(item => item.sessionId).filter(Boolean)).size,
+    matchedCount: publicCurrent.filter(item => item.matched).length,
+    unmatchedCount: publicCurrent.filter(item => !item.matched).length,
+    lowConfidenceCount: publicCurrent.filter(item => item.hasConfidence && item.confidence < ASSISTANT_LOW_CONFIDENCE_THRESHOLD).length,
+    negativeFeedbackCount: publicCurrent.filter(item => item.feedback === 'not_helpful').length,
+    averageConfidence: average(confidenceValues),
+    needsImprovementCount: summary.improvement.total,
+    repeatedQuestions: repeatedQuestions.slice(0, 20),
+    matchedFaqStats: matchedFaqStats.slice(0, 20),
+    weakFaqStats: weakFaqStats.slice(0, 15),
+    missingFaqCandidates: buildMissingFaqCandidates(repeatedQuestions),
+    dailyQuestionCounts: dailyCounts(current),
+    comparisonWithPreviousPeriod: comparePeriods(current, previous),
+    thresholds: { lowConfidence: ASSISTANT_LOW_CONFIDENCE_THRESHOLD, weakFaqNegativeRate: ASSISTANT_WEAK_FAQ_NEGATIVE_RATE },
+  };
+}
+
+function readAssistantReportsFile() {
+  return readJsonArrayFile(FILES.assistantImprovementReports);
+}
+
+function writeAssistantReportsFile(records) {
+  writeJsonArrayFile(FILES.assistantImprovementReports, records, 300);
+}
+
+function publicAssistantReport(report) {
+  return {
+    id: assistantRecordId(report),
+    dateFrom: report.dateFrom,
+    dateTo: report.dateTo,
+    locale: report.locale || '',
+    generatedAt: report.generatedAt,
+    generatedBy: report.generatedBy || '',
+    dataSnapshot: report.dataSnapshot,
+    aiSummary: report.aiSummary || '',
+    recommendedActions: report.recommendedActions || [],
+    model: report.model || '',
+    promptVersion: report.promptVersion || ASSISTANT_REPORT_PROMPT_VERSION,
+    status: report.status || 'generated',
+    error: report.error || '',
+  };
+}
+
+async function saveAssistantReport(report) {
+  const record = { id: crypto.randomUUID(), ...report };
+  if (USE_MONGO) {
+    const result = await db.collection(COLL.assistantImprovementReports).insertOne(record);
+    return { ...record, _id: result.insertedId };
+  }
+  const reports = readAssistantReportsFile();
+  reports.push(record);
+  writeAssistantReportsFile(reports);
+  return record;
+}
+
+async function listAssistantReports() {
+  const reports = USE_MONGO
+    ? await db.collection(COLL.assistantImprovementReports).find({}, { projection: { dataSnapshot: 0 } }).sort({ generatedAt: -1 }).limit(50).toArray()
+    : readAssistantReportsFile().sort((a, b) => String(b.generatedAt || '').localeCompare(String(a.generatedAt || ''))).slice(0, 50);
+  return reports.map(publicAssistantReport);
+}
+
+async function getAssistantReport(id) {
+  if (USE_MONGO) {
+    const query = isMongoId(id) ? { _id: new ObjectId(id) } : { id };
+    const report = await db.collection(COLL.assistantImprovementReports).findOne(query);
+    return report ? publicAssistantReport(report) : null;
+  }
+  const report = readAssistantReportsFile().find(item => assistantRecordId(item) === id);
+  return report ? publicAssistantReport(report) : null;
+}
+
+async function updateAssistantReportAction(reportId, actionIndex, patch) {
+  const status = ['open', 'accepted', 'rejected', 'completed'].includes(patch.status) ? patch.status : null;
+  const adminNote = patch.adminNote === undefined ? undefined : sanitizeAssistantText(patch.adminNote, 500);
+  if (status == null && adminNote === undefined) return false;
+  const index = Number(actionIndex);
+  if (!Number.isInteger(index) || index < 0) return false;
+  const report = await getAssistantReport(reportId);
+  if (!report || !report.recommendedActions[index]) return false;
+  const actions = report.recommendedActions.map((action, i) => i === index ? { ...action, ...(status ? { status } : {}), ...(adminNote !== undefined ? { adminNote } : {}) } : action);
+  if (USE_MONGO) {
+    const query = isMongoId(reportId) ? { _id: new ObjectId(reportId) } : { id: reportId };
+    const result = await db.collection(COLL.assistantImprovementReports).updateOne(query, { $set: { recommendedActions: actions } });
+    return result.matchedCount > 0;
+  }
+  const reports = readAssistantReportsFile();
+  const idx = reports.findIndex(item => assistantRecordId(item) === reportId);
+  if (idx < 0) return false;
+  reports[idx].recommendedActions = actions;
+  writeAssistantReportsFile(reports);
+  return true;
+}
+
+function relevantFaqForReport(data) {
+  const ids = new Set([
+    ...data.matchedFaqStats.map(item => item.faqId),
+    ...data.weakFaqStats.map(item => item.faqId),
+  ].filter(Boolean));
+  const faqItems = readJsonArrayFile(path.join(__dirname, 'faq.json'));
+  return faqItems
+    .filter(item => ids.has(item.id))
+    .slice(0, 20)
+    .map(item => ({
+      id: item.id,
+      category: redactPii(item.category, 120),
+      questions: (item.questions || []).slice(0, 5).map(q => redactPii(q, 160)),
+      answer: redactPii(item.answer?.[data.locale || 'ru'] || item.answer?.ru || '', 500),
+    }));
+}
+
+function validateAiReport(value) {
+  if (!value || typeof value !== 'object') throw new Error('AI output is not an object');
+  const summary = sanitizeAssistantText(value.summary, 1000);
+  if (!summary) throw new Error('AI summary is missing');
+  if (!Array.isArray(value.recommendedActions)) throw new Error('AI actions missing');
+  const actions = value.recommendedActions.slice(0, 20).map(action => {
+    const type = ['create_faq', 'update_faq', 'investigate'].includes(action.type) ? action.type : 'investigate';
+    const priority = ['high', 'medium', 'low'].includes(action.priority) ? action.priority : 'medium';
+    return {
+      type,
+      priority,
+      title: sanitizeAssistantText(action.title, 160),
+      reason: sanitizeAssistantText(action.reason, 500),
+      evidence: {
+        questionCount: Math.max(0, Number(action.evidence?.questionCount) || 0),
+        negativeFeedbackCount: Math.max(0, Number(action.evidence?.negativeFeedbackCount) || 0),
+        averageConfidence: action.evidence?.averageConfidence == null ? null : Math.max(0, Math.min(1, Number(action.evidence.averageConfidence) || 0)),
+        exampleQuestions: Array.isArray(action.evidence?.exampleQuestions) ? action.evidence.exampleQuestions.slice(0, 5).map(q => redactPii(q, 180)) : [],
+      },
+      faqId: sanitizeAssistantText(action.faqId, 80) || null,
+      suggestedQuestion: sanitizeAssistantText(action.suggestedQuestion, 220) || null,
+      suggestedAnswer: sanitizeAssistantText(action.suggestedAnswer, 700) || null,
+      status: 'open',
+      adminNote: '',
+    };
+  }).filter(action => action.title && action.reason);
+  return { summary, recommendedActions: actions };
+}
+
+async function callAssistantReportAi(data, faqEntries, locale, mock = '') {
+  const aiMock = mock || process.env.ASSISTANT_REPORT_AI_MOCK;
+  if (aiMock === 'malformed') throw new Error('Malformed AI response');
+  if (aiMock === 'failure') throw new Error('AI provider failure');
+  if (aiMock === 'valid') {
+    return validateAiReport({ summary: 'Review high-priority assistant gaps.', recommendedActions: [{ type: 'investigate', priority: 'high', title: 'Review missing FAQ topics', reason: 'Aggregated data shows unanswered repeated questions.', evidence: { questionCount: data.unmatchedCount, negativeFeedbackCount: data.negativeFeedbackCount, averageConfidence: data.averageConfidence, exampleQuestions: data.repeatedQuestions[0]?.exampleQuestions || [] }, faqId: null, suggestedQuestion: null, suggestedAnswer: null }] });
+  }
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return { summary: 'AI recommendations were not generated because OPENAI_API_KEY is not configured.', recommendedActions: [] };
+  const model = process.env.ASSISTANT_REPORT_MODEL || 'gpt-4o-mini';
+  const payload = {
+    model,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: 'You produce JSON assistant improvement recommendations using only supplied evidence. Never invent product features, availability, prices, guarantees, or compatibility. Prefer updating existing FAQ over duplicates. Mention uncertainty. Keep suggested FAQ answers concise.' },
+      { role: 'user', content: JSON.stringify({ locale, data: { ...data, repeatedQuestions: data.repeatedQuestions.slice(0, 12), missingFaqCandidates: data.missingFaqCandidates.slice(0, 10), weakFaqStats: data.weakFaqStats.slice(0, 10), matchedFaqStats: data.matchedFaqStats.slice(0, 10) }, faqEntries }) },
+    ],
+    temperature: 0.2,
+  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error?.message || `AI HTTP ${res.status}`);
+    return validateAiReport(JSON.parse(body.choices?.[0]?.message?.content || '{}'));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function listAssistantQuestions(query) {
   const filter = assistantFilterFromQuery(query);
   if (USE_MONGO) {
@@ -1253,6 +1635,83 @@ app.patch('/api/admin/assistant-questions/:id', requireInventoryHost, requireAut
     res.json({ ok: true });
   } catch (e) {
     console.error('Assistant questions admin update error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/admin/assistant-improvement-report/data', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await buildAssistantImprovementReportData(req.query));
+  } catch (e) {
+    console.error('Assistant improvement report data error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/admin/assistant-improvement-report/generate', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const data = await buildAssistantImprovementReportData(req.body || {});
+    const faqEntries = relevantFaqForReport(data);
+    let ai;
+    let status = 'generated';
+    let error = '';
+    try {
+      const testMock = process.env.NODE_ENV === 'test' ? sanitizeAssistantText(req.body?.aiMock, 20) : '';
+      ai = await callAssistantReportAi(data, faqEntries, data.locale || 'ru', testMock);
+      if (!process.env.OPENAI_API_KEY && !process.env.ASSISTANT_REPORT_AI_MOCK && !testMock) status = 'no_ai';
+    } catch (err) {
+      status = 'failed';
+      error = sanitizeAssistantText(err.message, 300);
+      ai = { summary: '', recommendedActions: [] };
+    }
+    const report = await saveAssistantReport({
+      dateFrom: data.dateFrom,
+      dateTo: data.dateTo,
+      locale: data.locale || '',
+      generatedAt: new Date().toISOString(),
+      generatedBy: req.user.username,
+      dataSnapshot: data,
+      aiSummary: ai.summary,
+      recommendedActions: ai.recommendedActions,
+      model: process.env.ASSISTANT_REPORT_MODEL || (process.env.OPENAI_API_KEY ? 'gpt-4o-mini' : ''),
+      promptVersion: ASSISTANT_REPORT_PROMPT_VERSION,
+      status,
+      error,
+    });
+    res.json({ ok: status !== 'failed', report: publicAssistantReport(report) });
+  } catch (e) {
+    console.error('Assistant improvement report generate error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/admin/assistant-improvement-reports', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ reports: await listAssistantReports() });
+  } catch (e) {
+    console.error('Assistant improvement reports list error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/admin/assistant-improvement-reports/:id', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const report = await getAssistantReport(req.params.id);
+    if (!report) return res.status(404).json({ error: 'Not found' });
+    res.json({ report });
+  } catch (e) {
+    console.error('Assistant improvement report read error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.patch('/api/admin/assistant-improvement-reports/:reportId/actions/:actionIndex', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const ok = await updateAssistantReportAction(req.params.reportId, req.params.actionIndex, req.body || {});
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Assistant improvement report action update error:', e.message);
     sendGenericError(res);
   }
 });

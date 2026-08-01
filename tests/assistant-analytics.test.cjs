@@ -62,6 +62,7 @@ async function main() {
       JWT_SECRET: 'test-secret',
       ADMIN_HASH: bcrypt.hashSync(adminPassword, 4),
       ANDREY_HASH: bcrypt.hashSync('viewer-pass', 4),
+      NODE_ENV: 'test',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -191,6 +192,75 @@ async function main() {
     const pagedQueue = await request('/api/admin/assistant-questions?preset=needs_improvement&page=2&limit=2', { headers: auth(token) });
     assert.strictEqual(pagedQueue.res.status, 200);
     assert.strictEqual(pagedQueue.body.items.length, 2, 'queue pagination works');
+
+    const day = 24 * 60 * 60 * 1000;
+    writeJson('assistant-questions.json', [
+      { id: 'r1', question: 'Delivery to Riga?', answer: 'Delivery answer', locale: 'en', matched: false, confidence: 0.2, sessionId: 'ra', normalizedQuestion: 'delivery to riga', createdAt: new Date(now - day).toISOString() },
+      { id: 'r2', question: 'Delivery to Riga? +371 22222222 test@example.com', answer: 'Delivery answer', locale: 'en', matched: false, confidence: 0.3, feedback: 'not_helpful', sessionId: 'rb', normalizedQuestion: 'delivery to riga', createdAt: new Date(now - day + 1000).toISOString() },
+      { id: 'r3', question: 'Setup help', answer: 'Setup answer', locale: 'en', matched: true, matchedFaqId: 'setup', confidence: 0.4, feedback: 'not_helpful', sessionId: 'rc', normalizedQuestion: 'setup help', createdAt: new Date(now - 2 * day).toISOString() },
+      { id: 'r4', question: 'Setup help again', answer: 'Setup answer', locale: 'en', matched: true, matchedFaqId: 'setup', confidence: 0.45, feedback: 'helpful', sessionId: 'rd', normalizedQuestion: 'setup help again', createdAt: new Date(now - 2 * day + 1000).toISOString() },
+      { id: 'r5', question: 'Latvian only', answer: 'LV', locale: 'lv', matched: false, confidence: 0.1, sessionId: 're', normalizedQuestion: 'latvian only', createdAt: new Date(now - day).toISOString() },
+      { id: 'old', question: 'Old topic', answer: 'Old', locale: 'en', matched: false, confidence: 0.1, sessionId: 'rf', normalizedQuestion: 'old topic', createdAt: new Date(now - 40 * day).toISOString() },
+    ]);
+    writeJson('assistant-improvement-reports.json', []);
+
+    const reportUnauth = await request('/api/admin/assistant-improvement-report/data');
+    assert.strictEqual(reportUnauth.res.status, 401, 'report data requires authentication');
+
+    const from = new Date(now - 7 * day).toISOString().slice(0, 10);
+    const to = new Date(now).toISOString().slice(0, 10);
+    const reportData = await request(`/api/admin/assistant-improvement-report/data?dateFrom=${from}&dateTo=${to}&locale=en`, { headers: auth(token) });
+    assert.strictEqual(reportData.res.status, 200);
+    assert.strictEqual(reportData.body.totalQuestions, 4, 'date and locale filtering are applied');
+    assert.strictEqual(reportData.body.uniqueSessions, 4);
+    assert.strictEqual(reportData.body.unmatchedCount, 2);
+    assert.ok(reportData.body.repeatedQuestions.some(group => group.normalizedQuestion === 'delivery to riga' && group.count === 2), 'repeated question grouping works');
+    assert.ok(reportData.body.missingFaqCandidates[0].priorityScore >= reportData.body.missingFaqCandidates.at(-1).priorityScore, 'missing FAQ candidates are priority sorted');
+    assert.ok(reportData.body.weakFaqStats.some(item => item.faqId === 'setup'), 'weak FAQ is identified');
+    assert.ok(reportData.body.comparisonWithPreviousPeriod.newlyAppearingQuestionTopics.includes('delivery to riga'), 'trend comparison finds new topics');
+    assert.strictEqual(JSON.stringify(reportData.body).includes('test@example.com'), false, 'PII email is redacted from report data');
+    assert.strictEqual(JSON.stringify(reportData.body).includes('+371 22222222'), false, 'PII phone is redacted from report data');
+
+    const generated = await request('/api/admin/assistant-improvement-report/generate', {
+      method: 'POST',
+      headers: auth(token),
+      body: JSON.stringify({ dateFrom: from, dateTo: to, locale: 'en', aiMock: 'valid' }),
+    });
+    assert.strictEqual(generated.res.status, 200);
+    assert.strictEqual(generated.body.ok, true);
+    assert.ok(generated.body.report.id, 'generated report has id');
+    assert.ok(generated.body.report.recommendedActions.length, 'AI recommendations are stored');
+
+    const history = await request('/api/admin/assistant-improvement-reports', { headers: auth(token) });
+    assert.strictEqual(history.res.status, 200);
+    assert.ok(history.body.reports.some(report => report.id === generated.body.report.id), 'report history includes generated report');
+
+    const savedReport = await request(`/api/admin/assistant-improvement-reports/${generated.body.report.id}`, { headers: auth(token) });
+    assert.strictEqual(savedReport.res.status, 200);
+    assert.strictEqual(savedReport.body.report.id, generated.body.report.id);
+
+    const actionUpdate = await request(`/api/admin/assistant-improvement-reports/${generated.body.report.id}/actions/0`, {
+      method: 'PATCH',
+      headers: auth(token),
+      body: JSON.stringify({ status: 'accepted', adminNote: '<b>check</b>' }),
+    });
+    assert.strictEqual(actionUpdate.res.status, 200, 'recommendation status update works');
+
+    const malformed = await request('/api/admin/assistant-improvement-report/generate', {
+      method: 'POST',
+      headers: auth(token),
+      body: JSON.stringify({ dateFrom: from, dateTo: to, locale: 'en', aiMock: 'malformed' }),
+    });
+    assert.strictEqual(malformed.res.status, 200);
+    assert.strictEqual(malformed.body.report.status, 'failed', 'malformed AI response is stored as failed');
+
+    const aiFailure = await request('/api/admin/assistant-improvement-report/generate', {
+      method: 'POST',
+      headers: auth(token),
+      body: JSON.stringify({ dateFrom: from, dateTo: to, locale: 'en', aiMock: 'failure' }),
+    });
+    assert.strictEqual(aiFailure.res.status, 200);
+    assert.strictEqual(aiFailure.body.report.status, 'failed', 'AI provider failure is handled');
 
     const longQuestion = 'q'.repeat(600);
     await request('/api/public/assistant-question', {

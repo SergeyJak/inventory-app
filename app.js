@@ -229,7 +229,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'products')  renderProducts();
     if (btn.dataset.tab === 'accounts')  renderAccounts();
     if (btn.dataset.tab === 'mail-accounts') renderMailAccounts();
-    if (btn.dataset.tab === 'assistant-questions') renderAssistantQuestions();
+    if (btn.dataset.tab === 'assistant-questions') { renderAssistantQuestions(); loadAssistantReportHistory(); }
     if (btn.dataset.tab === 'backups')   renderBackups();
     if (btn.dataset.tab === 'sales')     populateProductSelect('sale-product');
     if (btn.dataset.tab === 'restock')   populateProductSelect('restock-product');
@@ -952,6 +952,7 @@ let assistantQuestionsPage = 1;
 let assistantQuestionsTotal = 0;
 let assistantQuestionsLimit = 25;
 let assistantQuestionsPreset = '';
+let assistantCurrentReport = null;
 
 function assistantQueryParams() {
   const params = new URLSearchParams({ page: String(assistantQuestionsPage), limit: String(assistantQuestionsLimit), sort: 'newest' });
@@ -1009,6 +1010,142 @@ function renderAssistantAdminSummary(summary = {}) {
     <div class="assistant-admin-toplist"><strong>Repeated questions</strong>${repeated}</div>
     <div class="assistant-admin-toplist"><strong>Matched FAQ</strong>${faqs}</div>
   `;
+}
+
+function assistantReportDates() {
+  const preset = document.getElementById('assistant-report-preset')?.value || '30';
+  const to = new Date();
+  let from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (preset === '7') from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+  if (preset === 'custom') {
+    const customFrom = document.getElementById('assistant-report-from')?.value;
+    const customTo = document.getElementById('assistant-report-to')?.value;
+    return { dateFrom: customFrom || '', dateTo: customTo || '' };
+  }
+  return { dateFrom: from.toISOString().slice(0, 10), dateTo: to.toISOString().slice(0, 10) };
+}
+
+function assistantReportPayload() {
+  const dates = assistantReportDates();
+  const locale = document.getElementById('assistant-report-locale')?.value || '';
+  return { ...dates, locale };
+}
+
+function setAssistantReportState(state, text) {
+  const box = document.getElementById('assistant-report-state');
+  if (!box) return;
+  box.textContent = text;
+  box.dataset.state = state;
+}
+
+function renderAssistantImprovementReport(report) {
+  assistantCurrentReport = report;
+  const box = document.getElementById('assistant-report-output');
+  if (!box) return;
+  if (!report) {
+    box.innerHTML = '';
+    return;
+  }
+  const data = report.dataSnapshot || {};
+  const actions = report.recommendedActions || [];
+  const list = (items, render) => items?.length ? items.map(render).join('') : '<li>-</li>';
+  box.innerHTML = `
+    <section><h4>Overview</h4><div class="assistant-report-grid">
+      <div><strong>${Number(data.totalQuestions) || 0}</strong><span>Total questions</span></div>
+      <div><strong>${Number(data.uniqueSessions) || 0}</strong><span>Unique sessions</span></div>
+      <div><strong>${Number(data.unmatchedCount) || 0}</strong><span>Unmatched</span></div>
+      <div><strong>${Number(data.negativeFeedbackCount) || 0}</strong><span>Negative feedback</span></div>
+      <div><strong>${data.averageConfidence == null ? '-' : Math.round(data.averageConfidence * 100) + '%'}</strong><span>Avg confidence</span></div>
+      <div><strong>${Number(data.needsImprovementCount) || 0}</strong><span>Needs improvement</span></div>
+    </div>${report.aiSummary ? `<p class="assistant-report-summary">${esc(report.aiSummary)}</p>` : ''}${report.error ? `<p class="assistant-bad-status">${esc(report.error)}</p>` : ''}</section>
+    <section><h4>Top question topics</h4><ul>${list(data.repeatedQuestions || [], item => `<li><strong>${esc(item.normalizedQuestion)}</strong> (${item.count})<br><small>${esc((item.exampleQuestions || []).join(' | '))}</small></li>`)}</ul></section>
+    <section><h4>Missing FAQ topics</h4><ul>${list(data.missingFaqCandidates || [], item => `<li><strong>${esc(item.title)}</strong> score ${item.priorityScore}<br><small>${esc(item.reason)} · ${esc((item.exampleQuestions || []).join(' | '))}</small></li>`)}</ul></section>
+    <section><h4>Weak FAQ answers</h4><ul>${list(data.weakFaqStats || [], item => `<li><strong>${esc(item.faqId)}</strong> (${item.usageCount})<br><small>${esc((item.weakReasons || []).join(', '))}</small></li>`)}</ul></section>
+    <section><h4>Trends</h4><p>Total change: ${esc(data.comparisonWithPreviousPeriod?.totalQuestionChange ?? 0)} · Unmatched change: ${esc(data.comparisonWithPreviousPeriod?.unmatchedChange ?? 0)} · Negative feedback change: ${esc(data.comparisonWithPreviousPeriod?.negativeFeedbackChange ?? 0)}</p><ul>${list(data.comparisonWithPreviousPeriod?.topRisingNormalizedQuestions || [], item => `<li>${esc(item.normalizedQuestion)} +${item.change}</li>`)}</ul></section>
+    <section><h4>Recommended actions</h4><div class="assistant-report-actions">${actions.length ? actions.map((action, index) => `
+      <article class="assistant-report-action">
+        <div><strong>${esc(action.title)}</strong><span>${esc(action.priority)} · ${esc(action.type)} · ${esc(action.status || 'open')}</span></div>
+        <p>${esc(action.reason)}</p>
+        <small>${esc((action.evidence?.exampleQuestions || []).join(' | '))}</small>
+        ${action.suggestedQuestion ? `<p><b>Suggested question:</b> ${esc(action.suggestedQuestion)}</p>` : ''}
+        ${action.suggestedAnswer ? `<p><b>Suggested answer:</b> ${esc(action.suggestedAnswer)}</p>` : ''}
+        <div class="accounts-actions">
+          <select data-report-action-status="${index}">
+            ${['open','accepted','rejected','completed'].map(status => `<option value="${status}" ${status === (action.status || 'open') ? 'selected' : ''}>${status}</option>`).join('')}
+          </select>
+          <input type="text" data-report-action-note="${index}" value="${esc(action.adminNote || '')}" placeholder="Admin note" />
+          <button class="btn-edit" onclick="updateAssistantReportAction(${index})">Save</button>
+        </div>
+      </article>`).join('') : '<div class="backup-muted">No AI recommendations stored for this report.</div>'}</div></section>
+  `;
+}
+
+async function loadAssistantReportHistory() {
+  const box = document.getElementById('assistant-report-history');
+  if (!box) return;
+  try {
+    const res = await fetch('/api/admin/assistant-improvement-reports', { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    const reports = data.reports || [];
+    box.innerHTML = reports.length ? reports.map(report => `
+      <button class="assistant-report-history-item" type="button" onclick="openAssistantReport('${esc(report.id)}')">
+        <strong>${formatAssistantDate(report.generatedAt)}</strong>
+        <span>${esc(report.dateFrom?.slice(0, 10) || '')} - ${esc(report.dateTo?.slice(0, 10) || '')} · ${esc(report.locale || 'all')} · ${esc(report.status || '')}</span>
+      </button>
+    `).join('') : '<div class="backup-muted">No reports generated yet.</div>';
+  } catch (e) {
+    box.innerHTML = `<div class="backup-muted">Could not load report history: ${esc(e.message)}</div>`;
+  }
+}
+
+async function openAssistantReport(id) {
+  setAssistantReportState('generating', 'Loading report...');
+  try {
+    const res = await fetch(`/api/admin/assistant-improvement-reports/${encodeURIComponent(id)}`, { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    renderAssistantImprovementReport(data.report);
+    setAssistantReportState('generated', 'Report loaded.');
+  } catch (e) {
+    setAssistantReportState('failed', 'Failed to load report: ' + e.message);
+  }
+}
+
+async function generateAssistantImprovementReport() {
+  const btn = document.getElementById('assistant-report-generate');
+  btn.disabled = true;
+  setAssistantReportState('generating', 'Generating report...');
+  try {
+    const res = await fetch('/api/admin/assistant-improvement-report/generate', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(assistantReportPayload()),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    renderAssistantImprovementReport(data.report);
+    setAssistantReportState(data.report.status === 'failed' ? 'failed' : 'generated', data.report.status === 'no_ai' ? 'Generated deterministic report. AI is not configured.' : 'Report generated.');
+    await loadAssistantReportHistory();
+  } catch (e) {
+    setAssistantReportState('failed', 'Failed to generate report: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function updateAssistantReportAction(index) {
+  if (!assistantCurrentReport?.id) return;
+  const status = document.querySelector(`[data-report-action-status="${index}"]`)?.value || 'open';
+  const adminNote = document.querySelector(`[data-report-action-note="${index}"]`)?.value || '';
+  const res = await fetch(`/api/admin/assistant-improvement-reports/${encodeURIComponent(assistantCurrentReport.id)}/actions/${index}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ status, adminNote }),
+  });
+  if (!res.ok) return showToast('Could not update action', 'error');
+  showToast('Report action updated');
+  await openAssistantReport(assistantCurrentReport.id);
 }
 
 function renderAssistantRows(items) {

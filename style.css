@@ -211,6 +211,27 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 .assistant-reason { display: inline-block; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; border-radius: 999px; padding: 1px 7px; font-size: 0.72rem; font-weight: 700; }
 .assistant-note { min-width: 150px; min-height: 56px; border: 1px solid #cbd5e1; border-radius: 7px; padding: 7px 8px; font: inherit; color: #334155; resize: vertical; }
 .assistant-admin-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 14px; color: #64748b; font-size: 0.88rem; font-weight: 700; }
+.assistant-report-card { max-width: none; margin-bottom: 18px; }
+.assistant-report-output { display: grid; gap: 14px; margin-top: 12px; }
+.assistant-report-output section { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 14px; }
+.assistant-report-output h4 { margin: 0 0 10px; color: #0f172a; }
+.assistant-report-output ul { margin: 0; padding-left: 18px; color: #334155; }
+.assistant-report-output li { margin-bottom: 8px; }
+.assistant-report-grid { display: grid; grid-template-columns: repeat(6, minmax(100px, 1fr)); gap: 8px; }
+.assistant-report-grid div { border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 10px; display: grid; gap: 3px; }
+.assistant-report-grid strong { color: #0f3460; font-size: 1.25rem; }
+.assistant-report-grid span { color: #64748b; font-size: 0.78rem; font-weight: 700; }
+.assistant-report-summary { color: #334155; line-height: 1.45; }
+.assistant-report-actions { display: grid; gap: 10px; }
+.assistant-report-action { border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 12px; display: grid; gap: 6px; }
+.assistant-report-action div:first-child { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.assistant-report-action span, .assistant-report-action small { color: #64748b; font-size: 0.8rem; }
+.assistant-report-action p { margin: 0; color: #334155; }
+.assistant-report-action select, .assistant-report-action input { border: 1px solid #cbd5e1; border-radius: 7px; padding: 6px 8px; font: inherit; }
+.assistant-report-history { display: grid; gap: 8px; }
+.assistant-report-history-item { border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 10px 12px; text-align: left; cursor: pointer; display: grid; gap: 3px; }
+.assistant-report-history-item:hover { border-color: #bfdbfe; background: #eff6ff; }
+.assistant-report-history-item span { color: #64748b; font-size: 0.82rem; }
 
 @media (max-width: 900px) {
   .mail-admin-grid { grid-template-columns: 1fr; }
@@ -218,6 +239,7 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
   .mail-admin-message-list, .mail-admin-message-detail { max-height: none; }
   .accounts-actions { flex-wrap: wrap; white-space: normal; }
   .assistant-admin-summary { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+  .assistant-report-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
 }
 
 /* ========== EMPTY STATE ========== */
