@@ -112,6 +112,11 @@ async function main() {
 
     const unauth = await request('/api/admin/assistant-questions');
     assert.strictEqual(unauth.res.status, 401);
+    assert.match(unauth.res.headers.get('content-type') || '', /application\/json/);
+
+    const unknownApi = await request('/api/admin/assistant-questions-typo');
+    assert.strictEqual(unknownApi.res.status, 404);
+    assert.match(unknownApi.res.headers.get('content-type') || '', /application\/json/, 'unknown API routes return JSON, not HTML');
 
     const token = await login();
     const list = await request('/api/admin/assistant-questions?locale=en&page=1&limit=1', { headers: auth(token) });

@@ -1319,6 +1319,13 @@ app.post('/api/backups/import', requireInventoryHost, requireAuth, requireAdmin,
 
 // ── START ────────────────────────────────────────────────────
 app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  next();
+});
+
+app.use((req, res, next) => {
   if (isCatalogHost(req)) {
     res.type('html');
     return res.status(404).sendFile(path.join(__dirname, '404.html'));
