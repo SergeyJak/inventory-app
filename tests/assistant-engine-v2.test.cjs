@@ -43,11 +43,11 @@ const models = [
   { id: 'mini3', price: 140, aliases: ['mini 3', ru(1084,1080,1085,1080,32,51)], photos: [{ colorKey: 'gray' }] },
   { id: 'miniPro', price: 160, aliases: ['mini 3 pro', 'mini pro', ru(1084,1080,1085,1080,32,51,32,1087,1088,1086)], photos: [{ colorKey: 'green' }, { colorKey: 'blue' }, { colorKey: 'gray' }] },
   { id: 'street', price: 160, aliases: ['street', ru(1089,1090,1088,1080,1090)], photos: [{ colorKey: 'green' }] },
+  { id: 'midi', price: 220, aliases: ['midi', ru(1084,1080,1076,1080)], photos: [{ colorKey: 'black' }] },
 ];
 
 const knownModels = [
   ...models,
-  { id: 'midi', price: 0, aliases: ['midi', ru(1084,1080,1076,1080)], photos: [] },
 ];
 
 const modelCopy = {
@@ -321,7 +321,7 @@ function testScenarioSwitchClearsContext() {
   assert.strictEqual(engine.handle(words.childScenario).modelId, 'light2');
   assert.strictEqual(engine.handle(words.cheaper).modelId, 'light2');
   const music = engine.handle(words.musicSwitch);
-  assert.strictEqual(music.modelId, 'miniPro');
+  assert.strictEqual(music.modelId, 'midi');
   assert.strictEqual(engine.snapshot().selectedScenario, 'music');
   assert.strictEqual(engine.snapshot().budget, null);
 }
@@ -336,7 +336,7 @@ function testActionCommandsAsText() {
 }
 
 function testSpecificModels() {
-  const cases = [['Light 2', 'light2', true], ['Mini 3', 'mini3', true], ['Midi', 'midi', false], ['Street', 'street', true]];
+  const cases = [['Light 2', 'light2', true], ['Mini 3', 'mini3', true], ['Midi', 'midi', true], ['Street', 'street', true]];
   for (const [input, expected, available] of cases) {
     const response = createEngine('ru').handle(input);
     assert.strictEqual(response.modelId, expected, input);
@@ -350,7 +350,7 @@ function testSynonymsTyposAndFaq() {
     [words.alice, undefined],
     [words.station, undefined],
     [words.daughter, 'light2'],
-    [words.music, 'miniPro'],
+    [words.music, 'midi'],
     [words.latviaTypo, undefined],
     [words.delivery, undefined],
     [words.setup, undefined],
@@ -418,8 +418,8 @@ function testColorIntentKnownUnavailableAndAvailable() {
 
 function testAvailabilityUsesCatalogStock() {
   const cases = [
-    { lang: 'ru', input: words.midiAvailable, intent: 'availability', type: 'availability_unavailable', modelId: 'midi', showProduct: false },
-    { lang: 'en', input: 'Midi available?', intent: 'availability', type: 'availability_unavailable', modelId: 'midi', showProduct: false },
+    { lang: 'ru', input: words.midiAvailable, intent: 'availability', type: 'availability', modelId: 'midi', showProduct: true },
+    { lang: 'en', input: 'Midi available?', intent: 'availability', type: 'availability', modelId: 'midi', showProduct: true },
     { lang: 'ru', input: words.mini3Available, intent: 'availability', type: 'availability', modelId: 'mini3', showProduct: true },
     { lang: 'ru', input: words.light2InStock, intent: 'availability', type: 'availability', modelId: 'light2', showProduct: true },
     { lang: 'ru', input: words.streetAvailable, intent: 'availability', type: 'availability', modelId: 'street', showProduct: true },
@@ -440,7 +440,7 @@ function testAvailabilityUsesCatalogStock() {
 
 function testScenarioMatrix() {
   const cases = [
-    [words.music, 'miniPro'],
+    [words.music, 'midi'],
     [words.childScenario, 'light2'],
     [words.giftScenario, 'light2'],
     [ru(1044,1083,1103,32,1082,1091,1093,1085,1080), 'miniPro'],
@@ -461,7 +461,7 @@ function testScenarioMatrix() {
 
 function testContextSwitchMatrix() {
   const flows = [
-    [words.childScenario, words.musicSwitch, 'music', 'miniPro'],
+    [words.childScenario, words.musicSwitch, 'music', 'midi'],
     [words.music, ru(1058,1077,1087,1077,1088,1100,32,1076,1086,1084,1086,1081), 'home', 'miniPro'],
     [words.homeScenario, ru(1053,1077,1090,44,32,1074,1089,1077,32,1090,1072,1082,1080,32,1088,1077,1073,1105,1085,1082,1091), 'child', 'light2'],
     [words.giftScenario, ru(1051,1091,1095,1096,1077,32,1076,1083,1103,32,1089,1077,1073,1103), 'home', 'miniPro'],
@@ -523,8 +523,8 @@ function testModelAliasMatrix() {
     [ru(1052,1080,1085,1080,32,51), 'mini3', true],
     ['Mini 3 Pro', 'miniPro', true],
     [ru(1052,1080,1085,1080,32,51,32,1055,1088,1086), 'miniPro', true],
-    ['Midi', 'midi', false],
-    [ru(1052,1080,1076,1080), 'midi', false],
+    ['Midi', 'midi', true],
+    [ru(1052,1080,1076,1080), 'midi', true],
     ['Street', 'street', true],
     [ru(1057,1090,1088,1080,1090), 'street', true],
     [ru(1052,1080,1085,1080), 'mini3', true],
@@ -632,11 +632,11 @@ function testLanguageSwitchKeepsContext() {
   const engine = createEngine('ru');
   engine.handle(words.childScenario);
   let response = engine.handle('For music');
-  assert.strictEqual(response.modelId, 'miniPro');
+  assert.strictEqual(response.modelId, 'midi');
   response = engine.handle(words.childScenario);
   assert.strictEqual(response.modelId, 'light2');
   response = engine.handle('Muzikai');
-  assert.strictEqual(response.modelId, 'miniPro');
+  assert.strictEqual(response.modelId, 'midi');
   response = engine.handle(words.childScenario);
   assert.strictEqual(response.modelId, 'light2');
 }
@@ -683,7 +683,7 @@ function testConsultantSessionContext() {
   assert.strictEqual(start.type, 'clarify');
   assert.strictEqual(engine.snapshot().followupAsked, true);
   const followup = engine.handle(words.music);
-  assert.strictEqual(followup.modelId, 'miniPro');
+  assert.strictEqual(followup.modelId, 'midi');
   assert.strictEqual(engine.snapshot().preferences.useCase, 'music');
   assert.strictEqual(engine.snapshot().recommendationShown, true);
 }
@@ -852,7 +852,7 @@ function testRequiredRegressionFlow() {
   const steps = [
     [words.childScenario, 'light2'],
     [words.cheaper, 'light2'],
-    [words.musicSwitch, 'miniPro'],
+    [words.musicSwitch, 'midi'],
     [ru(1053,1077,1090,44,32,1074,1089,1077,32,1090,1072,1082,1080,32,1088,1077,1073,1105,1085,1082,1091), 'light2'],
     ['Midi', 'midi'],
     [words.another, 'light2'],
@@ -892,8 +892,8 @@ function testGoldenConversationsAndIntentCoverage() {
   runDialog('A', 'ru', [
     { input: words.childScenario, intent: 'child', scenario: 'child', modelId: 'light2', showProduct: true },
     { input: words.cheaper, intent: 'budget', modelId: 'light2', showProduct: true },
-    { input: words.musicSwitch, intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
-    { input: words.blueQuestion, intent: 'color', modelId: 'miniPro' },
+    { input: words.musicSwitch, intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
+    { input: words.blueQuestion, intent: 'color', modelId: 'midi' },
     { input: words.latviaTypo, intent: 'latvia', type: 'faq' },
     { input: words.setup, intent: 'setup', type: 'faq' },
   ], coverage);
@@ -909,7 +909,7 @@ function testGoldenConversationsAndIntentCoverage() {
   runDialog('C', 'ru', [
     { input: 'Mini 3', intent: 'model', type: 'model', modelId: 'mini3', showProduct: true },
     { input: words.compare, intent: 'compare', type: 'compare', action: 'compare' },
-    { input: 'Midi', intent: 'model', type: 'availability_unavailable', modelId: 'midi', showProduct: false },
+    { input: 'Midi', intent: 'model', type: 'model', modelId: 'midi', showProduct: true },
   ], coverage);
 
   runDialog('D', 'ru', [
@@ -921,8 +921,8 @@ function testGoldenConversationsAndIntentCoverage() {
   runDialog('E', 'en', [
     { input: 'Do you deliver?', intent: 'delivery', type: 'faq' },
     { input: 'setup help', intent: 'setup', type: 'faq' },
-    { input: 'music', intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
-    { input: 'show product', intent: 'show_product', expectShowProductModelId: 'miniPro' },
+    { input: 'music', intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
+    { input: 'show product', intent: 'show_product', expectShowProductModelId: 'midi' },
   ], coverage);
 
   runDialog('F', 'lv', [
@@ -933,7 +933,7 @@ function testGoldenConversationsAndIntentCoverage() {
 
   runDialog('G', 'ru', [
     { input: words.homeScenario, intent: 'product_selection', type: 'clarify' },
-    { input: words.music, intent: 'music', modelId: 'miniPro', showProduct: true },
+    { input: words.music, intent: 'music', modelId: 'midi', showProduct: true },
     { input: 'Light 2', intent: 'model', modelId: 'light2', showProduct: true },
     { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
     { input: words.another, intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
@@ -941,15 +941,15 @@ function testGoldenConversationsAndIntentCoverage() {
 
   runDialog('H', 'en', [
     { input: 'For home', intent: 'product_selection', type: 'clarify' },
-    { input: 'For music', intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
+    { input: 'For music', intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
     { input: 'Another option', intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
-    { input: 'Back', intent: 'back', modelId: 'miniPro' },
+    { input: 'Back', intent: 'back', modelId: 'midi' },
   ], coverage);
 
   runDialog('I', 'lv', [
-    { input: 'Muzikai', intent: 'music', scenario: 'music', modelId: 'miniPro', showProduct: true },
+    { input: 'Muzikai', intent: 'music', scenario: 'music', modelId: 'midi', showProduct: true },
     { input: 'Vel variants', intent: 'next_variant', notRepeatPrevious: true, showProduct: true },
-    { input: 'Atpakal', intent: 'back', modelId: 'miniPro' },
+    { input: 'Atpakal', intent: 'back', modelId: 'midi' },
   ], coverage);
 
   runDialog('J', 'ru', [

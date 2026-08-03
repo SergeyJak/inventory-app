@@ -37,7 +37,7 @@
         "input": "Теперь хочу для музыки",
         "response": {
           "type": "recommendation",
-          "modelId": "miniPro",
+          "modelId": "midi",
           "colorKey": "",
           "actions": [
             "show_product",
@@ -45,22 +45,19 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для музыки лучше модель с более мощным звуком."
+          "text": "Рекомендую: Станция Миди 220 €. Для музыки лучше модель с более мощным звуком."
         }
       },
       {
         "input": "Есть синяя?",
         "response": {
-          "type": "color",
-          "modelId": "miniPro",
+          "type": "color_unavailable",
+          "modelId": "midi",
           "colorKey": "blue",
           "actions": [
-            "show_product",
-            "compare",
-            "alternative",
             "back"
           ],
-          "text": "Да, такой цвет есть для Станция Мини 3 Про."
+          "text": "Сейчас синий цвет недоступен для Станция Миди. Доступные цвета: чёрный."
         }
       },
       {
@@ -205,14 +202,16 @@
       {
         "input": "Midi",
         "response": {
-          "type": "availability_unavailable",
+          "type": "model",
           "modelId": "midi",
           "colorKey": "",
           "actions": [
-            "show_available",
+            "show_product",
+            "compare",
+            "alternative",
             "back"
           ],
-          "text": "Сейчас нет в наличии: Станция Миди. Могу показать доступные альтернативы."
+          "text": "Станция Миди. Для музыки и фильмов"
         }
       }
     ]
@@ -300,7 +299,7 @@
         "input": "music",
         "response": {
           "type": "recommendation",
-          "modelId": "miniPro",
+          "modelId": "midi",
           "colorKey": "",
           "actions": [
             "show_product",
@@ -308,14 +307,14 @@
             "alternative",
             "back"
           ],
-          "text": "Recommended: Station Mini 3 Pro 160 €. For music, choose stronger sound."
+          "text": "Recommended: Station Midi 220 €. For music, choose stronger sound."
         }
       },
       {
         "input": "show product",
         "response": {
           "type": "model",
-          "modelId": "miniPro",
+          "modelId": "midi",
           "colorKey": "",
           "actions": [
             "show_product",
@@ -323,7 +322,7 @@
             "alternative",
             "back"
           ],
-          "text": "Station Mini 3 Pro. Smart home center."
+          "text": "Station Midi. For music and movies."
         }
       }
     ]
@@ -493,7 +492,7 @@
         "input": "Muzikai",
         "response": {
           "type": "recommendation",
-          "modelId": "miniPro",
+          "modelId": "midi",
           "colorKey": "",
           "actions": [
             "show_product",
@@ -501,28 +500,13 @@
             "alternative",
             "back"
           ],
-          "text": "Ieteikums: Station Mini 3 Pro 160 €. Mūzikai labāk der jaudīgāks modelis."
+          "text": "Ieteikums: Station Midi 220 €. Mūzikai labāk der jaudīgāks modelis."
         }
       },
       {
         "input": "Vel variants",
         "response": {
           "type": "recommendation",
-          "modelId": "street",
-          "colorKey": "",
-          "actions": [
-            "show_product",
-            "compare",
-            "alternative",
-            "back"
-          ],
-          "text": "Vēl var apskatīt Station Street."
-        }
-      },
-      {
-        "input": "Atpakal",
-        "response": {
-          "type": "back",
           "modelId": "miniPro",
           "colorKey": "",
           "actions": [
@@ -531,7 +515,22 @@
             "alternative",
             "back"
           ],
-          "text": "Ieteikums: Station Mini 3 Pro 160 €. Mūzikai labāk der jaudīgāks modelis."
+          "text": "Vēl var apskatīt Station Mini 3 Pro."
+        }
+      },
+      {
+        "input": "Atpakal",
+        "response": {
+          "type": "back",
+          "modelId": "midi",
+          "colorKey": "",
+          "actions": [
+            "show_product",
+            "compare",
+            "alternative",
+            "back"
+          ],
+          "text": "Ieteikums: Station Midi 220 €. Mūzikai labāk der jaudīgāks modelis."
         }
       }
     ]
@@ -831,14 +830,16 @@
       {
         "input": "Миди доступна?",
         "response": {
-          "type": "availability_unavailable",
+          "type": "availability",
           "modelId": "midi",
           "colorKey": "",
           "actions": [
-            "show_available",
+            "show_product",
+            "compare",
+            "alternative",
             "back"
           ],
-          "text": "Сейчас нет в наличии: Станция Миди. Могу показать доступные альтернативы."
+          "text": "Сейчас в наличии: Станция Миди."
         }
       }
     ]
@@ -1026,7 +1027,7 @@
         "input": "для музыки",
         "response": {
           "type": "recommendation",
-          "modelId": "miniPro",
+          "modelId": "midi",
           "colorKey": "",
           "actions": [
             "show_product",
@@ -1034,7 +1035,7 @@
             "alternative",
             "back"
           ],
-          "text": "Рекомендую: Станция Мини 3 Про 160 €. Для музыки лучше модель с более мощным звуком."
+          "text": "Рекомендую: Станция Миди 220 €. Для музыки лучше модель с более мощным звуком."
         }
       }
     ]
@@ -1085,7 +1086,7 @@
             "compare",
             "back"
           ],
-          "text": "Сейчас в наличии: Станция Лайт 2, Станция Мини 3, Станция Мини 3 Про, Станция Стрит."
+          "text": "Сейчас в наличии: Станция Лайт 2, Станция Мини 3, Станция Мини 3 Про, Станция Стрит, Станция Миди."
         }
       }
     ]
@@ -1097,14 +1098,16 @@
       {
         "input": "Midi ir?",
         "response": {
-          "type": "availability_unavailable",
+          "type": "availability",
           "modelId": "midi",
           "colorKey": "",
           "actions": [
-            "show_available",
+            "show_product",
+            "compare",
+            "alternative",
             "back"
           ],
-          "text": "Сейчас нет в наличии: Станция Миди. Могу показать доступные альтернативы."
+          "text": "Сейчас в наличии: Станция Миди."
         }
       }
     ]

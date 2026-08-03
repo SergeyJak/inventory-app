@@ -365,7 +365,10 @@ const CATALOG_INITIAL_PRODUCTS = [
     { key: 'green', aliases: ['зелен', 'зелён'], image: 'images/catalog/mini-pro/green/01.webp', label: 'зелёный' },
     { key: 'blue', aliases: ['голуб', 'син'], image: 'images/catalog/mini-pro/blue/01.webp', label: 'голубой' },
     { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/mini-pro/gray/01.webp', label: 'серый' },
-    { key: 'graphite', aliases: ['черн', 'чёрн', 'графит'], image: 'images/catalog/mini-pro/graphite/01.webp', label: 'графит' },
+    { key: 'graphite', aliases: ['черн', 'чёрн', 'графит'], image: 'images/catalog/mini-pro/graphite/01.png', label: 'графит' },
+  ] },
+  { id: 'midi', aliases: ['миди', 'midi'], title: 'Станция Миди', line: 'Станция для большой комнаты, фильмов, музыки и семейных сценариев.', colors: [
+    { key: 'black', aliases: ['черн', 'чёрн', 'графит', 'black', 'graphite'], image: 'images/catalog/midi/black/01.png', label: 'чёрный' },
   ] },
   { id: 'street', aliases: ['стрит', 'street'], title: 'Станция Стрит', line: 'Портативная умная колонка для музыки дома и на улице.', colors: [
     { key: 'green', aliases: ['зелен', 'зелён', 'олив'], image: 'images/catalog/street/green/01.webp', label: 'зелёный' },

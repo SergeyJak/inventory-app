@@ -86,7 +86,7 @@ const PHOTO_MODELS = [
       { colorKey: 'green', photos: ['images/catalog/mini-pro/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
       { colorKey: 'blue', photos: ['images/catalog/mini-pro/blue/01.webp'], aliases: ['голуб', 'син'], transparent: true },
       { colorKey: 'gray', photos: ['images/catalog/mini-pro/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
-      { colorKey: 'graphite', photos: ['images/catalog/mini-pro/graphite/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
+      { colorKey: 'graphite', photos: ['images/catalog/mini-pro/graphite/01.png'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
     ],
   },
   {
@@ -94,7 +94,9 @@ const PHOTO_MODELS = [
     aliases: ['миди', 'midi'],
     glow: 'rgba(120, 120, 160, .16)',
     wash: '#f3f4f7',
-    photos: [],
+    photos: [
+      { colorKey: 'black', photos: ['images/catalog/midi/black/01.png'], aliases: ['черн', 'чёрн', 'графит', 'black', 'graphite'] },
+    ],
   },
   {
     id: 'street',
