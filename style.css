@@ -125,6 +125,7 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 .accounts-grid-2 input { width: 100%; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 9px 12px; font-size: 0.95rem; outline: none; }
 .account-toggle { width: 28px; height: 28px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 6px; font-weight: 700; cursor: pointer; }
 .account-status { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 10px; padding: 2px 8px; font-size: 0.78rem; font-weight: 700; }
+.mail-connected-check { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #dcfce7; color: #15803d; font-weight: 800; }
 .account-renewal-watch td { background: #fffbeb; }
 .account-renewal-soon td { background: #fff7ed; color: #9a3412; }
 .account-renewal-overdue td { background: #fef2f2; color: #991b1b; }

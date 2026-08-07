@@ -282,9 +282,10 @@ function renderDashboard() {
   const totalCostSold = sales.reduce((s, t) => s + t.costTotal, 0);
   const totalProfit   = sales.reduce((s, t) => s + t.profit, 0);
   const soldQty       = sales.reduce((s, t) => s + t.qty, 0);
+  const stockQty      = products.reduce((s, p) => s + getStock(p), 0);
   const stockValue    = products.reduce((s, p) => s + getStockValue(p), 0);
 
-  document.getElementById('stat-products').textContent    = products.length;
+  document.getElementById('stat-products').textContent    = stockQty;
   document.getElementById('stat-profit').textContent      = fmt(totalProfit);
   document.getElementById('stat-profit-pct').textContent  = totalRevenue > 0
     ? ((totalProfit / totalRevenue) * 100).toFixed(1) + '% от выручки' : '';
@@ -565,7 +566,7 @@ function deleteProduct(id) {
 
 // ========== ACCOUNTS ==========
 let accountsView = 'subs';
-let subAccountsStartSort = 'desc';
+let subAccountsStartSort = 'asc';
 
 function getAccountHostKey(host) {
   return (host.hostMail || host.id || '').toLowerCase();
@@ -628,6 +629,10 @@ function isCancelledSub(sub) {
   return ['cancelled', 'canceled', 'annulled', 'off'].includes(String(sub.status || '').toLowerCase());
 }
 
+function isNotActiveSub(sub) {
+  return String(sub.status || '').toLowerCase() === 'not active';
+}
+
 function isNewUnassignedSub(sub) {
   return !isCancelledSub(sub) && !String(sub.tel || '').trim() && !String(sub.startDate || '').trim();
 }
@@ -641,18 +646,30 @@ function subFitsAccountsView(sub) {
 function accountSearchBlob(host, subs) {
   return [
     host.hostMail, host.password, host.status, host.renewalDate,
-    ...subs.flatMap(s => [s.num, s.email, s.startDate, s.tel, s.name, s.hostProvider, s.status])
+    ...subs.flatMap(s => [s.email, s.startDate, s.tel, s.name, s.hostProvider, s.status])
   ].join(' ').toLowerCase();
 }
 
 function subAccountSearchBlob(sub) {
-  return [sub.num, sub.email, sub.startDate, sub.tel, sub.name, sub.hostProvider, sub.status].join(' ').toLowerCase();
+  return [sub.email, sub.startDate, sub.tel, sub.name, sub.hostProvider, sub.status].join(' ').toLowerCase();
 }
 
 function populateSubHostSelect(selected) {
-  const sel = document.getElementById('sub-host');
+  populateHostSelect('sub-host', selected);
+}
+
+function populateHostSelect(selectId, selected, options = {}) {
+  const sel = document.getElementById(selectId);
   if (!sel) return;
-  const hosts = [...loadHostSubscriptions()].sort((a, b) => String(a.hostMail || '').localeCompare(String(b.hostMail || '')));
+  const subs = loadSubAccounts();
+  const hosts = [...loadHostSubscriptions()]
+    .filter(host => {
+      if (!options.maxSubAccounts) return true;
+      const hostValue = String(host.hostMail || host.id || '');
+      if (selected && hostValue === selected) return true;
+      return subs.filter(sub => subMatchesHost(sub, host)).length < options.maxSubAccounts;
+    })
+    .sort((a, b) => String(a.hostMail || '').localeCompare(String(b.hostMail || '')));
   sel.innerHTML = hosts.length
     ? hosts.map(h => `<option value="${esc(h.hostMail || h.id)}">${esc(h.hostMail || h.id)}</option>`).join('')
     : '<option value="">No hosts</option>';
@@ -703,8 +720,8 @@ function normalizeStartDate(value) {
 function sortSubsByStart(a, b) {
   const diff = startDateTime(a.startDate) - startDateTime(b.startDate);
   if (diff !== 0) return subAccountsStartSort === 'desc' ? -diff : diff;
-  return String(a.num || '').localeCompare(String(b.num || ''), undefined, { numeric: true })
-    || String(a.email || '').localeCompare(String(b.email || ''));
+  return String(a.email || '').localeCompare(String(b.email || ''))
+    || String(a.name || '').localeCompare(String(b.name || ''));
 }
 
 function toggleSubAccountsStartSort() {
@@ -713,6 +730,12 @@ function toggleSubAccountsStartSort() {
     mark.textContent = subAccountsStartSort === 'desc' ? '↓' : '↑';
   });
   renderAccounts();
+}
+
+function renderSubStartDateCell(sub) {
+  if (isNotActiveSub(sub)) return '<td></td>';
+  const id = esc(sub.id);
+  return `<td class="editable-start-date" data-sub-id="${id}" title="Double-click to edit">${formatAccountDate(sub.startDate)} <button class="date-edit-btn" onclick="editSubStartDate('${id}', this.closest('td'))" title="Edit date">Edit</button></td>`;
 }
 
 function renderAccounts() {
@@ -754,14 +777,14 @@ function renderSubAccountsTable(q) {
     .filter(sub => !q || subAccountSearchBlob(sub).includes(q))
     .filter(subFitsAccountsView)
     .sort(sortSubsByStart)
-    .map(sub => {
+    .map((sub, index) => {
       const id = esc(sub.id);
       return `<tr class="${subPaymentClass(sub)}">
-        <td>${esc(sub.num || '')}</td>
+        <td>${index + 1}</td>
         <td><strong>${esc(sub.email || '')}</strong></td>
         <td>${esc(sub.tel || '')}</td>
         <td>${esc(sub.name || '')}</td>
-        <td class="editable-start-date" data-sub-id="${id}" title="Double-click to edit">${formatAccountDate(sub.startDate)} <button class="date-edit-btn" onclick="editSubStartDate('${id}', this.closest('td'))" title="Edit date">Edit</button></td>
+        ${renderSubStartDateCell(sub)}
         <td>${esc(sub.hostProvider || '')}</td>
         <td><span class="account-status">${esc(sub.status || '')}</span></td>
         <td>${subActionButtons(sub)}</td>
@@ -772,11 +795,11 @@ function renderSubAccountsTable(q) {
 
 function renderLinkedSubAccounts(subs) {
   if (!subs.length) return '<div class="account-empty-linked">No linked sub-accounts.</div>';
-  return `<table class="accounts-sub-table"><thead><tr><th>Num</th><th>Email</th><th>Phone</th><th>Name</th><th><button class="table-sort-btn" onclick="toggleSubAccountsStartSort()">Start <span class="sub-start-sort-mark">${subAccountsStartSort === 'desc' ? '↓' : '↑'}</span></button></th><th>Status</th><th>Actions</th></tr></thead><tbody>${[...subs].sort(sortSubsByStart).map(sub => {
+  return `<table class="accounts-sub-table"><thead><tr><th>Num</th><th>Email</th><th>Phone</th><th>Name</th><th><button class="table-sort-btn" onclick="toggleSubAccountsStartSort()">Start <span class="sub-start-sort-mark">${subAccountsStartSort === 'desc' ? '↓' : '↑'}</span></button></th><th>Status</th><th>Actions</th></tr></thead><tbody>${[...subs].sort(sortSubsByStart).map((sub, index) => {
     const id = esc(sub.id);
     return `<tr class="${subPaymentClass(sub)}">
-      <td>${esc(sub.num || '')}</td><td>${esc(sub.email || '')}</td><td>${esc(sub.tel || '')}</td><td>${esc(sub.name || '')}</td>
-      <td class="editable-start-date" data-sub-id="${id}" title="Double-click to edit">${formatAccountDate(sub.startDate)} <button class="date-edit-btn" onclick="editSubStartDate('${id}', this.closest('td'))" title="Edit date">Edit</button></td><td>${esc(sub.status || '')}</td>
+      <td>${index + 1}</td><td>${esc(sub.email || '')}</td><td>${esc(sub.tel || '')}</td><td>${esc(sub.name || '')}</td>
+      ${renderSubStartDateCell(sub)}<td>${esc(sub.status || '')}</td>
       <td>${subActionButtons(sub)}</td>
     </tr>`;
   }).join('')}</tbody></table>`;
@@ -869,6 +892,7 @@ function editHostSubscription(id) {
 
 function clearHostForm() {
   ['edit-host-id','host-mail','host-password','host-status','host-renewal-date'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('host-status').value = 'active';
   document.getElementById('host-form-title').textContent = 'Add host subscription';
   document.getElementById('cancel-host-btn').style.display = 'none';
 }
@@ -887,14 +911,13 @@ function saveSubAccount() {
   const subs = loadSubAccounts();
   const sub = {
     id,
-    num: document.getElementById('sub-num').value.trim(),
     email: document.getElementById('sub-email').value.trim(),
-    startDate: document.getElementById('sub-start-date').value,
     tel: document.getElementById('sub-tel').value.trim(),
     name: document.getElementById('sub-name').value.trim(),
     hostProvider,
     status: document.getElementById('sub-status').value.trim()
   };
+  sub.startDate = isNotActiveSub(sub) ? '' : document.getElementById('sub-start-date').value;
   if (!sub.email) return showToast('Sub-account email is required', 'error');
   const idx = subs.findIndex(s => s.id === id);
   if (idx >= 0) subs[idx] = sub; else subs.push(sub);
@@ -919,7 +942,6 @@ function editSubAccount(id) {
   if (!sub) return;
   populateSubHostSelect(sub.hostProvider);
   document.getElementById('edit-sub-id').value = sub.id;
-  document.getElementById('sub-num').value = sub.num || '';
   document.getElementById('sub-email').value = sub.email || '';
   document.getElementById('sub-start-date').value = String(sub.startDate || '').slice(0, 10);
   document.getElementById('sub-tel').value = sub.tel || '';
@@ -930,7 +952,8 @@ function editSubAccount(id) {
 }
 
 function clearSubForm() {
-  ['edit-sub-id','sub-num','sub-email','sub-start-date','sub-tel','sub-name','sub-status'].forEach(id => { document.getElementById(id).value = ''; });
+  ['edit-sub-id','sub-email','sub-start-date','sub-tel','sub-name','sub-status'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('sub-status').value = 'active';
   document.getElementById('sub-form-title').textContent = 'Add sub-account';
   document.getElementById('cancel-sub-btn').style.display = 'none';
   populateSubHostSelect();
@@ -1289,6 +1312,7 @@ function copyAssistantQuestion(id) {
 let mailAccountsCache = [];
 let mailAdminMessagesCache = [];
 let mailAdminSelectedAccount = null;
+let mailAccountsNameSort = 'asc';
 
 function formatMailDate(value) {
   if (!value) return '<span style="color:#94a3b8">-</span>';
@@ -1348,17 +1372,37 @@ async function renderMailAccounts() {
   try {
     await loadMailAccounts();
     const q = (document.getElementById('mail-accounts-search')?.value || '').trim().toLowerCase();
+    const subs = loadSubAccounts();
     const rows = mailAccountsCache
       .filter(account => !q || String(account.email || '').toLowerCase().includes(q))
+      .map(account => ({
+        account,
+        connectedSub: subs.find(sub => String(sub.email || '').toLowerCase() === String(account.email || '').toLowerCase())
+      }))
+      .sort((a, b) => {
+        const aName = String(a.connectedSub?.name || a.account.email || '').toLowerCase();
+        const bName = String(b.connectedSub?.name || b.account.email || '').toLowerCase();
+        const diff = aName.localeCompare(bName, undefined, { numeric: true });
+        return mailAccountsNameSort === 'desc' ? -diff : diff;
+      })
       .map(account => {
+        const connectedSub = account.connectedSub;
+        account = account.account;
         const id = esc(account._id);
+        const connectedHostSub = connectedSub && String(connectedSub.hostProvider || '').trim() ? connectedSub : null;
+        const hostMark = connectedHostSub
+          ? `<span class="mail-connected-check" title="Connected to ${esc(connectedHostSub.hostProvider)}">✓</span>`
+          : '<span style="color:#94a3b8">-</span>';
         return `<tr>
           <td><strong>${esc(account.email)}</strong></td>
+          <td>${esc(connectedSub?.name || '')}</td>
           <td><span class="account-status">${account.active ? 'active' : 'disabled'}</span></td>
+          <td>${hostMark}</td>
           <td>${formatMailDate(account.createdAt)}</td>
           <td>${formatMailDate(account.lastLoginAt)}</td>
+          <td><button class="btn-edit" onclick="openMailAccount('${id}')">Open</button></td>
+          <td><button class="btn-edit" onclick="connectMailAccount('${id}')">Connect</button></td>
           <td><span class="accounts-actions">
-            <button class="btn-edit" onclick="openMailAccount('${id}')">Open</button>
             <button class="btn-edit" onclick="changeMailPassword('${id}')">Change pass</button>
             ${account.active
               ? `<button class="btn-delete" onclick="deactivateMailAccount('${id}')">Deactivate</button>`
@@ -1367,11 +1411,19 @@ async function renderMailAccounts() {
           </span></td>
         </tr>`;
       });
-    tbody.innerHTML = rows.length ? rows.join('') : '<tr class="empty-row"><td colspan="5">No mail accounts yet.</td></tr>';
+    tbody.innerHTML = rows.length ? rows.join('') : '<tr class="empty-row"><td colspan="9">No mail accounts yet.</td></tr>';
     document.getElementById('mail-accounts-summary').textContent = `${mailAccountsCache.length} mail accounts`;
   } catch (e) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="5">Could not load mail accounts: ${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="9">Could not load mail accounts: ${esc(e.message)}</td></tr>`;
   }
+}
+
+function toggleMailAccountsNameSort() {
+  mailAccountsNameSort = mailAccountsNameSort === 'asc' ? 'desc' : 'asc';
+  document.querySelectorAll('.mail-name-sort-mark').forEach(mark => {
+    mark.textContent = mailAccountsNameSort === 'asc' ? '↑' : '↓';
+  });
+  renderMailAccounts();
 }
 
 async function createMailAccount() {
@@ -1419,6 +1471,54 @@ async function resetMailPassword(id) {
   } catch (e) {
     showToast('Reset error: ' + e.message, 'error');
   }
+}
+
+function connectMailAccount(id) {
+  const account = mailAccountsCache.find(item => item._id === id);
+  if (!account) return showToast('Mail account not found', 'error');
+  const existing = loadSubAccounts().find(sub => String(sub.email || '').toLowerCase() === String(account.email || '').toLowerCase());
+  document.getElementById('mail-connect-id').value = id;
+  document.getElementById('mail-connect-sub-id').value = existing?.id || '';
+  document.getElementById('mail-connect-email').value = account.email || '';
+  document.getElementById('mail-connect-start-date').value = toDateInputValue(existing?.startDate) || new Date().toISOString().slice(0, 10);
+  document.getElementById('mail-connect-tel').value = existing?.tel || '';
+  document.getElementById('mail-connect-name').value = existing?.name || '';
+  document.getElementById('mail-connect-status').value = ['active', 'not active'].includes(existing?.status) ? existing.status : 'active';
+  populateHostSelect('mail-connect-host', existing?.hostProvider, { maxSubAccounts: 3 });
+  document.getElementById('mail-connect-title').textContent = existing ? 'Edit mail connection' : 'Connect mail account';
+  document.getElementById('mail-connect-modal').style.display = 'flex';
+}
+
+function closeMailConnectModal() {
+  document.getElementById('mail-connect-modal').style.display = 'none';
+}
+
+function saveMailAccountConnection() {
+  const email = document.getElementById('mail-connect-email').value.trim();
+  const hostProvider = document.getElementById('mail-connect-host').value;
+  if (!email) return showToast('Mail account email is required', 'error');
+  if (!hostProvider) return showToast('Choose host account', 'error');
+
+  const subs = loadSubAccounts();
+  const id = document.getElementById('mail-connect-sub-id').value || genId();
+  const existing = subs.find(sub => sub.id === id) || {};
+  const sub = {
+    ...existing,
+    id,
+    email,
+    tel: document.getElementById('mail-connect-tel').value.trim(),
+    name: document.getElementById('mail-connect-name').value.trim(),
+    hostProvider,
+    status: document.getElementById('mail-connect-status').value || 'active'
+  };
+  sub.startDate = isNotActiveSub(sub) ? '' : document.getElementById('mail-connect-start-date').value;
+  const idx = subs.findIndex(item => item.id === id);
+  if (idx >= 0) subs[idx] = sub; else subs.push(sub);
+  saveSubAccounts(subs);
+  syncSubAccountLink(sub);
+  closeMailConnectModal();
+  renderAccounts();
+  showToast('Mail account connected');
 }
 
 async function changeMailPassword(id) {

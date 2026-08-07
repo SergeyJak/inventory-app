@@ -66,7 +66,7 @@
   <div id="dash-main">
   <h2>Общая сводка</h2>
   <div class="stats-grid">
-    <div class="stat-card"><span class="stat-label">Товаров в каталоге</span><span class="stat-value" id="stat-products">0</span></div>
+    <div class="stat-card"><span class="stat-label">Колонок в остатке</span><span class="stat-value" id="stat-products">0</span></div>
     <div class="stat-card profit"><span class="stat-label">💰 Прибыль с продаж</span><span class="stat-value" id="stat-profit">0.00 €</span><span class="stat-sub" id="stat-profit-pct" style="font-size:0.8rem;color:#16a34a"></span></div>
     <div class="stat-card"><span class="stat-label">💳 Выручка (что заплатили)</span><span class="stat-value" id="stat-revenue">0.00 €</span></div>
     <div class="stat-card"><span class="stat-label">📦 Себестоимость проданного</span><span class="stat-value" id="stat-cost">0.00 €</span></div>
@@ -179,7 +179,7 @@
       <input type="hidden" id="edit-host-id" />
       <div class="form-row"><label>Host email</label><input type="email" id="host-mail" placeholder="host@example.com" /></div>
       <div class="form-row"><label>Password</label><input type="text" id="host-password" placeholder="Password" /></div>
-      <div class="form-row"><label>Status</label><input type="text" id="host-status" placeholder="active" /></div>
+      <div class="form-row"><label>Status</label><select id="host-status"><option value="active">active</option><option value="not active">not active</option></select></div>
       <div class="form-row"><label>Renewal date</label><input type="date" id="host-renewal-date" /></div>
       <div class="form-actions">
         <button onclick="saveHostSubscription()" class="btn-primary" id="save-host-btn">Save host</button>
@@ -192,13 +192,10 @@
       <input type="hidden" id="edit-sub-id" />
       <div class="form-row"><label>Host</label><select id="sub-host"></select></div>
       <div class="form-row"><label>Email</label><input type="email" id="sub-email" placeholder="user@example.com" /></div>
-      <div class="form-row accounts-grid-2">
-        <div><label>Num</label><input type="text" id="sub-num" placeholder="1" /></div>
-        <div><label>Start date</label><input type="date" id="sub-start-date" /></div>
-      </div>
+      <div class="form-row"><label>Start date</label><input type="date" id="sub-start-date" /></div>
       <div class="form-row"><label>Phone</label><input type="text" id="sub-tel" placeholder="+..." /></div>
       <div class="form-row"><label>Name</label><input type="text" id="sub-name" placeholder="Name" /></div>
-      <div class="form-row"><label>Status</label><input type="text" id="sub-status" placeholder="active" /></div>
+      <div class="form-row"><label>Status</label><select id="sub-status"><option value="active">active</option><option value="not active">not active</option></select></div>
       <div class="form-actions">
         <button onclick="saveSubAccount()" class="btn-primary" id="save-sub-btn">Save account</button>
         <button onclick="cancelSubEdit()" class="btn-secondary" id="cancel-sub-btn" style="display:none">Cancel</button>
@@ -214,7 +211,7 @@
   </div>
 
   <table id="sub-accounts-table">
-    <thead><tr><th>Num</th><th>Email</th><th>Phone</th><th>Name</th><th><button class="table-sort-btn" onclick="toggleSubAccountsStartSort()">Start <span class="sub-start-sort-mark">↓</span></button></th><th>Host</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Num</th><th>Email</th><th>Phone</th><th>Name</th><th><button class="table-sort-btn" onclick="toggleSubAccountsStartSort()">Start <span class="sub-start-sort-mark">↑</span></button></th><th>Host</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody id="sub-accounts-tbody"></tbody>
   </table>
 
@@ -336,10 +333,28 @@
     <div class="accounts-summary" id="mail-accounts-summary"></div>
   </div>
   <table id="mail-accounts-table">
-    <thead><tr><th>Email</th><th>Status</th><th>Created</th><th>Last login</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Email</th><th>Name <button class="table-sort-btn" onclick="toggleMailAccountsNameSort()"><span class="mail-name-sort-mark">↑</span></button></th><th>Status</th><th>Host</th><th>Created</th><th>Last login</th><th>Open</th><th>Connect</th><th>Actions</th></tr></thead>
     <tbody id="mail-accounts-tbody"></tbody>
   </table>
 </section>
+
+<div id="mail-connect-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.52);z-index:9999;align-items:center;justify-content:center;padding:18px">
+  <div class="form-card accounts-form" style="width:min(520px,100%);max-height:90vh;overflow-y:auto;margin:0">
+    <h3 id="mail-connect-title">Connect mail account</h3>
+    <input type="hidden" id="mail-connect-id" />
+    <input type="hidden" id="mail-connect-sub-id" />
+    <div class="form-row"><label>Host</label><select id="mail-connect-host"></select></div>
+    <div class="form-row"><label>Email</label><input type="email" id="mail-connect-email" placeholder="user@example.com" readonly /></div>
+    <div class="form-row"><label>Start date</label><input type="date" id="mail-connect-start-date" /></div>
+    <div class="form-row"><label>Phone</label><input type="text" id="mail-connect-tel" placeholder="+..." /></div>
+    <div class="form-row"><label>Name</label><input type="text" id="mail-connect-name" placeholder="Name" /></div>
+    <div class="form-row"><label>Status</label><select id="mail-connect-status"><option value="active">active</option><option value="not active">not active</option></select></div>
+    <div class="form-actions">
+      <button onclick="saveMailAccountConnection()" class="btn-primary" id="mail-connect-save-btn">Save connection</button>
+      <button onclick="closeMailConnectModal()" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+</div>
 <!-- ===== SALES ===== -->
 <section id="tab-sales" class="tab-content">
   <h2>Зафиксировать продажу</h2>
