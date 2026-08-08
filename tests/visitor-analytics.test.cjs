@@ -147,15 +147,24 @@ async function main() {
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'bot_v', sessionId: 'bot_s' }, { 'user-agent': 'Googlebot/2.1' })).res.status, 204);
     assert.strictEqual((await event({ eventType: 'bad_type' })).res.status, 400);
     assert.strictEqual((await event({ eventType: 'model_view', visitorId: 'visitor_a', sessionId: 's1', metadata: { huge: 'x'.repeat(3000) } })).res.status, 204);
+    const detailVisitorId = 'detail_safe-visitor_1';
+    const detailBaseTime = Date.now() - 10_000;
+    const detailEvents = [
+      { id: 'detail_1', visitorId: detailVisitorId, sessionId: 'detail_s1', eventType: 'page_view', timestamp: new Date(detailBaseTime).toISOString(), ip: '198.51.100.1', page: 'https://heysmart.lv/', locale: 'ru', bot: false },
+      { id: 'detail_2', visitorId: detailVisitorId, sessionId: 'detail_s1', eventType: 'model_view', timestamp: new Date(detailBaseTime + 1000).toISOString(), ip: '198.51.100.1', bot: false },
+      { id: 'detail_3', visitorId: detailVisitorId, sessionId: 'detail_s1', eventType: 'assistant_open', timestamp: new Date(detailBaseTime + 2000).toISOString(), ip: '2001:db8::4', metadata: null, bot: false },
+      { id: 'detail_4', visitorId: detailVisitorId, eventType: 'whatsapp_click', timestamp: new Date(detailBaseTime + 3000).toISOString(), ip: '2001:db8::4', bot: false },
+    ];
+    writeJson('visitor-analytics-events.json', [...storedEvents(), ...detailEvents]);
 
     const token = await login();
     const list = await request('/api/admin/analytics/visitors?limit=10', { headers: auth(token) });
     assert.strictEqual(list.res.status, 200);
-    assert.strictEqual(list.body.summary.uniqueVisitors, 9);
-    assert.strictEqual(list.body.summary.returningVisitors, 2);
+    assert.strictEqual(list.body.summary.uniqueVisitors, 10);
+    assert.strictEqual(list.body.summary.returningVisitors, 3);
     assert.strictEqual(list.body.summary.assistantUsers, 2);
-    assert.strictEqual(list.body.summary.contactClicks, 2);
-    assert.strictEqual(list.body.summary.pageViews, 11);
+    assert.strictEqual(list.body.summary.contactClicks, 3);
+    assert.strictEqual(list.body.summary.pageViews, 12);
     const flowVisitor = list.body.items.find(row => row.visitorId === 'flow_v');
     assert(flowVisitor);
     assert.strictEqual(flowVisitor.sessionCount, 3);
@@ -171,7 +180,7 @@ async function main() {
     assert(visitorA.ips.includes('2001:db8::2'));
 
     const withBots = await request('/api/admin/analytics/visitors?includeBots=true', { headers: auth(token) });
-    assert.strictEqual(withBots.body.summary.uniqueVisitors, 10);
+    assert.strictEqual(withBots.body.summary.uniqueVisitors, 11);
 
     const detail = await request('/api/admin/analytics/visitors/visitor_a', { headers: auth(token) });
     assert.strictEqual(detail.res.status, 200);
@@ -184,6 +193,24 @@ async function main() {
     assert.strictEqual(flowDetail.body.sessionCount, 3);
     const flowTimeline = flowDetail.body.sessions.find(session => session.sessionId === 'flow_s1').events.map(item => item.eventType);
     assert.deepStrictEqual(flowTimeline, flowEvents.map(item => item.eventType));
+    const timelineDetail = await request(`/api/admin/analytics/visitors/${encodeURIComponent(detailVisitorId)}`, { headers: auth(token) });
+    assert.strictEqual(timelineDetail.res.status, 200);
+    assert.strictEqual(timelineDetail.body.visitorId, detailVisitorId);
+    assert.deepStrictEqual(timelineDetail.body.ips, ['198.51.100.1', '2001:db8::4']);
+    assert.strictEqual(timelineDetail.body.sessionCount, 2);
+    assert(timelineDetail.body.sessions.some(session => session.sessionId === 'unknown-session'));
+    const detailTimeline = timelineDetail.body.sessions.flatMap(session => session.events);
+    assert.deepStrictEqual(detailTimeline.map(item => item.eventType), ['page_view', 'model_view', 'assistant_open', 'whatsapp_click']);
+    assert.deepStrictEqual(detailTimeline.map(item => item.label), ['Page opened', 'Viewed', 'Opened assistant', 'Clicked WhatsApp']);
+    assert(detailTimeline.every(item => Object.prototype.hasOwnProperty.call(item, 'timestamp') && Object.prototype.hasOwnProperty.call(item, 'label')));
+    const unknownDetail = await request('/api/admin/analytics/visitors/unknown_visitor', { headers: auth(token) });
+    assert.strictEqual(unknownDetail.res.status, 404);
+    assert.strictEqual(unknownDetail.res.headers.get('content-type').includes('application/json'), true);
+    assert.strictEqual(unknownDetail.body.error, 'Visitor not found');
+    const malformedDetail = await request('/api/admin/analytics/visitors/%3Cbad%3E', { headers: auth(token) });
+    assert.strictEqual(malformedDetail.res.status, 400);
+    assert.strictEqual(malformedDetail.res.headers.get('content-type').includes('application/json'), true);
+    assert.strictEqual(malformedDetail.body.error, 'Invalid visitorId');
 
     const stored = storedEvents();
     assert(!stored.some(item => item.visitorId === 'old_v'));

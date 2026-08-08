@@ -1106,14 +1106,17 @@ function analyticsDateRange(query = {}) {
 async function loadVisitorAnalyticsEvents(query = {}) {
   const range = analyticsDateRange(query);
   const includeBots = query.includeBots === 'true';
+  const visitorId = sanitizeAnalyticsId(query.visitorId);
   if (USE_MONGO) {
     const filter = { timestamp: { $gte: range.from, $lte: range.to } };
+    if (visitorId) filter.visitorId = visitorId;
     if (!includeBots) filter.bot = { $ne: true };
     return db.collection(COLL.visitorAnalyticsEvents).find(filter, { projection: { userAgent: 0 } }).sort({ timestamp: -1 }).limit(20000).toArray();
   }
   return readVisitorAnalyticsFile().filter(event => (
     String(event.timestamp || '') >= range.from
     && String(event.timestamp || '') <= range.to
+    && (!visitorId || event.visitorId === visitorId)
     && (includeBots || !event.bot)
   ));
 }
@@ -1218,15 +1221,40 @@ function humanAnalyticsEvent(event) {
 
 async function visitorAnalyticsDetail(visitorId, query = {}) {
   const cleanVisitorId = sanitizeAnalyticsId(visitorId);
-  const events = (await loadVisitorAnalyticsEvents({ ...query, includeBots: query.includeBots })).filter(event => event.visitorId === cleanVisitorId).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  if (!cleanVisitorId) return { status: 400, body: { error: 'Invalid visitorId' } };
+  if (cleanVisitorId !== String(visitorId || '')) return { status: 400, body: { error: 'Invalid visitorId' } };
+  const events = (await loadVisitorAnalyticsEvents({ ...query, visitorId: cleanVisitorId, includeBots: query.includeBots }))
+    .filter(event => event && event.visitorId === cleanVisitorId)
+    .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+  if (!events.length) return { status: 404, body: { error: 'Visitor not found' } };
   const limit = Math.max(1, Math.min(500, Number(query.limit) || 200));
   const limited = events.slice(Math.max(0, events.length - limit));
   const sessions = new Map();
   for (const event of limited) {
-    if (!sessions.has(event.sessionId)) sessions.set(event.sessionId, []);
-    sessions.get(event.sessionId).push({ timestamp: event.timestamp, eventType: event.eventType, label: humanAnalyticsEvent(event), page: event.page, locale: event.locale, modelId: event.modelId, color: event.color });
+    const sessionId = sanitizeAnalyticsId(event.sessionId) || 'unknown-session';
+    if (!sessions.has(sessionId)) sessions.set(sessionId, []);
+    sessions.get(sessionId).push({
+      timestamp: String(event.timestamp || ''),
+      eventType: sanitizeAnalyticsString(event.eventType, 80),
+      label: humanAnalyticsEvent(event),
+      page: sanitizeAssistantUrl(event.page || ''),
+      locale: ['ru', 'lv', 'en'].includes(event.locale) ? event.locale : '',
+      modelId: sanitizeAnalyticsString(event.modelId, 80),
+      color: sanitizeAnalyticsString(event.color, 80),
+    });
   }
-  return { visitorId: cleanVisitorId, ips: [...new Set(events.map(e => e.ip).filter(Boolean))].sort(), firstSeen: events[0]?.timestamp || '', lastSeen: events[events.length - 1]?.timestamp || '', sessionCount: new Set(events.map(e => e.sessionId)).size, eventCount: events.length, sessions: [...sessions.entries()].map(([sessionId, items]) => ({ sessionId, events: items })) };
+  return {
+    status: 200,
+    body: {
+      visitorId: cleanVisitorId,
+      ips: [...new Set(events.map(e => normalizeIp(e.ip)).filter(Boolean))].sort(),
+      firstSeen: String(events[0]?.timestamp || ''),
+      lastSeen: String(events[events.length - 1]?.timestamp || ''),
+      sessionCount: new Set(events.map(e => sanitizeAnalyticsId(e.sessionId) || 'unknown-session')).size,
+      eventCount: events.length,
+      sessions: [...sessions.entries()].map(([sessionId, items]) => ({ sessionId, events: items })),
+    },
+  };
 }
 
 function isMongoId(value) {
@@ -2274,7 +2302,8 @@ app.get('/api/admin/analytics/visitors', requireInventoryHost, requireAuth, requ
 
 app.get('/api/admin/analytics/visitors/:visitorId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await visitorAnalyticsDetail(req.params.visitorId, req.query));
+    const result = await visitorAnalyticsDetail(req.params.visitorId, req.query);
+    res.status(result.status).json(result.body);
   } catch (e) {
     console.error('Visitor analytics detail error:', e.message);
     sendGenericError(res);
