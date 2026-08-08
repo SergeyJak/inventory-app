@@ -33,6 +33,14 @@ h3 { font-size: 1.05rem; font-weight: 600; color: #334155; margin-bottom: 14px; 
 .stat-label { font-size: 0.78rem; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
 .stat-value { font-size: 1.6rem; font-weight: 700; color: #0f3460; }
 .stat-card.profit .stat-value { color: #16a34a; }
+.dashboard-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(78px, auto); gap: 10px; margin-bottom: 8px; }
+.dashboard-summary .stat-card { min-height: 78px; border-radius: 10px; padding: 12px 14px; gap: 4px; justify-content: center; box-shadow: 0 1px 5px rgba(0,0,0,0.07); }
+.dashboard-summary .stat-card-main { grid-column: span 2; min-height: 92px; padding: 14px 16px; }
+.dashboard-summary .stat-label { color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: none; letter-spacing: 0; line-height: 1.15; }
+.dashboard-summary .stat-value { color: #0f3460; font-size: clamp(1.25rem, 2vw, 1.9rem); line-height: 1.05; letter-spacing: 0; white-space: nowrap; }
+.dashboard-summary .stat-card-main .stat-value { font-size: clamp(1.7rem, 3vw, 2.3rem); }
+.dashboard-summary .stat-sub { color: #16a34a; font-size: 0.72rem; line-height: 1.1; }
+.dashboard-summary .stat-card.profit .stat-value { color: #16a34a; }
 
 /* ========== TABLES ========== */
 table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.08); font-size: 0.9rem; }
@@ -250,6 +258,8 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
   .accounts-actions { flex-wrap: wrap; white-space: normal; }
   .assistant-admin-summary { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
   .assistant-report-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
+  .dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-summary .stat-card-main { grid-column: span 1; }
 }
 
 /* ========== EMPTY STATE ========== */
@@ -274,4 +284,16 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 
 /* ========== RESPONSIVE ========== */
 @media (max-width: 760px) { .accounts-forms, .backup-grid, .mail-admin-grid { grid-template-columns: 1fr; } .accounts-toolbar { align-items: stretch; flex-direction: column; } .accounts-summary { white-space: normal; } .backup-checks { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .tab-content { padding: 16px; } .form-card { padding: 16px; } .stats-grid, .assistant-admin-summary { grid-template-columns: 1fr 1fr; } header h1 { font-size: 1.2rem; } }
+@media (max-width: 640px) {
+  .tab-content { padding: 16px; }
+  .form-card { padding: 16px; }
+  .stats-grid, .assistant-admin-summary { grid-template-columns: 1fr 1fr; }
+  .dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; gap: 8px; }
+  .dashboard-summary .stat-card { min-height: 66px; padding: 10px 11px; border-left-width: 3px; }
+  .dashboard-summary .stat-card-main { min-height: 78px; }
+  .dashboard-summary .stat-label { font-size: 0.68rem; }
+  .dashboard-summary .stat-value { font-size: clamp(1.05rem, 5vw, 1.3rem); }
+  .dashboard-summary .stat-card-main .stat-value { font-size: clamp(1.35rem, 7vw, 1.7rem); }
+  .dashboard-summary .stat-sub { font-size: 0.66rem; }
+  header h1 { font-size: 1.2rem; }
+}
