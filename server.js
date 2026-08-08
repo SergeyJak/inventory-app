@@ -2383,6 +2383,18 @@ app.patch('/api/public/assistant-question/:id/feedback', async (req, res) => {
 
 app.post('/api/public/analytics/event', async (req, res) => {
   try {
+    if (process.env.ANALYTICS_IP_DEBUG === 'true') {
+      console.log('[ANALYTICS_IP_DEBUG]', {
+        ip: req.ip,
+        remoteAddress: req.socket?.remoteAddress,
+        cfConnectingIp: req.headers['cf-connecting-ip'] || '',
+        xForwardedFor: req.headers['x-forwarded-for'] || '',
+        xRealIp: req.headers['x-real-ip'] || '',
+        trueClientIp: req.headers['true-client-ip'] || '',
+        cfRay: req.headers['cf-ray'] || '',
+        host: req.headers.host || '',
+      });
+    }
     const result = await saveVisitorAnalyticsEvent(req, req.body || {});
     if (!result.body) return res.status(result.status).end();
     return res.status(result.status).json(result.body);
