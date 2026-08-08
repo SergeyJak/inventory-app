@@ -7,10 +7,17 @@ header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 10
 header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.03em; }
 
 /* ========== TABS ========== */
-.tabs { display: flex; background: #fff; border-bottom: 2px solid #e2e8f0; padding: 0 24px; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-.tab-btn { background: none; border: none; border-bottom: 3px solid transparent; padding: 14px 20px; font-size: 0.93rem; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s, border-color 0.2s; white-space: nowrap; margin-bottom: -2px; }
-.tab-btn:hover { color: #0f3460; }
+.nav-toggle { display: none; width: 100%; border: none; border-bottom: 1px solid #e2e8f0; background: #fff; color: #0f3460; padding: 12px 18px; font-size: 0.94rem; font-weight: 800; text-align: left; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.tabs { display: flex; align-items: stretch; gap: 4px; background: #fff; border-bottom: 2px solid #e2e8f0; padding: 0 24px; overflow: visible; box-shadow: 0 1px 4px rgba(0,0,0,0.08); position: relative; z-index: 20; }
+.tab-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: none; border: none; border-bottom: 3px solid transparent; padding: 14px 18px; min-height: 48px; font-size: 0.93rem; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s, border-color 0.2s, background 0.2s; white-space: nowrap; margin-bottom: -2px; text-decoration: none; }
+.tab-btn:hover, .tab-btn:focus-visible { color: #0f3460; background: #f8fafc; outline: 2px solid #93c5fd; outline-offset: -2px; }
 .tab-btn.active { color: #0f3460; border-bottom-color: #0f3460; }
+.nav-group { position: relative; display: flex; }
+.nav-group-toggle span { font-size: 0.7rem; line-height: 1; }
+.nav-dropdown { position: absolute; left: 0; top: calc(100% + 2px); min-width: 190px; display: flex; flex-direction: column; padding: 6px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 12px 28px rgba(15,23,42,0.16); opacity: 0; visibility: hidden; transform: translateY(-4px); pointer-events: none; transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms; }
+.nav-group.open .nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; transition-delay: 0s; }
+.nav-dropdown .tab-btn { width: 100%; justify-content: flex-start; min-height: 38px; margin: 0; padding: 9px 12px; border: none; border-radius: 6px; font-size: 0.88rem; }
+.nav-dropdown .tab-btn.active { background: #eff6ff; color: #0f3460; border: none; }
 
 /* ========== DASHBOARD SUB-TABS ========== */
 .dash-sub-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0; }
@@ -363,6 +370,17 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 /* ========== RESPONSIVE ========== */
 @media (max-width: 760px) { .accounts-forms, .backup-grid, .mail-admin-grid { grid-template-columns: 1fr; } .accounts-toolbar { align-items: stretch; flex-direction: column; } .accounts-summary { white-space: normal; } .backup-checks { grid-template-columns: 1fr; } }
 @media (max-width: 640px) {
+  header { align-items: flex-start; gap: 12px; padding: 16px; flex-direction: column; }
+  header > div { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+  .nav-toggle { display: block; }
+  .tabs { display: none; flex-direction: column; gap: 0; padding: 0; border-bottom-width: 1px; overflow: hidden; }
+  .tabs.open { display: flex; }
+  .tab-btn { width: 100%; justify-content: space-between; min-height: 44px; margin: 0; padding: 12px 18px; border-bottom: 1px solid #e2e8f0; }
+  .tab-btn.active { border-bottom-color: #e2e8f0; background: #eff6ff; }
+  .nav-group { display: block; width: 100%; }
+  .nav-dropdown { position: static; min-width: 0; width: 100%; max-height: 0; padding: 0 0 0 14px; border: none; border-radius: 0; box-shadow: none; background: #f8fafc; opacity: 1; visibility: hidden; transform: none; overflow: hidden; pointer-events: none; transition: max-height 120ms ease, visibility 0s linear 120ms; }
+  .nav-group.open .nav-dropdown { max-height: 320px; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+  .nav-dropdown .tab-btn { min-height: 42px; border-bottom: 1px solid #e2e8f0; border-radius: 0; padding: 10px 18px; }
   .tab-content { padding: 16px; }
   .form-card { padding: 16px; }
   .stats-grid, .assistant-admin-summary { grid-template-columns: 1fr 1fr; }

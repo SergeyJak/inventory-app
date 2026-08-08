@@ -220,24 +220,120 @@ function renderProductRows(p, colCount) {
 }
 
 // ========== TABS ==========
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'dashboard') renderDashboard();
-    if (btn.dataset.tab === 'products')  renderProducts();
-    if (btn.dataset.tab === 'accounts')  renderAccounts();
-    if (btn.dataset.tab === 'mail-accounts') renderMailAccounts();
-    if (btn.dataset.tab === 'visitor-activity') renderVisitorAnalytics();
-    if (btn.dataset.tab === 'assistant-questions') { renderAssistantQuestions(); loadAssistantReportHistory(); }
-    if (btn.dataset.tab === 'backups')   renderBackups();
-    if (btn.dataset.tab === 'sales')     populateProductSelect('sale-product');
-    if (btn.dataset.tab === 'restock')   populateProductSelect('restock-product');
-    if (btn.dataset.tab === 'history')   renderHistory('all');
-    if (btn.dataset.tab === 'annual')    renderAnnual();
+const adminNav = document.getElementById('admin-nav');
+const navToggle = document.querySelector('.nav-toggle');
+const navGroups = Array.from(document.querySelectorAll('.nav-group'));
+
+function closeNavGroups(exceptGroup) {
+  navGroups.forEach(group => {
+    if (group === exceptGroup) return;
+    group.classList.remove('open');
+    group.querySelector('.nav-group-toggle')?.setAttribute('aria-expanded', 'false');
   });
+}
+
+function setNavGroupOpen(group, isOpen) {
+  closeNavGroups(isOpen ? group : null);
+  group.classList.toggle('open', isOpen);
+  group.querySelector('.nav-group-toggle')?.setAttribute('aria-expanded', String(isOpen));
+}
+
+function closeMobileNav() {
+  adminNav?.classList.remove('open');
+  navToggle?.setAttribute('aria-expanded', 'false');
+}
+
+function setActiveNavButton(btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const groupToggle = btn.closest('.nav-group')?.querySelector('.nav-group-toggle');
+  if (groupToggle) groupToggle.classList.add('active');
+}
+
+function getTopLevelNavItems() {
+  return Array.from(adminNav?.children || [])
+    .map(item => item.classList?.contains('nav-group') ? item.querySelector('.nav-group-toggle') : item)
+    .filter(item => item?.matches?.('.tab-btn:not([disabled])') && item.offsetParent !== null);
+}
+
+function showTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'dashboard') renderDashboard();
+  if (tab === 'products')  renderProducts();
+  if (tab === 'accounts')  renderAccounts();
+  if (tab === 'mail-accounts') renderMailAccounts();
+  if (tab === 'visitor-activity') renderVisitorAnalytics();
+  if (tab === 'assistant-questions') { renderAssistantQuestions(); loadAssistantReportHistory(); }
+  if (tab === 'backups')   renderBackups();
+  if (tab === 'sales')     populateProductSelect('sale-product');
+  if (tab === 'restock')   populateProductSelect('restock-product');
+  if (tab === 'history')   renderHistory('all');
+  if (tab === 'annual')    renderAnnual();
+}
+
+navToggle?.addEventListener('click', () => {
+  const isOpen = !adminNav.classList.contains('open');
+  adminNav.classList.toggle('open', isOpen);
+  navToggle.setAttribute('aria-expanded', String(isOpen));
+});
+
+document.querySelectorAll('.nav-group-toggle').forEach(toggle => {
+  toggle.addEventListener('click', () => {
+    const group = toggle.closest('.nav-group');
+    setNavGroupOpen(group, !group.classList.contains('open'));
+  });
+});
+
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setActiveNavButton(btn);
+    showTab(btn.dataset.tab);
+    closeNavGroups();
+    closeMobileNav();
+  });
+});
+
+document.addEventListener('click', event => {
+  if (!event.target.closest('.admin-nav') && !event.target.closest('.nav-toggle')) {
+    closeNavGroups();
+    closeMobileNav();
+  }
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeNavGroups();
+    closeMobileNav();
+    return;
+  }
+
+  const topLevelItems = getTopLevelNavItems();
+  const topLevelIndex = topLevelItems.indexOf(document.activeElement);
+  if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && topLevelIndex !== -1) {
+    event.preventDefault();
+    closeNavGroups();
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    const nextIndex = (topLevelIndex + direction + topLevelItems.length) % topLevelItems.length;
+    topLevelItems[nextIndex]?.focus();
+    return;
+  }
+
+  const activeGroup = event.target.closest('.nav-group');
+  if (!activeGroup) return;
+
+  const items = Array.from(activeGroup.querySelectorAll('.nav-dropdown .tab-btn:not([disabled])'));
+  const currentIndex = items.indexOf(document.activeElement);
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    setNavGroupOpen(activeGroup, true);
+    items[currentIndex + 1]?.focus() || items[0]?.focus();
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    setNavGroupOpen(activeGroup, true);
+    items[currentIndex - 1]?.focus() || items[items.length - 1]?.focus();
+  }
 });
 
 document.querySelectorAll('.dash-tab-btn').forEach(btn => {

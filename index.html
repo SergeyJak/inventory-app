@@ -42,19 +42,38 @@
   </div>
 </header>
 
-<nav class="tabs">
-  <button class="tab-btn active" data-tab="dashboard">📊 Дашборд</button>
-  <button class="tab-btn" data-tab="sales">💰 Продажи</button>
-  <button class="tab-btn" data-tab="restock">📥 Поступления</button>
-  <button class="tab-btn" data-tab="products">🏷️ Товары</button>
-  <button class="tab-btn" data-tab="history">📋 История</button>
-  <button class="tab-btn admin-only" data-tab="accounts">&#x410;&#x43A;&#x43A;&#x430;&#x443;&#x43D;&#x442;&#x44B;</button>
-  <button class="tab-btn admin-only" data-tab="mail-accounts">Mail Accounts</button>
-  <button class="tab-btn admin-only" data-tab="visitor-activity">Visitor activity</button>
-  <button class="tab-btn admin-only" data-tab="assistant-questions">Assistant questions</button>
-  <button class="tab-btn admin-only" data-tab="backups">Резервные копии</button>
-  <button class="tab-btn" data-tab="annual">📅 Отчётность</button>
-  <a class="tab-btn" href="/reports" style="text-decoration:none">📈 Analytics</a>
+<button class="nav-toggle" type="button" aria-controls="admin-nav" aria-expanded="false">Меню</button>
+<nav class="tabs admin-nav" id="admin-nav" aria-label="Admin navigation" role="menubar">
+  <button class="tab-btn active" type="button" data-tab="dashboard" role="menuitem">Дашборд</button>
+  <button class="tab-btn" type="button" data-tab="products" role="menuitem">Товары</button>
+  <button class="tab-btn" type="button" data-tab="sales" role="menuitem">Продажи</button>
+
+  <div class="nav-group">
+    <button class="tab-btn nav-group-toggle" type="button" aria-haspopup="true" aria-expanded="false">Склад <span aria-hidden="true">v</span></button>
+    <div class="nav-dropdown" role="menu">
+      <button class="tab-btn" type="button" data-tab="restock" role="menuitem">Поступления</button>
+      <button class="tab-btn" type="button" data-tab="history" role="menuitem">История</button>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <button class="tab-btn nav-group-toggle" type="button" aria-haspopup="true" aria-expanded="false">Аналитика <span aria-hidden="true">v</span></button>
+    <div class="nav-dropdown" role="menu">
+      <button class="tab-btn" type="button" data-tab="annual" role="menuitem">Годовая отчётность</button>
+      <a class="tab-btn" href="/reports" role="menuitem">Analytics</a>
+    </div>
+  </div>
+
+  <div class="nav-group admin-only">
+    <button class="tab-btn nav-group-toggle admin-only" type="button" aria-haspopup="true" aria-expanded="false">Админ <span aria-hidden="true">v</span></button>
+    <div class="nav-dropdown" role="menu">
+      <button class="tab-btn admin-only" type="button" data-tab="accounts" role="menuitem">Аккаунты</button>
+      <button class="tab-btn admin-only" type="button" data-tab="mail-accounts" role="menuitem">Mail Accounts</button>
+      <button class="tab-btn admin-only" type="button" data-tab="visitor-activity" role="menuitem">Активность посетителей</button>
+      <button class="tab-btn admin-only" type="button" data-tab="assistant-questions" role="menuitem">Вопросы ассистента</button>
+      <button class="tab-btn admin-only" type="button" data-tab="backups" role="menuitem">Резервные копии</button>
+    </div>
+  </div>
 </nav>
 
 <!-- ===== DASHBOARD ===== -->
