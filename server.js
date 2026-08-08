@@ -33,30 +33,6 @@ const ANALYTICS_EVENT_TYPES = new Set([
   'details_open',
 ]);
 const ANALYTICS_MAX_METADATA_BYTES = 2048;
-const CLOUDFLARE_PROXY_CIDRS = [
-  '173.245.48.0/20',
-  '103.21.244.0/22',
-  '103.22.200.0/22',
-  '103.31.4.0/22',
-  '141.101.64.0/18',
-  '108.162.192.0/18',
-  '190.93.240.0/20',
-  '188.114.96.0/20',
-  '197.234.240.0/22',
-  '198.41.128.0/17',
-  '162.158.0.0/15',
-  '104.16.0.0/13',
-  '104.24.0.0/14',
-  '172.64.0.0/13',
-  '131.0.72.0/22',
-  '2400:cb00::/32',
-  '2606:4700::/32',
-  '2803:f800::/32',
-  '2405:b500::/32',
-  '2405:8100::/32',
-  '2a06:98c0::/29',
-  '2c0f:f248::/32',
-];
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -1039,88 +1015,62 @@ function normalizeIp(value) {
   return raw.replace(/^\[|\]$/g, '');
 }
 
-function ipv4ToBigInt(ip) {
+function isValidIpv4(ip) {
   const parts = String(ip || '').split('.');
-  if (parts.length !== 4) return null;
-  let result = 0n;
+  if (parts.length !== 4) return false;
   for (const part of parts) {
-    if (!/^\d+$/.test(part)) return null;
+    if (!/^\d+$/.test(part)) return false;
     const value = Number(part);
-    if (value < 0 || value > 255) return null;
-    result = (result << 8n) + BigInt(value);
+    if (value < 0 || value > 255) return false;
   }
-  return result;
+  return true;
 }
 
-function ipv6ToBigInt(ip) {
+function isValidIpv6(ip) {
   const clean = normalizeIp(ip).toLowerCase();
-  if (!clean || clean.includes(':::')) return null;
+  if (!clean || clean.includes(':::')) return false;
   const zoneFree = clean.split('%')[0];
   const [leftRaw, rightRaw, extra] = zoneFree.split('::');
-  if (extra !== undefined) return null;
+  if (extra !== undefined) return false;
   const left = leftRaw ? leftRaw.split(':') : [];
   const right = rightRaw ? rightRaw.split(':') : [];
   const expandIpv4 = parts => {
     const last = parts[parts.length - 1];
     if (!last || !last.includes('.')) return parts;
-    const ipv4 = ipv4ToBigInt(last);
-    if (ipv4 == null) return null;
-    return [...parts.slice(0, -1), Number((ipv4 >> 16n) & 0xffffn).toString(16), Number(ipv4 & 0xffffn).toString(16)];
+    if (!isValidIpv4(last)) return null;
+    const octets = last.split('.').map(Number);
+    return [...parts.slice(0, -1), ((octets[0] << 8) + octets[1]).toString(16), ((octets[2] << 8) + octets[3]).toString(16)];
   };
   const expandedLeft = expandIpv4(left);
   const expandedRight = expandIpv4(right);
-  if (!expandedLeft || !expandedRight) return null;
+  if (!expandedLeft || !expandedRight) return false;
   const missing = zoneFree.includes('::') ? 8 - expandedLeft.length - expandedRight.length : 0;
+  if (missing < 0) return false;
   const groups = zoneFree.includes('::') ? [...expandedLeft, ...Array(missing).fill('0'), ...expandedRight] : expandedLeft;
-  if (groups.length !== 8) return null;
-  let result = 0n;
-  for (const group of groups) {
-    if (!/^[0-9a-f]{1,4}$/i.test(group)) return null;
-    result = (result << 16n) + BigInt(parseInt(group, 16));
-  }
-  return result;
-}
-
-function ipToBigInt(ip) {
-  const normalized = normalizeIp(ip);
-  if (!normalized) return null;
-  if (normalized.includes(':')) return { version: 6, value: ipv6ToBigInt(normalized) };
-  return { version: 4, value: ipv4ToBigInt(normalized) };
-}
-
-function cidrContains(cidr, ip) {
-  const [rangeIp, prefixRaw] = String(cidr).split('/');
-  const range = ipToBigInt(rangeIp);
-  const target = ipToBigInt(ip);
-  if (!range || !target || range.value == null || target.value == null || range.version !== target.version) return false;
-  const bits = range.version === 4 ? 32 : 128;
-  const prefix = Number(prefixRaw);
-  if (!Number.isInteger(prefix) || prefix < 0 || prefix > bits) return false;
-  const shift = BigInt(bits - prefix);
-  return (range.value >> shift) === (target.value >> shift);
-}
-
-function isCloudflareProxyIp(ip) {
-  const normalized = normalizeIp(ip);
-  return Boolean(normalized) && CLOUDFLARE_PROXY_CIDRS.some(cidr => cidrContains(cidr, normalized));
+  return groups.length === 8 && groups.every(group => /^[0-9a-f]{1,4}$/i.test(group));
 }
 
 function headerIpList(value) {
-  return String(value || '').split(',').map(part => normalizeIp(part)).filter(Boolean);
+  return String(value || '').split(',').map(part => validAnalyticsIp(part)).filter(Boolean);
 }
 
-function cloudflareProxyCandidate(req) {
-  const forwarded = headerIpList(req.headers['x-forwarded-for']);
-  return forwarded.length ? forwarded[forwarded.length - 1] : normalizeIp(req.socket?.remoteAddress || req.ip || '');
+function validAnalyticsIp(value) {
+  const normalized = normalizeIp(value);
+  if (!normalized) return '';
+  if (normalized.includes(':')) return isValidIpv6(normalized) ? normalized : '';
+  return isValidIpv4(normalized) ? normalized : '';
 }
 
 function analyticsClientIp(req) {
-  const cloudflareIp = normalizeIp(req.headers['cf-connecting-ip'] || '');
-  if (cloudflareIp && isCloudflareProxyIp(cloudflareProxyCandidate(req))) return cloudflareIp;
+  const hasIpHeaders = Boolean(req.headers['cf-connecting-ip'] || req.headers['x-real-ip'] || req.headers['x-forwarded-for']);
+  const cloudflareIp = validAnalyticsIp(req.headers['cf-connecting-ip']);
+  if (cloudflareIp && req.headers['cf-ray']) return cloudflareIp;
+  const realIp = validAnalyticsIp(req.headers['x-real-ip']);
+  if (realIp) return realIp;
   const forwardedFor = headerIpList(req.headers['x-forwarded-for']).find(Boolean);
   if (forwardedFor) return forwardedFor;
-  const realIp = normalizeIp(req.headers['x-real-ip'] || '');
-  return realIp || normalizeIp(req.ip || req.socket?.remoteAddress || '');
+  if (hasIpHeaders) return 'unknown';
+  return validAnalyticsIp(req.ip) || validAnalyticsIp(req.socket?.remoteAddress) || 'unknown';
 }
 
 function analyticsDevice(userAgent) {
@@ -2383,18 +2333,6 @@ app.patch('/api/public/assistant-question/:id/feedback', async (req, res) => {
 
 app.post('/api/public/analytics/event', async (req, res) => {
   try {
-    if (process.env.ANALYTICS_IP_DEBUG === 'true') {
-      console.log('[ANALYTICS_IP_DEBUG]', {
-        ip: req.ip,
-        remoteAddress: req.socket?.remoteAddress,
-        cfConnectingIp: req.headers['cf-connecting-ip'] || '',
-        xForwardedFor: req.headers['x-forwarded-for'] || '',
-        xRealIp: req.headers['x-real-ip'] || '',
-        trueClientIp: req.headers['true-client-ip'] || '',
-        cfRay: req.headers['cf-ray'] || '',
-        host: req.headers.host || '',
-      });
-    }
     const result = await saveVisitorAnalyticsEvent(req, req.body || {});
     if (!result.body) return res.status(result.status).end();
     return res.status(result.status).json(result.body);

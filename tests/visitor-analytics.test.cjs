@@ -113,22 +113,26 @@ async function main() {
 
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_no_xff', sessionId: 'ip_no_xff_s' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_no_xff').ip === '127.0.0.1');
-    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_v4', sessionId: 'ip_cf_v4_s' }, { 'CF-Connecting-IP': '198.51.100.22', 'X-Forwarded-For': '198.51.100.22, 162.158.1.10' })).res.status, 204);
-    assert(storedEvents().find(item => item.visitorId === 'ip_cf_v4').ip === '198.51.100.22');
-    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_v6', sessionId: 'ip_cf_v6_s' }, { 'CF-Connecting-IP': '2001:db8::123', 'X-Forwarded-For': '2001:db8::123, 2a06:98c0::1' })).res.status, 204);
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_production', sessionId: 'ip_cf_production_s' }, { 'CF-Connecting-IP': '82.193.66.136', 'X-Real-IP': '82.193.66.136', 'X-Forwarded-For': '162.158.48.163, 152.233.43.33', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
+    assert(storedEvents().find(item => item.visitorId === 'ip_cf_production').ip === '82.193.66.136');
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_v6', sessionId: 'ip_cf_v6_s' }, { 'CF-Connecting-IP': '2001:db8::123', 'X-Forwarded-For': '162.158.1.10, 152.233.43.33', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_cf_v6').ip === '2001:db8::123');
-    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_mapped', sessionId: 'ip_cf_mapped_s' }, { 'CF-Connecting-IP': '::ffff:198.51.100.23', 'X-Forwarded-For': '::ffff:198.51.100.23, 172.69.1.10' })).res.status, 204);
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_mapped', sessionId: 'ip_cf_mapped_s' }, { 'CF-Connecting-IP': '::ffff:198.51.100.23', 'X-Forwarded-For': '162.158.1.10, 152.233.43.33', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_cf_mapped').ip === '198.51.100.23');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_forged_direct', sessionId: 'ip_cf_forged_direct_s' }, { 'CF-Connecting-IP': '198.51.100.250' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_cf_forged_direct').ip !== '198.51.100.250');
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_malformed', sessionId: 'ip_cf_malformed_s' }, { 'CF-Connecting-IP': 'not-an-ip', 'X-Real-IP': '198.51.100.24', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
+    assert(storedEvents().find(item => item.visitorId === 'ip_cf_malformed').ip === '198.51.100.24');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_forged_single', sessionId: 'ip_forged_single_s' }, { 'X-Forwarded-For': '198.51.100.99' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_forged_single').ip === '198.51.100.99');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_proxy_chain', sessionId: 'ip_proxy_chain_s' }, { 'X-Forwarded-For': '198.51.100.11, 100.64.0.8' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_proxy_chain').ip === '198.51.100.11');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_railway_real', sessionId: 'ip_railway_real_s' }, { 'X-Real-IP': '203.0.113.77', 'X-Forwarded-For': '198.51.100.99, 100.64.0.8' })).res.status, 204);
-    assert(storedEvents().find(item => item.visitorId === 'ip_railway_real').ip === '198.51.100.99');
+    assert(storedEvents().find(item => item.visitorId === 'ip_railway_real').ip === '203.0.113.77');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_v4_mapped', sessionId: 'ip_v4_mapped_s' }, { 'X-Forwarded-For': '::ffff:203.0.113.44' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_v4_mapped').ip === '203.0.113.44');
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_unknown', sessionId: 'ip_unknown_s' }, { 'X-Real-IP': 'bad-ip', 'X-Forwarded-For': 'also-bad' })).res.status, 204);
+    assert(storedEvents().find(item => item.visitorId === 'ip_unknown').ip === 'unknown');
 
     const flowEvents = [
       { eventType: 'page_view' },
@@ -168,11 +172,11 @@ async function main() {
     const token = await login();
     const list = await request('/api/admin/analytics/visitors?limit=10', { headers: auth(token) });
     assert.strictEqual(list.res.status, 200);
-    assert.strictEqual(list.body.summary.uniqueVisitors, 14);
+    assert.strictEqual(list.body.summary.uniqueVisitors, 16);
     assert.strictEqual(list.body.summary.returningVisitors, 3);
     assert.strictEqual(list.body.summary.assistantUsers, 2);
     assert.strictEqual(list.body.summary.contactClicks, 3);
-    assert.strictEqual(list.body.summary.pageViews, 16);
+    assert.strictEqual(list.body.summary.pageViews, 18);
     const flowVisitor = list.body.items.find(row => row.visitorId === 'flow_v');
     assert(flowVisitor);
     assert.strictEqual(flowVisitor.sessionCount, 3);
@@ -188,7 +192,7 @@ async function main() {
     assert(visitorA.ips.includes('2001:db8::2'));
 
     const withBots = await request('/api/admin/analytics/visitors?includeBots=true', { headers: auth(token) });
-    assert.strictEqual(withBots.body.summary.uniqueVisitors, 15);
+    assert.strictEqual(withBots.body.summary.uniqueVisitors, 17);
 
     const detail = await request('/api/admin/analytics/visitors/visitor_a', { headers: auth(token) });
     assert.strictEqual(detail.res.status, 200);
