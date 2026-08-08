@@ -125,6 +125,62 @@ const FALLBACK_PRODUCTS = [
   { id: 'fallback-light2-blue', productType: 'Light 2', color: 'blue', label: 'Light 2 / blue', sellPrice: 90, inStock: true },
 ];
 const ASSISTANT_SESSION_KEY = 'heysmartAssistantSessionId';
+const VISITOR_ID_KEY = 'heysmartVisitorId';
+const VISITOR_SESSION_KEY = 'heysmartVisitorSessionId';
+let lastTrackedModelView = '';
+let pageViewTracked = false;
+
+function randomAnalyticsId(prefix) {
+  const raw = window.crypto?.randomUUID?.() || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  return `${prefix}_${raw}`.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120);
+}
+
+function visitorId() {
+  let value = localStorage.getItem(VISITOR_ID_KEY);
+  if (!value) {
+    value = randomAnalyticsId('v');
+    localStorage.setItem(VISITOR_ID_KEY, value);
+  }
+  return value;
+}
+
+function visitorSessionId() {
+  let value = sessionStorage.getItem(VISITOR_SESSION_KEY);
+  if (!value) {
+    value = randomAnalyticsId('s');
+    sessionStorage.setItem(VISITOR_SESSION_KEY, value);
+  }
+  return value;
+}
+
+function analyticsContext(extra = {}) {
+  const { model, photo } = currentSelection();
+  return {
+    visitorId: visitorId(),
+    sessionId: visitorSessionId(),
+    page: safePageUrl(),
+    locale: currentLang,
+    modelId: extra.modelId ?? model?.id ?? '',
+    color: extra.color ?? photo?.colorKey ?? '',
+    ...extra,
+  };
+}
+
+function trackVisitorEvent(eventType, extra = {}, beacon = false) {
+  try {
+    const payload = JSON.stringify(analyticsContext({ eventType, ...extra }));
+    if (beacon && navigator.sendBeacon) {
+      const ok = navigator.sendBeacon('/api/public/analytics/event', new Blob([payload], { type: 'application/json' }));
+      if (ok) return;
+    }
+    fetch('/api/public/analytics/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      keepalive: Boolean(beacon),
+    }).catch(() => {});
+  } catch {}
+}
 
 function isMobileViewport() {
   return window.matchMedia('(max-width: 900px)').matches;
@@ -501,12 +557,29 @@ function sendAssistantAnalytics(result) {
       locale: currentLang,
     });
   } catch {}
+  trackVisitorEvent('assistant_question', {
+    modelId: result.modelId || '',
+    color: result.colorKey || '',
+    metadata: {
+      matched: Boolean(result.matched),
+      responseType: result.type || '',
+      intent: result.intent || '',
+    },
+  });
 }
 
 function trackAssistantEvent(name, params = {}) {
   try {
     window.gtag?.('event', name, { locale: currentLang, ...params });
   } catch {}
+  const eventType = name === 'assistant_open' || name === 'assistant_recommendation' ? name : '';
+  if (eventType) {
+    trackVisitorEvent(eventType, {
+      modelId: params.model_id || params.modelId || '',
+      color: params.color || '',
+      metadata: { scenario: params.scenario || '' },
+    });
+  }
 }
 
 function logAssistantQuestion(question, answer, result = {}) {
@@ -890,6 +963,16 @@ function render() {
       </div>
     </div>
   `;
+
+  const modelViewKey = `${model.id}:${photo.colorKey || ''}`;
+  if (lastTrackedModelView !== modelViewKey) {
+    lastTrackedModelView = modelViewKey;
+    trackVisitorEvent('model_view', { modelId: model.id, color: photo.colorKey || '' });
+    if (!pageViewTracked) {
+      pageViewTracked = true;
+      trackVisitorEvent('page_view', { modelId: model.id, color: photo.colorKey || '' });
+    }
+  }
 }
 
 function applyUrlSelection() {
@@ -961,7 +1044,10 @@ function loadCatalog() {
 modelSwitcher.addEventListener('click', event => {
   const btn = event.target.closest('[data-model]');
   if (!btn) return;
+  const previous = models[activeModel]?.id;
   selectModel(Number(btn.dataset.model));
+  const next = models[activeModel];
+  if (next?.id && next.id !== previous) trackVisitorEvent('details_open', { modelId: next.id });
 });
 
 colorGallery.addEventListener('click', event => {
@@ -970,12 +1056,15 @@ colorGallery.addEventListener('click', event => {
   activeColor = Number(btn.dataset.color);
   activeAngle = 0;
   render();
+  const { model, photo } = currentSelection();
+  trackVisitorEvent('color_change', { modelId: model?.id || '', color: photo?.colorKey || '' });
 });
 
 detailsGrid.addEventListener('click', event => {
   const btn = event.target.closest('[data-compare-model]');
   if (!btn) return;
   selectModel(Number(btn.dataset.compareModel));
+  trackVisitorEvent('details_open');
   showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
@@ -1020,8 +1109,14 @@ questionActions.addEventListener('click', event => {
 
 contactActions.addEventListener('click', event => {
   const link = event.target.closest('[data-channel]');
-  if (!link || link.dataset.channel !== 'telegram' || !CONTACT_CONFIG.telegramUsername) return;
-  navigator.clipboard?.writeText(buildMessage(link.dataset.topic)).catch(() => {});
+  if (!link) return;
+  const channel = link.dataset.channel || '';
+  trackVisitorEvent('contact_click', { metadata: { channel, topic: link.dataset.topic || '' } }, true);
+  if (channel === 'whatsapp') trackVisitorEvent('whatsapp_click', {}, true);
+  if (channel === 'telegram') {
+    trackVisitorEvent('telegram_click', {}, true);
+    if (CONTACT_CONFIG.telegramUsername) navigator.clipboard?.writeText(buildMessage(link.dataset.topic)).catch(() => {});
+  }
 });
 
 assistantFab.addEventListener('click', () => {
@@ -1092,6 +1187,7 @@ assistantResult.addEventListener('click', event => {
 languageSwitcher.addEventListener('click', event => {
   const btn = event.target.closest('[data-lang]');
   if (!btn) return;
+  const previousLang = currentLang;
   currentLang = btn.dataset.lang;
   localStorage.setItem('catalogLanguage', currentLang);
   applyStaticTranslations();
@@ -1099,6 +1195,7 @@ languageSwitcher.addEventListener('click', event => {
   if (models.length) render();
   if (contactPanel.classList.contains('open')) renderContactPanel('question');
   if (assistantPanel.classList.contains('open')) renderAssistant();
+  if (previousLang !== currentLang) trackVisitorEvent('language_change', { metadata: { from: previousLang } });
 });
 
 faqQuick.addEventListener('click', event => {

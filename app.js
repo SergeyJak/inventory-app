@@ -229,6 +229,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'products')  renderProducts();
     if (btn.dataset.tab === 'accounts')  renderAccounts();
     if (btn.dataset.tab === 'mail-accounts') renderMailAccounts();
+    if (btn.dataset.tab === 'visitor-activity') renderVisitorAnalytics();
     if (btn.dataset.tab === 'assistant-questions') { renderAssistantQuestions(); loadAssistantReportHistory(); }
     if (btn.dataset.tab === 'backups')   renderBackups();
     if (btn.dataset.tab === 'sales')     populateProductSelect('sale-product');
@@ -1308,6 +1309,114 @@ function copyAssistantQuestion(id) {
   navigator.clipboard?.writeText(question).then(() => showToast('Question copied'));
 }
 
+// ========== VISITOR ANALYTICS ADMIN ==========
+let visitorAnalyticsPage = 1;
+let visitorAnalyticsLimit = 25;
+let visitorAnalyticsTotal = 0;
+
+function visitorAnalyticsParams(extra = {}) {
+  const params = new URLSearchParams();
+  const search = document.getElementById('visitor-analytics-search')?.value.trim();
+  const from = document.getElementById('visitor-analytics-from')?.value;
+  const to = document.getElementById('visitor-analytics-to')?.value;
+  const includeBots = document.getElementById('visitor-analytics-bots')?.checked;
+  if (search) params.set('search', search);
+  if (from) params.set('dateFrom', from);
+  if (to) params.set('dateTo', to);
+  if (includeBots) params.set('includeBots', 'true');
+  params.set('page', extra.page || visitorAnalyticsPage);
+  params.set('limit', extra.limit || visitorAnalyticsLimit);
+  return params;
+}
+
+function renderVisitorSummary(summary = {}) {
+  const box = document.getElementById('visitor-analytics-summary');
+  if (!box) return;
+  box.innerHTML = `
+    <div class="stat-card"><span class="stat-label">Unique visitors</span><span class="stat-value">${Number(summary.uniqueVisitors) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Sessions</span><span class="stat-value">${Number(summary.sessions) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Page views</span><span class="stat-value">${Number(summary.pageViews) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Returning visitors</span><span class="stat-value">${Number(summary.returningVisitors) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Assistant users</span><span class="stat-value">${Number(summary.assistantUsers) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Contact clicks</span><span class="stat-value">${Number(summary.contactClicks) || 0}</span></div>
+  `;
+}
+
+function shortVisitorId(value) {
+  const text = String(value || '');
+  return text.length > 16 ? `${text.slice(0, 8)}...${text.slice(-6)}` : text;
+}
+
+async function renderVisitorAnalytics() {
+  const tbody = document.getElementById('visitor-analytics-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Loading visitor activity...</td></tr>';
+  try {
+    const res = await fetch(`/api/admin/analytics/visitors?${visitorAnalyticsParams()}`, { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    visitorAnalyticsTotal = Number(data.total) || 0;
+    visitorAnalyticsLimit = Number(data.limit) || visitorAnalyticsLimit;
+    renderVisitorSummary(data.summary || {});
+    const rows = data.items || [];
+    tbody.innerHTML = rows.length ? rows.map(row => `
+      <tr>
+        <td><code title="${esc(row.visitorId)}">${esc(shortVisitorId(row.visitorId))}</code></td>
+        <td>${esc(row.latestIp || '-')}</td>
+        <td>${Number(row.visitCount) || 0}</td>
+        <td>${Number(row.sessionCount) || 0}</td>
+        <td>${formatAssistantDate(row.firstSeen)}</td>
+        <td>${formatAssistantDate(row.lastSeen)}</td>
+        <td>${esc(row.device || '-')}</td>
+        <td>${esc(row.locale || '-')}</td>
+        <td>${Number(row.eventCount) || 0}</td>
+        <td>${Number(row.assistantQuestionCount) || 0}</td>
+        <td>${Number(row.contactClickCount) || 0}<br><button class="btn-edit" onclick="openVisitorAnalyticsDetail('${esc(row.visitorId)}')">Details</button></td>
+      </tr>
+    `).join('') : '<tr class="empty-row"><td colspan="11">No visitor activity found.</td></tr>';
+    document.getElementById('visitor-analytics-count').textContent = `${visitorAnalyticsTotal} visitors`;
+    document.getElementById('visitor-analytics-page').textContent = `Page ${data.page || visitorAnalyticsPage} / ${Math.max(1, Math.ceil(visitorAnalyticsTotal / visitorAnalyticsLimit))}`;
+  } catch (e) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="11">Could not load visitor activity: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function changeVisitorAnalyticsPage(delta) {
+  const maxPage = Math.max(1, Math.ceil(visitorAnalyticsTotal / visitorAnalyticsLimit));
+  visitorAnalyticsPage = Math.min(maxPage, Math.max(1, visitorAnalyticsPage + delta));
+  renderVisitorAnalytics();
+}
+
+async function openVisitorAnalyticsDetail(visitorId) {
+  const box = document.getElementById('visitor-analytics-detail');
+  box.hidden = false;
+  box.innerHTML = '<div class="backup-muted">Loading visitor timeline...</div>';
+  try {
+    const res = await fetch(`/api/admin/analytics/visitors/${encodeURIComponent(visitorId)}?${visitorAnalyticsParams({ page: 1, limit: 200 })}`, { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    const sessions = (data.sessions || []).map(session => `
+      <section class="visitor-session">
+        <h4>Session ${esc(shortVisitorId(session.sessionId))}</h4>
+        <ul>${(session.events || []).map(event => `<li><span>${formatAssistantDate(event.timestamp)}</span>${esc(event.label || event.eventType)}</li>`).join('')}</ul>
+      </section>
+    `).join('');
+    box.innerHTML = `
+      <h3>Visitor ${esc(shortVisitorId(data.visitorId))}</h3>
+      <div class="assistant-report-grid">
+        <div><strong>${esc((data.ips || []).join(', ') || '-')}</strong><span>IP history</span></div>
+        <div><strong>${formatAssistantDate(data.firstSeen)}</strong><span>First seen</span></div>
+        <div><strong>${formatAssistantDate(data.lastSeen)}</strong><span>Last seen</span></div>
+        <div><strong>${Number(data.sessionCount) || 0}</strong><span>Sessions</span></div>
+        <div><strong>${Number(data.eventCount) || 0}</strong><span>Total actions</span></div>
+      </div>
+      <div class="visitor-timeline">${sessions || '<div class="backup-muted">No events.</div>'}</div>
+    `;
+  } catch (e) {
+    box.innerHTML = `<div class="backup-muted">Could not load visitor detail: ${esc(e.message)}</div>`;
+  }
+}
+
 // ========== HEYSMART MAIL ADMIN ==========
 let mailAccountsCache = [];
 let mailAdminMessagesCache = [];
@@ -1862,6 +1971,10 @@ function toggleHistoryDateSort() {
 document.getElementById('history-filter').addEventListener('change', e => { renderHistory(e.target.value); });
 document.getElementById('accounts-search')?.addEventListener('input', renderAccounts);
 document.getElementById('mail-accounts-search')?.addEventListener('input', renderMailAccounts);
+document.getElementById('visitor-analytics-search')?.addEventListener('input', () => { visitorAnalyticsPage = 1; renderVisitorAnalytics(); });
+['visitor-analytics-from','visitor-analytics-to','visitor-analytics-bots'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', () => { visitorAnalyticsPage = 1; renderVisitorAnalytics(); });
+});
 ['assistant-search','assistant-filter-focus','assistant-filter-locale','assistant-filter-reviewed','assistant-filter-from','assistant-filter-to'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', () => { assistantQuestionsPage = 1; renderAssistantQuestions(); });
 });

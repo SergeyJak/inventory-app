@@ -50,6 +50,7 @@
   <button class="tab-btn" data-tab="history">📋 История</button>
   <button class="tab-btn admin-only" data-tab="accounts">&#x410;&#x43A;&#x43A;&#x430;&#x443;&#x43D;&#x442;&#x44B;</button>
   <button class="tab-btn admin-only" data-tab="mail-accounts">Mail Accounts</button>
+  <button class="tab-btn admin-only" data-tab="visitor-activity">Visitor activity</button>
   <button class="tab-btn admin-only" data-tab="assistant-questions">Assistant questions</button>
   <button class="tab-btn admin-only" data-tab="backups">Резервные копии</button>
   <button class="tab-btn" data-tab="annual">📅 Отчётность</button>
@@ -286,6 +287,29 @@
     <span id="assistant-page-label"></span>
     <button class="btn-secondary" type="button" onclick="changeAssistantPage(1)">Next</button>
   </div>
+</section>
+
+<section id="tab-visitor-activity" class="tab-content admin-only">
+  <h2>Visitor activity</h2>
+  <div class="assistant-admin-summary" id="visitor-analytics-summary"></div>
+  <div class="accounts-toolbar assistant-admin-filters">
+    <input type="search" id="visitor-analytics-search" placeholder="Search visitor or IP..." />
+    <input type="date" id="visitor-analytics-from" />
+    <input type="date" id="visitor-analytics-to" />
+    <label class="backup-confirm"><input type="checkbox" id="visitor-analytics-bots" /> include bots</label>
+    <button class="btn-secondary" type="button" onclick="renderVisitorAnalytics()">Apply</button>
+  </div>
+  <div class="accounts-summary" id="visitor-analytics-count"></div>
+  <table id="visitor-analytics-table">
+    <thead><tr><th>Visitor</th><th>IP</th><th>Visits</th><th>Sessions</th><th>First seen</th><th>Last seen</th><th>Device</th><th>Language</th><th>Actions</th><th>Assistant questions</th><th>Contact clicks</th></tr></thead>
+    <tbody id="visitor-analytics-tbody"></tbody>
+  </table>
+  <div class="assistant-admin-pager">
+    <button class="btn-secondary" type="button" onclick="changeVisitorAnalyticsPage(-1)">Prev</button>
+    <span id="visitor-analytics-page"></span>
+    <button class="btn-secondary" type="button" onclick="changeVisitorAnalyticsPage(1)">Next</button>
+  </div>
+  <div class="form-card visitor-detail-card" id="visitor-analytics-detail" hidden></div>
 </section>
 
 <section id="tab-mail-accounts" class="tab-content admin-only">

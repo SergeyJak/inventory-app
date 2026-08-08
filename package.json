@@ -8,6 +8,7 @@
     "test": "node tests/assistant-engine-v2.test.cjs",
     "test:assistant": "node tests/assistant-engine-v2.test.cjs",
     "test:assistant-analytics": "node tests/assistant-analytics.test.cjs",
+    "test:visitor-analytics": "node tests/visitor-analytics.test.cjs",
     "test:backup": "node tests/backup-flow.test.cjs",
     "test:mail": "node tests/mail-service.test.cjs"
   },

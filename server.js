@@ -9,6 +9,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const { createMailService } = require('./mail-service');
 
 const app      = express();
+app.set('trust proxy', 1);
 const PORT     = process.env.PORT || 3001;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const USE_MONGO = !!process.env.MONGODB_URI;
@@ -17,6 +18,21 @@ const CATALOG_HOSTS = ['mysmart.up.railway.app', 'heysmart.up.railway.app', 'hey
 const BACKUP_VERSION = 1;
 const BACKUP_SECTIONS = ['products', 'sales', 'settings', 'faq', 'categories', 'translations', 'users'];
 const RESTORABLE_BACKUP_SECTIONS = ['products', 'sales', 'settings', 'faq', 'translations'];
+const ANALYTICS_RETENTION_DAYS = Math.max(1, Number(process.env.ANALYTICS_RETENTION_DAYS) || 90);
+const ANALYTICS_EVENT_TYPES = new Set([
+  'page_view',
+  'model_view',
+  'color_change',
+  'assistant_open',
+  'assistant_question',
+  'assistant_recommendation',
+  'contact_click',
+  'whatsapp_click',
+  'telegram_click',
+  'language_change',
+  'details_open',
+]);
+const ANALYTICS_MAX_METADATA_BYTES = 2048;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -41,6 +57,7 @@ const FILES = {
   hostSubscriptions: path.join(DATA_DIR, 'host-subscriptions.json'),
   assistantQuestions: path.join(DATA_DIR, 'assistant-questions.json'),
   assistantImprovementReports: path.join(DATA_DIR, 'assistant-improvement-reports.json'),
+  visitorAnalyticsEvents: path.join(DATA_DIR, 'visitor-analytics-events.json'),
 };
 if (!USE_MONGO) {
   Object.values(FILES).forEach(f => {
@@ -59,6 +76,7 @@ const COLL = {
   hostSubscriptions: 'hostSubscriptions',
   assistantQuestions: 'assistantQuestions',
   assistantImprovementReports: 'assistantImprovementReports',
+  visitorAnalyticsEvents: 'visitorAnalyticsEvents',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
 const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
@@ -71,6 +89,7 @@ async function connectMongo() {
   await client.connect();
   db = client.db('inventory');
   await ensureAssistantQuestionIndexes(db);
+  await ensureVisitorAnalyticsIndexes(db);
   console.log('✅  MongoDB connected');
 }
 
@@ -770,6 +789,7 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   const publicCatalogApi = req.path === '/api/public/products'
+    || req.path === '/api/public/analytics/event'
     || req.path === '/api/public/assistant-question'
     || req.path.startsWith('/api/public/assistant-question/')
     || req.path.startsWith('/api/mail/');
@@ -933,6 +953,280 @@ async function ensureAssistantQuestionIndexes(database) {
     reportColl.createIndex({ dateFrom: 1, dateTo: 1, locale: 1 }),
     reportColl.createIndex({ status: 1 }),
   ]);
+}
+
+async function ensureVisitorAnalyticsIndexes(database) {
+  if (!database) return;
+  const coll = database.collection(COLL.visitorAnalyticsEvents);
+  await Promise.all([
+    coll.createIndex({ visitorId: 1 }),
+    coll.createIndex({ sessionId: 1 }),
+    coll.createIndex({ timestamp: -1 }),
+    coll.createIndex({ eventType: 1 }),
+    coll.createIndex({ ip: 1 }),
+  ]);
+}
+
+function readVisitorAnalyticsFile() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(FILES.visitorAnalyticsEvents, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeVisitorAnalyticsFile(records) {
+  fs.writeFileSync(FILES.visitorAnalyticsEvents, JSON.stringify(records, null, 2), 'utf8');
+}
+
+function sanitizeAnalyticsString(value, limit = 160) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, limit);
+}
+
+function sanitizeAnalyticsId(value) {
+  return sanitizeAnalyticsString(value, 120).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120);
+}
+
+function sanitizeAnalyticsMetadata(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const result = {};
+  const sensitiveKeyPattern = /(auth|authorization|cookie|email|mail|form|message|password|phone|question|tel|text|token)/i;
+  for (const [key, raw] of Object.entries(value).slice(0, 24)) {
+    const cleanKey = sanitizeAnalyticsString(key, 60).replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) continue;
+    if (sensitiveKeyPattern.test(cleanKey)) continue;
+    if (typeof raw === 'boolean') result[cleanKey] = raw;
+    else if (typeof raw === 'number' && Number.isFinite(raw)) result[cleanKey] = raw;
+    else result[cleanKey] = sanitizeAnalyticsString(raw, 240);
+  }
+  return Buffer.byteLength(JSON.stringify(result), 'utf8') <= ANALYTICS_MAX_METADATA_BYTES ? result : {};
+}
+
+function normalizeIp(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('::ffff:')) return raw.slice(7);
+  return raw.replace(/^\[|\]$/g, '');
+}
+
+function analyticsClientIp(req) {
+  const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',').map(part => normalizeIp(part)).find(Boolean);
+  if (forwardedFor) return forwardedFor;
+  const realIp = normalizeIp(req.headers['x-real-ip'] || '');
+  return realIp || normalizeIp(req.ip || req.socket?.remoteAddress || '');
+}
+
+function analyticsDevice(userAgent) {
+  const ua = sanitizeAnalyticsString(userAgent, 240);
+  const lower = ua.toLowerCase();
+  const bot = /(bot|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|telegrambot|lighthouse|headless)/i.test(ua);
+  const device = bot ? 'bot' : /mobile|android|iphone|ipad/i.test(ua) ? 'mobile' : 'desktop';
+  let browser = '';
+  if (lower.includes('edg/')) browser = 'Edge';
+  else if (lower.includes('chrome/')) browser = 'Chrome';
+  else if (lower.includes('safari/')) browser = 'Safari';
+  else if (lower.includes('firefox/')) browser = 'Firefox';
+  return { userAgent: ua, device, browser, bot };
+}
+
+const analyticsRateBuckets = new Map();
+function analyticsRateAllowed(req, limit = 90) {
+  const key = analyticsClientIp(req) || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const bucket = analyticsRateBuckets.get(key) || { count: 0, resetAt: now + windowMs };
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + windowMs;
+  }
+  bucket.count += 1;
+  analyticsRateBuckets.set(key, bucket);
+  return bucket.count <= limit;
+}
+
+async function cleanupVisitorAnalytics(now = new Date()) {
+  const cutoff = new Date(now.getTime() - ANALYTICS_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  if (USE_MONGO) {
+    await db.collection(COLL.visitorAnalyticsEvents).deleteMany({ timestamp: { $lt: cutoff } });
+    return;
+  }
+  writeVisitorAnalyticsFile(readVisitorAnalyticsFile().filter(event => String(event.timestamp || '') >= cutoff));
+}
+
+async function saveVisitorAnalyticsEvent(req, body) {
+  if (!analyticsRateAllowed(req)) return { status: 429, body: { ok: false } };
+  const visitorId = sanitizeAnalyticsId(body?.visitorId);
+  const sessionId = sanitizeAnalyticsId(body?.sessionId);
+  const eventType = sanitizeAnalyticsString(body?.eventType, 80);
+  if (!visitorId || !sessionId || !ANALYTICS_EVENT_TYPES.has(eventType)) return { status: 400, body: { ok: false } };
+  const timestamp = new Date().toISOString();
+  const device = analyticsDevice(req.headers['user-agent'] || '');
+  const event = {
+    id: crypto.randomUUID(),
+    visitorId,
+    sessionId,
+    eventType,
+    timestamp,
+    page: sanitizeAssistantUrl(body?.page || req.headers.referer || ''),
+    locale: ['ru', 'lv', 'en'].includes(body?.locale) ? body.locale : '',
+    modelId: sanitizeAnalyticsString(body?.modelId, 80),
+    color: sanitizeAnalyticsString(body?.color, 80),
+    metadata: sanitizeAnalyticsMetadata(body?.metadata),
+    ip: analyticsClientIp(req),
+    userAgent: device.userAgent,
+    device: device.device,
+    browser: device.browser,
+    bot: device.bot,
+  };
+  await cleanupVisitorAnalytics();
+  if (USE_MONGO) await db.collection(COLL.visitorAnalyticsEvents).insertOne(event);
+  else {
+    const events = readVisitorAnalyticsFile();
+    events.push(event);
+    writeVisitorAnalyticsFile(events);
+  }
+  return { status: 204, body: null };
+}
+
+function analyticsDateRange(query = {}) {
+  const now = new Date();
+  const to = query.dateTo ? new Date(`${String(query.dateTo).slice(0, 10)}T23:59:59.999Z`) : now;
+  const from = query.dateFrom ? new Date(`${String(query.dateFrom).slice(0, 10)}T00:00:00.000Z`) : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const safeTo = Number.isFinite(to.getTime()) ? to : now;
+  const safeFrom = Number.isFinite(from.getTime()) && from <= safeTo ? from : new Date(safeTo.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return { from: safeFrom.toISOString(), to: safeTo.toISOString() };
+}
+
+async function loadVisitorAnalyticsEvents(query = {}) {
+  const range = analyticsDateRange(query);
+  const includeBots = query.includeBots === 'true';
+  if (USE_MONGO) {
+    const filter = { timestamp: { $gte: range.from, $lte: range.to } };
+    if (!includeBots) filter.bot = { $ne: true };
+    return db.collection(COLL.visitorAnalyticsEvents).find(filter, { projection: { userAgent: 0 } }).sort({ timestamp: -1 }).limit(20000).toArray();
+  }
+  return readVisitorAnalyticsFile().filter(event => (
+    String(event.timestamp || '') >= range.from
+    && String(event.timestamp || '') <= range.to
+    && (includeBots || !event.bot)
+  ));
+}
+
+function visitorSummaryFromEvents(events) {
+  const visitors = new Map();
+  const sessions = new Set();
+  let pageViews = 0;
+  let contactClicks = 0;
+  let assistantUsers = 0;
+  const assistantVisitorIds = new Set();
+  for (const event of events) {
+    sessions.add(event.sessionId);
+    if (event.eventType === 'page_view') pageViews += 1;
+    if (['contact_click', 'whatsapp_click', 'telegram_click'].includes(event.eventType)) contactClicks += 1;
+    if (event.eventType === 'assistant_question') assistantVisitorIds.add(event.visitorId);
+    const row = visitors.get(event.visitorId) || { sessions: new Set(), days: new Set() };
+    row.sessions.add(event.sessionId);
+    row.days.add(String(event.timestamp || '').slice(0, 10));
+    visitors.set(event.visitorId, row);
+  }
+  assistantUsers = assistantVisitorIds.size;
+  const returningVisitors = [...visitors.values()].filter(row => row.sessions.size > 1 || row.days.size > 1).length;
+  return { uniqueVisitors: visitors.size, sessions: sessions.size, pageViews, returningVisitors, assistantUsers, contactClicks };
+}
+
+function aggregateVisitorRows(events, query = {}) {
+  const search = sanitizeAnalyticsString(query.search, 120).toLowerCase();
+  const map = new Map();
+  for (const event of events) {
+    const row = map.get(event.visitorId) || {
+      visitorId: event.visitorId,
+      latestIp: '',
+      ips: new Set(),
+      sessions: new Set(),
+      days: new Set(),
+      eventCount: 0,
+      firstSeen: event.timestamp,
+      lastSeen: event.timestamp,
+      locale: event.locale || '',
+      device: event.device || '',
+      assistantQuestionCount: 0,
+      contactClickCount: 0,
+      modelsViewed: new Set(),
+    };
+    row.eventCount += 1;
+    row.sessions.add(event.sessionId);
+    row.days.add(String(event.timestamp || '').slice(0, 10));
+    if (event.ip) row.ips.add(event.ip);
+    if (String(event.timestamp || '') < String(row.firstSeen || '')) row.firstSeen = event.timestamp;
+    if (String(event.timestamp || '') >= String(row.lastSeen || '')) {
+      row.lastSeen = event.timestamp;
+      row.latestIp = event.ip || row.latestIp;
+      row.locale = event.locale || row.locale;
+      row.device = event.device || row.device;
+    }
+    if (event.eventType === 'assistant_question') row.assistantQuestionCount += 1;
+    if (['contact_click', 'whatsapp_click', 'telegram_click'].includes(event.eventType)) row.contactClickCount += 1;
+    if (event.modelId) row.modelsViewed.add(event.modelId);
+    map.set(event.visitorId, row);
+  }
+  let rows = [...map.values()].map(row => ({
+    ...row,
+    ips: [...row.ips].sort(),
+    visitCount: row.days.size,
+    sessionCount: row.sessions.size,
+    modelsViewed: [...row.modelsViewed].sort(),
+  }));
+  rows = rows.filter(row => !search || row.visitorId.toLowerCase().includes(search) || row.ips.some(ip => ip.toLowerCase().includes(search)));
+  const sort = ['firstSeen', 'eventCount', 'visitCount'].includes(query.sort) ? query.sort : 'lastSeen';
+  rows.sort((a, b) => sort === 'firstSeen' ? String(a.firstSeen).localeCompare(String(b.firstSeen)) : sort === 'eventCount' ? b.eventCount - a.eventCount : sort === 'visitCount' ? b.visitCount - a.visitCount : String(b.lastSeen).localeCompare(String(a.lastSeen)));
+  return rows;
+}
+
+async function visitorAnalyticsList(query = {}) {
+  const events = await loadVisitorAnalyticsEvents(query);
+  const page = Math.max(1, Math.min(10000, Number(query.page) || 1));
+  const limit = Math.max(1, Math.min(100, Number(query.limit) || 25));
+  const rows = aggregateVisitorRows(events, query);
+  const start = (page - 1) * limit;
+  return { summary: visitorSummaryFromEvents(events), items: rows.slice(start, start + limit), total: rows.length, page, limit, meta: { retentionDays: ANALYTICS_RETENTION_DAYS, includeBots: query.includeBots === 'true' } };
+}
+
+function humanAnalyticsEvent(event) {
+  const model = event.modelId ? ` ${event.modelId}` : '';
+  const color = event.color ? ` ${event.color}` : '';
+  const map = {
+    page_view: 'Page opened',
+    model_view: `Viewed${model}`.trim(),
+    color_change: `Selected${color}`.trim(),
+    assistant_open: 'Opened assistant',
+    assistant_question: 'Asked assistant',
+    assistant_recommendation: `Assistant recommended${model}`.trim(),
+    contact_click: 'Clicked contact',
+    whatsapp_click: 'Clicked WhatsApp',
+    telegram_click: 'Clicked Telegram',
+    language_change: `Changed language ${event.locale || ''}`.trim(),
+    details_open: 'Opened details',
+  };
+  return map[event.eventType] || event.eventType;
+}
+
+async function visitorAnalyticsDetail(visitorId, query = {}) {
+  const cleanVisitorId = sanitizeAnalyticsId(visitorId);
+  const events = (await loadVisitorAnalyticsEvents({ ...query, includeBots: query.includeBots })).filter(event => event.visitorId === cleanVisitorId).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  const limit = Math.max(1, Math.min(500, Number(query.limit) || 200));
+  const limited = events.slice(Math.max(0, events.length - limit));
+  const sessions = new Map();
+  for (const event of limited) {
+    if (!sessions.has(event.sessionId)) sessions.set(event.sessionId, []);
+    sessions.get(event.sessionId).push({ timestamp: event.timestamp, eventType: event.eventType, label: humanAnalyticsEvent(event), page: event.page, locale: event.locale, modelId: event.modelId, color: event.color });
+  }
+  return { visitorId: cleanVisitorId, ips: [...new Set(events.map(e => e.ip).filter(Boolean))].sort(), firstSeen: events[0]?.timestamp || '', lastSeen: events[events.length - 1]?.timestamp || '', sessionCount: new Set(events.map(e => e.sessionId)).size, eventCount: events.length, sessions: [...sessions.entries()].map(([sessionId, items]) => ({ sessionId, events: items })) };
 }
 
 function isMongoId(value) {
@@ -1955,6 +2249,35 @@ app.patch('/api/public/assistant-question/:id/feedback', async (req, res) => {
   } catch (e) {
     console.error('Assistant feedback route error:', e.message);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/public/analytics/event', async (req, res) => {
+  try {
+    const result = await saveVisitorAnalyticsEvent(req, req.body || {});
+    if (!result.body) return res.status(result.status).end();
+    return res.status(result.status).json(result.body);
+  } catch (e) {
+    console.error('Visitor analytics event error:', e.message);
+    return res.status(204).end();
+  }
+});
+
+app.get('/api/admin/analytics/visitors', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await visitorAnalyticsList(req.query));
+  } catch (e) {
+    console.error('Visitor analytics list error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/admin/analytics/visitors/:visitorId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await visitorAnalyticsDetail(req.params.visitorId, req.query));
+  } catch (e) {
+    console.error('Visitor analytics detail error:', e.message);
+    sendGenericError(res);
   }
 });
 
