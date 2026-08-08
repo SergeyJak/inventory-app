@@ -109,6 +109,7 @@ async function main() {
     }
     assert.strictEqual((await request('/api/admin/analytics/visitors')).res.status, 401);
     assert.strictEqual((await request('/api/admin/analytics/visitors/visitor_a')).res.status, 401);
+    assert.strictEqual((await request('/api/admin/analytics/visitors/visitor_a', { method: 'DELETE' })).res.status, 401);
     assert.strictEqual((await request('/api/public/analytics/visitors')).res.status, 404);
 
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_no_xff', sessionId: 'ip_no_xff_s' })).res.status, 204);
@@ -223,6 +224,22 @@ async function main() {
     assert.strictEqual(malformedDetail.res.status, 400);
     assert.strictEqual(malformedDetail.res.headers.get('content-type').includes('application/json'), true);
     assert.strictEqual(malformedDetail.body.error, 'Invalid visitorId');
+
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'delete_one_v', sessionId: 'delete_one_s' }, { 'X-Forwarded-For': '198.51.100.31' })).res.status, 204);
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'delete_bulk_a', sessionId: 'delete_bulk_a_s' }, { 'X-Forwarded-For': '198.51.100.32' })).res.status, 204);
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'delete_bulk_b', sessionId: 'delete_bulk_b_s' }, { 'X-Forwarded-For': '198.51.100.33' })).res.status, 204);
+    const deleteOne = await request('/api/admin/analytics/visitors/delete_one_v', { method: 'DELETE', headers: auth(token) });
+    assert.strictEqual(deleteOne.res.status, 200);
+    assert.strictEqual(deleteOne.body.deleted, 1);
+    assert(!storedEvents().some(item => item.visitorId === 'delete_one_v'));
+    const deleteBulk = await request('/api/admin/analytics/visitors', {
+      method: 'DELETE',
+      headers: auth(token),
+      body: JSON.stringify({ visitorIds: ['delete_bulk_a', 'delete_bulk_b'] }),
+    });
+    assert.strictEqual(deleteBulk.res.status, 200);
+    assert.strictEqual(deleteBulk.body.deleted, 2);
+    assert(!storedEvents().some(item => ['delete_bulk_a', 'delete_bulk_b'].includes(item.visitorId)));
 
     const stored = storedEvents();
     assert(!stored.some(item => item.visitorId === 'old_v'));

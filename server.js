@@ -1308,6 +1308,21 @@ async function visitorAnalyticsDetail(visitorId, query = {}) {
   };
 }
 
+async function deleteVisitorAnalytics(visitorIds = []) {
+  const ids = [...new Set((Array.isArray(visitorIds) ? visitorIds : [visitorIds])
+    .map(id => sanitizeAnalyticsId(id))
+    .filter(Boolean))];
+  if (!ids.length) return { status: 400, body: { error: 'No visitorIds provided' } };
+  if (USE_MONGO) {
+    const result = await db.collection(COLL.visitorAnalyticsEvents).deleteMany({ visitorId: { $in: ids } });
+    return { status: 200, body: { ok: true, deleted: result.deletedCount || 0, visitorIds: ids } };
+  }
+  const events = readVisitorAnalyticsFile();
+  const remaining = events.filter(event => !ids.includes(event.visitorId));
+  writeVisitorAnalyticsFile(remaining);
+  return { status: 200, body: { ok: true, deleted: events.length - remaining.length, visitorIds: ids } };
+}
+
 function isMongoId(value) {
   return /^[a-f0-9]{24}$/i.test(String(value || ''));
 }
@@ -2357,6 +2372,26 @@ app.get('/api/admin/analytics/visitors/:visitorId', requireInventoryHost, requir
     res.status(result.status).json(result.body);
   } catch (e) {
     console.error('Visitor analytics detail error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.delete('/api/admin/analytics/visitors/:visitorId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await deleteVisitorAnalytics([req.params.visitorId]);
+    res.status(result.status).json(result.body);
+  } catch (e) {
+    console.error('Visitor analytics delete error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.delete('/api/admin/analytics/visitors', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await deleteVisitorAnalytics(req.body?.visitorIds || []);
+    res.status(result.status).json(result.body);
+  } catch (e) {
+    console.error('Visitor analytics bulk delete error:', e.message);
     sendGenericError(res);
   }
 });

@@ -89,7 +89,7 @@
 
   <div id="dash-andrey" style="display:none">
     <h2>Вернуть Андрею <small style="font-size:0.75rem;font-weight:400;color:#64748b">(себестоимость + ½ маржи)</small></h2>
-    <div class="stats-grid" style="margin-bottom:24px">
+    <div class="stats-grid compact-summary" style="margin-bottom:24px">
       <div class="stat-card" style="border-left:4px solid #f59e0b"><span class="stat-label">Начислено всего</span><span class="stat-value" id="andrey-total" style="color:#b45309">0.00 €</span></div>
       <div class="stat-card" style="border-left:4px solid #86efac"><span class="stat-label">Уже вернул</span><span class="stat-value" id="andrey-paid" style="color:#16a34a">0.00 €</span></div>
       <div class="stat-card" style="border-left:4px solid #f87171;background:#fff7f7"><span class="stat-label">Осталось вернуть</span><span class="stat-value" id="andrey-remaining" style="color:#dc2626;font-size:1.5rem">0.00 €</span></div>
@@ -235,7 +235,7 @@
     <button class="accounts-view-btn" type="button" data-assistant-preset="needs_improvement" onclick="setAssistantPreset('needs_improvement')">Needs improvement <span id="assistant-needs-badge">0</span></button>
     <button class="accounts-view-btn" type="button" data-assistant-preset="needs_improvement_reviewed" onclick="setAssistantPreset('needs_improvement_reviewed')">Reviewed improvement items</button>
   </div>
-  <div class="assistant-admin-summary" id="assistant-admin-summary"></div>
+  <div class="assistant-admin-summary compact-summary" id="assistant-admin-summary"></div>
   <div class="form-card assistant-report-card">
     <h3>Improvement report</h3>
     <div class="accounts-toolbar assistant-admin-filters">
@@ -297,17 +297,18 @@
 
 <section id="tab-visitor-activity" class="tab-content admin-only">
   <h2>Visitor activity</h2>
-  <div class="assistant-admin-summary" id="visitor-analytics-summary"></div>
-  <div class="accounts-toolbar assistant-admin-filters">
+  <div class="assistant-admin-summary compact-summary visitor-analytics-kpis" id="visitor-analytics-summary"></div>
+  <div class="accounts-toolbar assistant-admin-filters visitor-analytics-toolbar">
     <input type="search" id="visitor-analytics-search" placeholder="Search visitor or IP..." />
     <input type="date" id="visitor-analytics-from" />
     <input type="date" id="visitor-analytics-to" />
     <label class="backup-confirm"><input type="checkbox" id="visitor-analytics-bots" /> include bots</label>
-    <button class="btn-secondary" type="button" onclick="renderVisitorAnalytics()">Apply</button>
+    <button class="btn-primary" type="button" onclick="renderVisitorAnalytics()">Apply</button>
+    <button class="btn-delete visitor-delete-selected" type="button" onclick="deleteSelectedVisitorAnalytics()">Delete selected</button>
   </div>
   <div class="accounts-summary" id="visitor-analytics-count"></div>
   <table id="visitor-analytics-table">
-    <thead><tr><th>Visitor</th><th>IP</th><th>Visits</th><th>Sessions</th><th>First seen</th><th>Last seen</th><th>Device</th><th>Language</th><th>Actions</th><th>Assistant questions</th><th>Contact clicks</th></tr></thead>
+    <thead><tr><th><input type="checkbox" id="visitor-analytics-select-all" onchange="toggleVisitorAnalyticsSelection(this.checked)"></th><th>Visitor</th><th>IP</th><th>Visits</th><th>Sessions</th><th>First seen</th><th>Last seen</th><th>Device</th><th>Language</th><th>Actions</th><th>Delete</th></tr></thead>
     <tbody id="visitor-analytics-tbody"></tbody>
   </table>
   <div class="assistant-admin-pager">
@@ -459,7 +460,7 @@
 <!-- ===== ANNUAL REPORT ===== -->
 <section id="tab-annual" class="tab-content">
   <h2>📅 Годовой отчёт</h2>
-  <div class="stats-grid" id="annual-stats" style="margin-bottom:28px"></div>
+  <div class="stats-grid compact-summary" id="annual-stats" style="margin-bottom:28px"></div>
   <table id="annual-table">
     <thead><tr><th style="width:36px"></th><th>Год</th><th>Продано (шт.)</th><th>Выручка</th><th>Себестоимость</th><th>Прибыль</th><th>Маржа %</th></tr></thead>
     <tbody id="annual-tbody"></tbody>

@@ -41,6 +41,12 @@ h3 { font-size: 1.05rem; font-weight: 600; color: #334155; margin-bottom: 14px; 
 .dashboard-summary .stat-card-main .stat-value { font-size: clamp(1.7rem, 3vw, 2.3rem); }
 .dashboard-summary .stat-sub { color: #16a34a; font-size: 0.72rem; line-height: 1.1; }
 .dashboard-summary .stat-card.profit .stat-value { color: #16a34a; }
+.compact-summary { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.compact-summary .stat-card { min-height: 72px; border-radius: 10px; padding: 11px 13px; gap: 4px; justify-content: center; box-shadow: 0 1px 5px rgba(0,0,0,0.07); }
+.compact-summary .stat-label { font-size: 0.7rem; font-weight: 700; text-transform: none; letter-spacing: 0; line-height: 1.15; }
+.compact-summary .stat-value { font-size: clamp(1.15rem, 1.8vw, 1.55rem); line-height: 1.05; letter-spacing: 0; white-space: nowrap; }
+.compact-summary .stat-sub { font-size: 0.68rem; line-height: 1.1; }
+.compact-summary .assistant-queue-card { border-left-color: #f59e0b; }
 
 /* ========== TABLES ========== */
 table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.08); font-size: 0.9rem; }
@@ -251,6 +257,76 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
 .assistant-report-history-item:hover { border-color: #bfdbfe; background: #eff6ff; }
 .assistant-report-history-item span { color: #64748b; font-size: 0.82rem; }
 
+.visitor-analytics-kpis {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.visitor-analytics-kpis .stat-card {
+  min-height: 64px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  gap: 3px;
+  border-left-width: 3px;
+  box-shadow: 0 1px 4px rgba(15,23,42,0.07);
+}
+.visitor-analytics-kpis .stat-card:hover { transform: none; }
+.visitor-analytics-kpis .stat-label {
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.visitor-analytics-kpis .stat-value {
+  color: #0f3460;
+  font-size: clamp(1.18rem, 1.7vw, 1.5rem);
+  line-height: 1;
+  white-space: nowrap;
+}
+.visitor-analytics-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 140px 140px max-content max-content max-content;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.visitor-analytics-toolbar input,
+.visitor-analytics-toolbar input[type="date"] {
+  min-width: 0;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 0.84rem;
+  border-radius: 7px;
+}
+.visitor-analytics-toolbar .backup-confirm {
+  align-items: center;
+  margin: 0;
+  padding: 0 2px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.visitor-analytics-toolbar .backup-confirm input {
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+}
+.visitor-analytics-toolbar .btn-primary,
+.visitor-analytics-toolbar .btn-delete {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.visitor-analytics-toolbar .visitor-delete-selected {
+  background: #fff;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.visitor-analytics-toolbar .visitor-delete-selected:hover { background: #fef2f2; }
+
 @media (max-width: 900px) {
   .mail-admin-grid { grid-template-columns: 1fr; }
   .mail-admin-message-layout { grid-template-columns: 1fr; }
@@ -260,6 +336,8 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
   .assistant-report-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
   .dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-summary .stat-card-main { grid-column: span 1; }
+  .visitor-analytics-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .visitor-analytics-toolbar { grid-template-columns: minmax(220px, 1fr) 132px 132px max-content max-content max-content; }
 }
 
 /* ========== EMPTY STATE ========== */
@@ -295,5 +373,35 @@ tr.andrey-total-row td { background: #fef3c7; border-top: 2px solid #f59e0b; pad
   .dashboard-summary .stat-value { font-size: clamp(1.05rem, 5vw, 1.3rem); }
   .dashboard-summary .stat-card-main .stat-value { font-size: clamp(1.35rem, 7vw, 1.7rem); }
   .dashboard-summary .stat-sub { font-size: 0.66rem; }
+  .compact-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .compact-summary .stat-card { min-height: 64px; padding: 9px 10px; border-left-width: 3px; }
+  .compact-summary .stat-label { font-size: 0.66rem; }
+  .compact-summary .stat-value { font-size: clamp(1rem, 5vw, 1.25rem); }
+  .compact-summary .stat-sub { font-size: 0.64rem; }
+  .visitor-analytics-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-bottom: 8px;
+  }
+  .visitor-analytics-kpis .stat-card {
+    min-height: 60px;
+    padding: 7px 8px;
+  }
+  .visitor-analytics-kpis .stat-label { font-size: 0.62rem; }
+  .visitor-analytics-kpis .stat-value { font-size: clamp(1rem, 6vw, 1.25rem); }
+  .visitor-analytics-toolbar {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 7px;
+    margin-bottom: 8px;
+  }
+  .visitor-analytics-toolbar input[type="search"] { grid-column: 1 / -1; }
+  .visitor-analytics-toolbar .backup-confirm,
+  .visitor-analytics-toolbar .btn-primary,
+  .visitor-analytics-toolbar .btn-delete {
+    width: 100%;
+    min-height: 36px;
+    justify-content: center;
+  }
+  .visitor-analytics-toolbar .backup-confirm { font-size: 0.74rem; }
   header h1 { font-size: 1.2rem; }
 }

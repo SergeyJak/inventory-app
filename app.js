@@ -1034,12 +1034,12 @@ function renderAssistantAdminSummary(summary = {}) {
   box.innerHTML = `
     <div class="stat-card"><span class="stat-label">Total</span><span class="stat-value">${Number(summary.total) || 0}</span></div>
     <div class="stat-card"><span class="stat-label">Unmatched</span><span class="stat-value">${Number(summary.unmatched) || 0}</span></div>
-    <div class="stat-card"><span class="stat-label">Low confidence</span><span class="stat-value">${Number(summary.lowConfidence) || 0}</span></div>
-    <div class="stat-card"><span class="stat-label">Negative feedback</span><span class="stat-value">${Number(summary.negativeFeedback) || 0}</span></div>
-    <div class="stat-card assistant-queue-card"><span class="stat-label">Unresolved improvement items</span><span class="stat-value">${Number(improvement.total) || 0}</span><span class="stat-sub">${threshold == null ? '' : `threshold < ${Number(threshold)}`}</span></div>
-    <div class="stat-card assistant-queue-card"><span class="stat-label">Queue negative feedback</span><span class="stat-value">${Number(improvement.negativeFeedback) || 0}</span></div>
-    <div class="stat-card assistant-queue-card"><span class="stat-label">Queue unmatched</span><span class="stat-value">${Number(improvement.unmatched) || 0}</span></div>
-    <div class="stat-card assistant-queue-card"><span class="stat-label">Queue low confidence</span><span class="stat-value">${Number(improvement.lowConfidence) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Low conf.</span><span class="stat-value">${Number(summary.lowConfidence) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Negative</span><span class="stat-value">${Number(summary.negativeFeedback) || 0}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">Needs work</span><span class="stat-value">${Number(improvement.total) || 0}</span><span class="stat-sub">${threshold == null ? '' : `threshold < ${Number(threshold)}`}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">Feedback</span><span class="stat-value">${Number(improvement.negativeFeedback) || 0}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">No match</span><span class="stat-value">${Number(improvement.unmatched) || 0}</span></div>
+    <div class="stat-card assistant-queue-card"><span class="stat-label">Low conf.</span><span class="stat-value">${Number(improvement.lowConfidence) || 0}</span></div>
     <div class="assistant-admin-toplist"><strong>Repeated questions</strong>${repeated}</div>
     <div class="assistant-admin-toplist"><strong>Matched FAQ</strong>${faqs}</div>
   `;
@@ -1342,12 +1342,12 @@ function renderVisitorSummary(summary = {}) {
   const box = document.getElementById('visitor-analytics-summary');
   if (!box) return;
   box.innerHTML = `
-    <div class="stat-card"><span class="stat-label">Unique visitors</span><span class="stat-value">${Number(summary.uniqueVisitors) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Visitors</span><span class="stat-value">${Number(summary.uniqueVisitors) || 0}</span></div>
     <div class="stat-card"><span class="stat-label">Sessions</span><span class="stat-value">${Number(summary.sessions) || 0}</span></div>
-    <div class="stat-card"><span class="stat-label">Page views</span><span class="stat-value">${Number(summary.pageViews) || 0}</span></div>
-    <div class="stat-card"><span class="stat-label">Returning visitors</span><span class="stat-value">${Number(summary.returningVisitors) || 0}</span></div>
-    <div class="stat-card"><span class="stat-label">Assistant users</span><span class="stat-value">${Number(summary.assistantUsers) || 0}</span></div>
-    <div class="stat-card"><span class="stat-label">Contact clicks</span><span class="stat-value">${Number(summary.contactClicks) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Views</span><span class="stat-value">${Number(summary.pageViews) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Returning</span><span class="stat-value">${Number(summary.returningVisitors) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Assistant</span><span class="stat-value">${Number(summary.assistantUsers) || 0}</span></div>
+    <div class="stat-card"><span class="stat-label">Contacts</span><span class="stat-value">${Number(summary.contactClicks) || 0}</span></div>
   `;
 }
 
@@ -1370,6 +1370,7 @@ async function renderVisitorAnalytics() {
     const rows = data.items || [];
     tbody.innerHTML = rows.length ? rows.map(row => `
       <tr>
+        <td><input type="checkbox" class="visitor-analytics-select" value="${esc(row.visitorId)}"></td>
         <td><code title="${esc(row.visitorId)}">${esc(shortVisitorId(row.visitorId))}</code></td>
         <td>${esc(row.latestIp || '-')}</td>
         <td>${Number(row.visitCount) || 0}</td>
@@ -1378,15 +1379,62 @@ async function renderVisitorAnalytics() {
         <td>${formatAssistantDate(row.lastSeen)}</td>
         <td>${esc(row.device || '-')}</td>
         <td>${esc(row.locale || '-')}</td>
-        <td>${Number(row.eventCount) || 0}</td>
-        <td>${Number(row.assistantQuestionCount) || 0}</td>
-        <td>${Number(row.contactClickCount) || 0}<br><button class="btn-edit" onclick="openVisitorAnalyticsDetail('${esc(row.visitorId)}')">Details</button></td>
+        <td>${Number(row.eventCount) || 0}<br><button class="btn-edit" onclick="openVisitorAnalyticsDetail('${esc(row.visitorId)}')">Details</button></td>
+        <td><button class="btn-delete" onclick="deleteVisitorAnalytics('${esc(row.visitorId)}')">Delete</button></td>
       </tr>
     `).join('') : '<tr class="empty-row"><td colspan="11">No visitor activity found.</td></tr>';
+    const selectAll = document.getElementById('visitor-analytics-select-all');
+    if (selectAll) selectAll.checked = false;
     document.getElementById('visitor-analytics-count').textContent = `${visitorAnalyticsTotal} visitors`;
     document.getElementById('visitor-analytics-page').textContent = `Page ${data.page || visitorAnalyticsPage} / ${Math.max(1, Math.ceil(visitorAnalyticsTotal / visitorAnalyticsLimit))}`;
   } catch (e) {
     tbody.innerHTML = `<tr class="empty-row"><td colspan="11">Could not load visitor activity: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function selectedVisitorAnalyticsIds() {
+  return [...document.querySelectorAll('.visitor-analytics-select:checked')].map(input => input.value).filter(Boolean);
+}
+
+function toggleVisitorAnalyticsSelection(checked) {
+  document.querySelectorAll('.visitor-analytics-select').forEach(input => { input.checked = checked; });
+}
+
+async function deleteVisitorAnalytics(visitorId) {
+  if (!visitorId) return;
+  if (!confirm(`Delete visitor analytics logs for ${visitorId}?`)) return;
+  try {
+    const res = await fetch(`/api/admin/analytics/visitors/${encodeURIComponent(visitorId)}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    document.getElementById('visitor-analytics-detail').hidden = true;
+    showToast(`Deleted ${Number(data.deleted) || 0} analytics events`);
+    renderVisitorAnalytics();
+  } catch (e) {
+    showToast('Could not delete visitor analytics: ' + e.message, 'error');
+  }
+}
+
+async function deleteSelectedVisitorAnalytics() {
+  const visitorIds = selectedVisitorAnalyticsIds();
+  if (!visitorIds.length) return showToast('Select visitor logs to delete', 'info');
+  if (!confirm(`Delete analytics logs for ${visitorIds.length} selected visitor(s)?`)) return;
+  try {
+    const res = await fetch('/api/admin/analytics/visitors', {
+      method: 'DELETE',
+      headers: authHeaders(),
+      body: JSON.stringify({ visitorIds }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    document.getElementById('visitor-analytics-detail').hidden = true;
+    showToast(`Deleted ${Number(data.deleted) || 0} analytics events`);
+    renderVisitorAnalytics();
+  } catch (e) {
+    showToast('Could not delete selected visitor analytics: ' + e.message, 'error');
   }
 }
 
@@ -2033,11 +2081,11 @@ function renderAnnual() {
   const totRevenue = sales.reduce((s, t) => s + (t.total    || 0), 0);
   const totQty     = sales.reduce((s, t) => s + (t.qty      || 0), 0);
   document.getElementById('annual-stats').innerHTML = `
-    <div class="stat-card"><span class="stat-label">Лет в статистике</span><span class="stat-value">${years.length}</span></div>
-    <div class="stat-card profit"><span class="stat-label">💰 Прибыль (всего)</span><span class="stat-value">${fmt(totProfit)}</span></div>
-    <div class="stat-card"><span class="stat-label">💳 Выручка (всего)</span><span class="stat-value">${fmt(totRevenue)}</span></div>
-    <div class="stat-card"><span class="stat-label">📦 Продано (всего)</span><span class="stat-value">${totQty} шт.</span></div>
-    <div class="stat-card"><span class="stat-label">📈 Средняя маржа</span><span class="stat-value">${annualPct(totRevenue, totProfit)}</span></div>`;
+    <div class="stat-card"><span class="stat-label">Лет</span><span class="stat-value">${years.length}</span></div>
+    <div class="stat-card profit"><span class="stat-label">Прибыль</span><span class="stat-value">${fmt(totProfit)}</span></div>
+    <div class="stat-card"><span class="stat-label">Выручка</span><span class="stat-value">${fmt(totRevenue)}</span></div>
+    <div class="stat-card"><span class="stat-label">Продано</span><span class="stat-value">${totQty} шт.</span></div>
+    <div class="stat-card"><span class="stat-label">Маржа</span><span class="stat-value">${annualPct(totRevenue, totProfit)}</span></div>`;
   if (!years.length) { document.getElementById('annual-tbody').innerHTML = '<tr class="empty-row"><td colspan="7">Продаж пока нет.</td></tr>'; return; }
   const rows = [];
   years.forEach(year => {
