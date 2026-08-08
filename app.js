@@ -24,6 +24,7 @@ const BACKUP_SECTIONS = [
 ];
 let inspectedBackupBase64 = '';
 let inspectedBackupInfo = null;
+let showAllStockRows = false;
 
 function loadProducts()        { return _cache.products; }
 function loadTransactions()    { return _cache.transactions; }
@@ -300,7 +301,15 @@ function renderDashboard() {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Товаров пока нет. Добавьте их во вкладке «Товары».</td></tr>';
     return;
   }
-  const sorted = [...products].sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+  const stockToggle = document.getElementById('stock-show-all');
+  if (stockToggle) stockToggle.checked = showAllStockRows;
+  const sorted = [...products]
+    .filter(p => showAllStockRows || getStock(p) > 0)
+    .sort((a, b) => a.productType.localeCompare(b.productType) || a.color.localeCompare(b.color));
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Нет товаров с остатком. Включите весь список, чтобы увидеть позиции без остатка.</td></tr>';
+    return;
+  }
   tbody.innerHTML = sorted.map(p => {
     const stock    = getStock(p);
     const stockVal = getStockValue(p);
@@ -1969,6 +1978,10 @@ function toggleHistoryDateSort() {
 }
 
 document.getElementById('history-filter').addEventListener('change', e => { renderHistory(e.target.value); });
+document.getElementById('stock-show-all')?.addEventListener('change', e => {
+  showAllStockRows = e.target.checked;
+  renderDashboard();
+});
 document.getElementById('accounts-search')?.addEventListener('input', renderAccounts);
 document.getElementById('mail-accounts-search')?.addEventListener('input', renderMailAccounts);
 document.getElementById('visitor-analytics-search')?.addEventListener('input', () => { visitorAnalyticsPage = 1; renderVisitorAnalytics(); });

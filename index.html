@@ -74,7 +74,13 @@
     <div class="stat-card"><span class="stat-label">🏷️ Стоимость остатков</span><span class="stat-value" id="stat-stock-value">0.00 €</span></div>
     <div class="stat-card"><span class="stat-label">📦 Продано штук</span><span class="stat-value" id="stat-sold-qty">0</span></div>
   </div>
-  <h3 style="margin-top:32px">Остатки по товарам</h3>
+  <div class="stock-table-heading">
+    <h3>Остатки по товарам</h3>
+    <label class="stock-toggle">
+      <input type="checkbox" id="stock-show-all">
+      <span>Показать весь список</span>
+    </label>
+  </div>
   <table id="stock-table">
     <thead><tr><th>Тип</th><th>Цвет</th><th>Цена закупки</th><th>Цена продажи</th><th>Остаток (шт.)</th><th>Стоимость остатка</th><th>Маржа</th></tr></thead>
     <tbody id="stock-tbody"></tbody>
