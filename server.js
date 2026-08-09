@@ -7,6 +7,7 @@ const bcrypt    = require('bcryptjs');
 const crypto    = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 const { createMailService } = require('./mail-service');
+const knowledgeBase = require('./knowledge-base');
 
 const app      = express();
 app.set('trust proxy', 1);
@@ -725,7 +726,42 @@ app.get('/catalog.html', (req, res, next) => {
   return next();
 });
 
-app.get(['/catalog.css', '/catalog.js', '/assistant-engine.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/sitemap.xml', '/404.html', '/favicon.ico'], (req, res, next) => {
+app.get('/sitemap.xml', (req, res, next) => {
+  if (isCatalogHost(req) || isLocalHost(req)) {
+    res.type('application/xml').send(knowledgeBase.renderSitemapXml('https://heysmart.lv'));
+    return;
+  }
+  return next();
+});
+
+app.get('/:locale/help', (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  const { locale } = req.params;
+  if (!knowledgeBase.isSupportedLocale(locale)) return next();
+  res.type('html').send(knowledgeBase.renderHelpIndex(req, locale));
+});
+
+app.get('/:locale/help/category/:categorySlug', (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  const { locale, categorySlug } = req.params;
+  if (!knowledgeBase.isSupportedLocale(locale)) return next();
+  const category = knowledgeBase.categoryBySlug(locale, categorySlug);
+  if (!category) return res.status(404).send('Not found');
+  res.type('html').send(knowledgeBase.renderCategoryPage(req, locale, category));
+});
+
+app.get('/:locale/help/:articleSlug', (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  const { locale, articleSlug } = req.params;
+  if (!knowledgeBase.isSupportedLocale(locale)) return next();
+  const redirectPath = knowledgeBase.findPreviousSlugRedirect(locale, articleSlug);
+  if (redirectPath) return res.redirect(301, redirectPath);
+  const article = knowledgeBase.findArticle(locale, articleSlug);
+  if (!article) return res.status(404).send('Not found');
+  res.type('html').send(knowledgeBase.renderArticlePage(req, article));
+});
+
+app.get(['/catalog.css', '/catalog.js', '/assistant-engine.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/404.html', '/favicon.ico'], (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
     return res.sendFile(path.join(__dirname, req.path.slice(1)));
   }

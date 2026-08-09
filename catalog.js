@@ -11,6 +11,7 @@ const anglePrev = document.getElementById('angle-prev');
 const angleNext = document.getElementById('angle-next');
 const contactCta = document.getElementById('contact-cta');
 const topContact = document.getElementById('top-contact');
+const helpLink = document.getElementById('help-link');
 const overlay = document.getElementById('overlay');
 const contactPanel = document.getElementById('contact-panel');
 const contactClose = document.getElementById('contact-close');
@@ -858,6 +859,7 @@ function applyStaticTranslations() {
   colorGallery.setAttribute('aria-label', dict('common.colors'));
   detailsGrid.setAttribute('aria-label', dict('common.aboutModel'));
   languageSwitcher.setAttribute('aria-label', dict('nav.lang'));
+  if (helpLink) helpLink.href = `/${currentLang}/help`;
 }
 
 function renderLanguageSwitcher() {
