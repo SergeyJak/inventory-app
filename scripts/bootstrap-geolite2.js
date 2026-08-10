@@ -3,6 +3,7 @@ const https = require('https');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { pipeline } = require('stream/promises');
 
 const GEO_DIR = process.env.GEOLITE2_DIR || '/data/geoip';
 const DATABASES = [
@@ -22,27 +23,52 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function download(url, destination) {
+function safeUrlForLog(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has('license_key')) parsed.searchParams.set('license_key', '[redacted]');
+    return parsed.toString();
+  } catch {
+    return '[invalid-url]';
+  }
+}
+
+function request(url) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(destination);
     https.get(url, response => {
-      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
-        file.close(() => fs.rmSync(destination, { force: true }));
-        download(response.headers.location, destination).then(resolve, reject);
-        return;
-      }
-      if (response.statusCode !== 200) {
-        file.close(() => fs.rmSync(destination, { force: true }));
-        reject(new Error(`HTTP ${response.statusCode}`));
-        return;
-      }
-      response.pipe(file);
-      file.on('finish', () => file.close(resolve));
-    }).on('error', err => {
-      file.close(() => fs.rmSync(destination, { force: true }));
-      reject(err);
-    });
+      resolve(response);
+    }).on('error', reject);
   });
+}
+
+async function download(url, destination, redirects = 0) {
+  if (redirects > 5) throw new Error('too many redirects');
+  const response = await request(url);
+  const status = response.statusCode || 0;
+  if ([301, 302, 303, 307, 308].includes(status)) {
+    response.resume();
+    if (!response.headers.location) throw new Error(`HTTP ${status} redirect without location`);
+    const nextUrl = new URL(response.headers.location, url).toString();
+    log(`Download redirected with HTTP ${status}`);
+    return download(nextUrl, destination, redirects + 1);
+  }
+  if (status !== 200) {
+    response.resume();
+    throw new Error(`download failed with HTTP ${status} from ${safeUrlForLog(url)}`);
+  }
+  fs.rmSync(destination, { force: true });
+  try {
+    await pipeline(response, fs.createWriteStream(destination, { flags: 'wx' }));
+  } catch (err) {
+    fs.rmSync(destination, { force: true });
+    throw new Error(`download stream failed: ${err.message}`);
+  }
+  const size = fs.statSync(destination).size;
+  if (size <= 0) {
+    fs.rmSync(destination, { force: true });
+    throw new Error('download produced an empty archive');
+  }
+  log(`Downloaded archive (${Math.round(size / 1024)} KB)`);
 }
 
 function findFile(root, filename) {
@@ -62,18 +88,22 @@ async function provisionDatabase(database, licenseKey) {
   if (fs.existsSync(database.target)) return false;
   ensureDir(path.dirname(database.target));
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${database.edition}-`));
-  const archive = path.join(tmpDir, `${database.edition}.tar.gz`);
-  const url = `https://download.maxmind.com/app/geoip_download?edition_id=${encodeURIComponent(database.edition)}&license_key=${encodeURIComponent(licenseKey)}&suffix=tar.gz`;
-  await download(url, archive);
-  const extracted = spawnSync('tar', ['-xzf', archive, '-C', tmpDir], { stdio: 'pipe' });
-  if (extracted.status !== 0) {
-    throw new Error(`tar failed: ${extracted.stderr.toString().trim() || extracted.status}`);
+  try {
+    const archive = path.join(tmpDir, `${database.edition}.tar.gz`);
+    const url = `https://download.maxmind.com/app/geoip_download?edition_id=${encodeURIComponent(database.edition)}&license_key=${encodeURIComponent(licenseKey)}&suffix=tar.gz`;
+    await download(url, archive);
+    if (!fs.existsSync(archive)) throw new Error('download did not create archive');
+    const extracted = spawnSync('tar', ['-xzf', archive, '-C', tmpDir], { stdio: 'pipe' });
+    if (extracted.status !== 0) {
+      throw new Error(`extraction failed: ${extracted.stderr.toString().trim() || extracted.status}`);
+    }
+    const source = findFile(tmpDir, `${database.edition}.mmdb`);
+    if (!source) throw new Error(`${database.edition}.mmdb not found in archive`);
+    fs.copyFileSync(source, database.target);
+    return true;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-  const source = findFile(tmpDir, `${database.edition}.mmdb`);
-  if (!source) throw new Error(`${database.edition}.mmdb not found in archive`);
-  fs.copyFileSync(source, database.target);
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-  return true;
 }
 
 async function main() {
