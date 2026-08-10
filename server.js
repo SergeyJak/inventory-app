@@ -1165,7 +1165,7 @@ function isPrivateAnalyticsIp(ip) {
 }
 
 function unknownGeo(ip) {
-  return { country: 'Unknown', countryCode: '', city: '', isp: '', asn: '', ipType: ipVersion(ip) };
+  return { country: 'Unknown', countryCode: '', city: '', isp: '', asn: '', ipType: ipVersion(ip), source: 'fallback' };
 }
 
 function sanitizeGeoRecord(raw, ip) {
@@ -1181,7 +1181,15 @@ function sanitizeGeoRecord(raw, ip) {
     isp,
     asn: sanitizeAnalyticsString(asn || raw.autonomous_system_number || '', 80),
     ipType: ipVersion(ip),
+    source: raw.source === 'fallback' || raw.country === 'Unknown' ? 'fallback' : 'maxmind',
   };
+}
+
+function isResolvedGeo(geo, ip) {
+  if (!geo || typeof geo !== 'object') return false;
+  const clean = validAnalyticsIp(ip);
+  if (!clean || isPrivateAnalyticsIp(clean)) return true;
+  return geo.source !== 'fallback' && geo.country && geo.country !== 'Unknown';
 }
 
 function lookupMockGeo(ip) {
@@ -1236,14 +1244,15 @@ async function resolveVisitorGeo(ip) {
   let geo = lookupMockGeo(clean);
   if (!geo) geo = await lookupMaxMindGeo(clean);
   if (!geo) geo = unknownGeo(clean);
-  visitorGeoCache.set(clean, geo);
+  if (isResolvedGeo(geo, clean)) visitorGeoCache.set(clean, geo);
   return geo;
 }
 
 async function geoForAnalyticsEvent(event) {
   const ip = normalizeIp(event?.ip);
-  if (event?.geo && typeof event.geo === 'object' && event.geo.country) {
-    return sanitizeGeoRecord(event.geo, ip);
+  const storedGeo = sanitizeGeoRecord(event?.geo, ip);
+  if (isResolvedGeo(storedGeo, ip)) {
+    return storedGeo;
   }
   return resolveVisitorGeo(ip);
 }

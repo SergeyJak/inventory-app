@@ -150,6 +150,7 @@ async function main() {
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_private', sessionId: 'ip_private_s' }, { 'X-Forwarded-For': '10.0.0.4' })).res.status, 204);
     const privateGeo = storedEvents().find(item => item.visitorId === 'ip_private').geo;
     assert.strictEqual(privateGeo.country, 'Unknown');
+    assert.strictEqual(privateGeo.source, 'fallback');
     assert.strictEqual(privateGeo.city, '');
     assert.strictEqual(privateGeo.isp, '');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_missing_db', sessionId: 'ip_missing_db_s' }, { 'X-Forwarded-For': '198.51.100.45' })).res.status, 204);
@@ -211,17 +212,19 @@ async function main() {
       { id: 'detail_3', visitorId: detailVisitorId, sessionId: 'detail_s1', eventType: 'assistant_open', timestamp: new Date(detailBaseTime + 2000).toISOString(), ip: '2001:db8::4', metadata: null, bot: false },
       { id: 'detail_4', visitorId: detailVisitorId, eventType: 'whatsapp_click', timestamp: new Date(detailBaseTime + 3000).toISOString(), ip: '2001:db8::4', bot: false },
       { id: 'historical_geo_1', visitorId: 'historical_geo_v', sessionId: 'historical_geo_s', eventType: 'page_view', timestamp: new Date(detailBaseTime + 4000).toISOString(), ip: '203.0.113.10', bot: false },
+      { id: 'stale_unknown_1', visitorId: 'stale_unknown_v', sessionId: 'stale_unknown_s', eventType: 'page_view', timestamp: new Date(detailBaseTime + 5000).toISOString(), ip: '203.0.113.10', bot: false, geo: { country: 'Unknown', countryCode: '', city: '', isp: '', ipType: 'IPv4', source: 'fallback' } },
+      { id: 'private_unknown_1', visitorId: 'private_unknown_v', sessionId: 'private_unknown_s', eventType: 'page_view', timestamp: new Date(detailBaseTime + 6000).toISOString(), ip: '10.1.2.3', bot: false, geo: { country: 'Unknown', countryCode: '', city: '', isp: '', ipType: 'IPv4', source: 'fallback' } },
     ];
     writeJson('visitor-analytics-events.json', [...storedEvents(), ...detailEvents]);
 
     const token = await login();
     const list = await request('/api/admin/analytics/visitors?limit=10', { headers: auth(token) });
     assert.strictEqual(list.res.status, 200);
-    assert.strictEqual(list.body.summary.uniqueVisitors, 22);
+    assert.strictEqual(list.body.summary.uniqueVisitors, 24);
     assert.strictEqual(list.body.summary.returningVisitors, 3);
     assert.strictEqual(list.body.summary.assistantUsers, 2);
     assert.strictEqual(list.body.summary.contactClicks, 3);
-    assert.strictEqual(list.body.summary.pageViews, 24);
+    assert.strictEqual(list.body.summary.pageViews, 26);
     const flowVisitor = list.body.items.find(row => row.visitorId === 'flow_v');
     assert(flowVisitor);
     assert.strictEqual(flowVisitor.sessionCount, 3);
@@ -237,7 +240,7 @@ async function main() {
     assert(visitorA.ips.includes('2001:db8::2'));
 
     const withBots = await request('/api/admin/analytics/visitors?includeBots=true', { headers: auth(token) });
-    assert.strictEqual(withBots.body.summary.uniqueVisitors, 23);
+    assert.strictEqual(withBots.body.summary.uniqueVisitors, 25);
     const historicalGeoList = await request('/api/admin/analytics/visitors?search=historical_geo_v&limit=5', { headers: auth(token) });
     assert.strictEqual(historicalGeoList.res.status, 200);
     const historicalGeoRow = historicalGeoList.body.items.find(row => row.visitorId === 'historical_geo_v');
@@ -245,6 +248,19 @@ async function main() {
     assert.strictEqual(historicalGeoRow.geo.country, 'Lithuania');
     assert.strictEqual(historicalGeoRow.geo.city, 'Vilnius');
     assert.strictEqual(historicalGeoRow.geo.isp, 'Telia');
+    const staleUnknownList = await request('/api/admin/analytics/visitors?search=stale_unknown_v&limit=5', { headers: auth(token) });
+    assert.strictEqual(staleUnknownList.res.status, 200);
+    const staleUnknownRow = staleUnknownList.body.items.find(row => row.visitorId === 'stale_unknown_v');
+    assert(staleUnknownRow);
+    assert.strictEqual(staleUnknownRow.geo.country, 'Lithuania');
+    assert.strictEqual(staleUnknownRow.geo.city, 'Vilnius');
+    assert.strictEqual(staleUnknownRow.geo.isp, 'Telia');
+    const privateUnknownList = await request('/api/admin/analytics/visitors?search=private_unknown_v&limit=5', { headers: auth(token) });
+    assert.strictEqual(privateUnknownList.res.status, 200);
+    const privateUnknownRow = privateUnknownList.body.items.find(row => row.visitorId === 'private_unknown_v');
+    assert(privateUnknownRow);
+    assert.strictEqual(privateUnknownRow.geo.country, 'Unknown');
+    assert.strictEqual(privateUnknownRow.geo.source, 'fallback');
 
     const detail = await request('/api/admin/analytics/visitors/visitor_a', { headers: auth(token) });
     assert.strictEqual(detail.res.status, 200);
