@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "Local inventory tracker",
   "main": "server.js",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
+    "prestart": "node scripts/bootstrap-geolite2.js",
     "start": "node server.js",
     "test": "node tests/assistant-engine-v2.test.cjs",
     "test:assistant": "node tests/assistant-engine-v2.test.cjs",
@@ -19,6 +23,7 @@
     "imapflow": "^1.4.2",
     "jsonwebtoken": "9.0.3",
     "mailparser": "^3.9.12",
+    "maxmind": "^5.0.7",
     "mongodb": "7.2.0",
     "sanitize-html": "^2.17.5"
   }

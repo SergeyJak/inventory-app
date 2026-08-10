@@ -72,6 +72,10 @@ function storedEvents() {
   return JSON.parse(fs.readFileSync(path.join(tmp, 'visitor-analytics-events.json'), 'utf8'));
 }
 
+function geoMockPath() {
+  return path.join(tmp, 'geo-mock.json');
+}
+
 async function tick() {
   await new Promise(resolve => setTimeout(resolve, 5));
 }
@@ -81,6 +85,11 @@ async function main() {
   writeJson('visitor-analytics-events.json', [
     { id: 'old', visitorId: 'old_v', sessionId: 'old_s', eventType: 'page_view', timestamp: '2020-01-01T00:00:00.000Z', ip: '1.1.1.1', bot: false },
   ]);
+  writeJson('geo-mock.json', {
+    '82.193.66.136': { country: 'Latvia', countryCode: 'LV', city: 'Riga', isp: 'Tele2', asn: 'AS1257' },
+    '203.0.113.10': { country: 'Lithuania', countryCode: 'LT', city: 'Vilnius', isp: 'Telia', asn: 'AS8764' },
+    '2606:4700::1111': { country: 'Estonia', countryCode: 'EE', city: 'Tallinn', isp: 'Elisa', asn: 'AS2586' }
+  });
 
   const child = spawn(process.execPath, ['server.js'], {
     cwd: path.join(__dirname, '..'),
@@ -93,6 +102,7 @@ async function main() {
       ADMIN_HASH: bcrypt.hashSync(adminPassword, 4),
       ANDREY_HASH: bcrypt.hashSync('viewer-pass', 4),
       ANALYTICS_RETENTION_DAYS: '90',
+      ANALYTICS_GEO_MOCK_FILE: geoMockPath(),
       NODE_ENV: 'test',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -115,7 +125,39 @@ async function main() {
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_no_xff', sessionId: 'ip_no_xff_s' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_no_xff').ip === '127.0.0.1');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_production', sessionId: 'ip_cf_production_s' }, { 'CF-Connecting-IP': '82.193.66.136', 'X-Real-IP': '82.193.66.136', 'X-Forwarded-For': '162.158.48.163, 152.233.43.33', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
-    assert(storedEvents().find(item => item.visitorId === 'ip_cf_production').ip === '82.193.66.136');
+    const geoV4 = storedEvents().find(item => item.visitorId === 'ip_cf_production');
+    assert(geoV4.ip === '82.193.66.136');
+    assert.strictEqual(geoV4.geo.country, 'Latvia');
+    assert.strictEqual(geoV4.geo.countryCode, 'LV');
+    assert.strictEqual(geoV4.geo.city, 'Riga');
+    assert.strictEqual(geoV4.geo.isp, 'Tele2');
+    assert.strictEqual(geoV4.geo.ipType, 'IPv4');
+    writeJson('geo-mock.json', {
+      '82.193.66.136': { country: 'Wrong', countryCode: 'WR', city: 'Wrong', isp: 'Wrong' },
+      '203.0.113.10': { country: 'Lithuania', countryCode: 'LT', city: 'Vilnius', isp: 'Telia', asn: 'AS8764' },
+      '2606:4700::1111': { country: 'Estonia', countryCode: 'EE', city: 'Tallinn', isp: 'Elisa', asn: 'AS2586' }
+    });
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cache_hit', sessionId: 'ip_cache_hit_s' }, { 'CF-Connecting-IP': '82.193.66.136', 'X-Real-IP': '82.193.66.136', 'X-Forwarded-For': '162.158.48.163, 152.233.43.33', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
+    assert.strictEqual(storedEvents().find(item => item.visitorId === 'ip_cache_hit').geo.country, 'Latvia');
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cache_miss', sessionId: 'ip_cache_miss_s' }, { 'X-Forwarded-For': '203.0.113.10' })).res.status, 204);
+    assert.strictEqual(storedEvents().find(item => item.visitorId === 'ip_cache_miss').geo.country, 'Lithuania');
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_public_v6_geo', sessionId: 'ip_public_v6_geo_s' }, { 'CF-Connecting-IP': '2606:4700::1111', 'X-Forwarded-For': '162.158.1.10', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
+    const geoV6 = storedEvents().find(item => item.visitorId === 'ip_public_v6_geo');
+    assert.strictEqual(geoV6.geo.country, 'Estonia');
+    assert.strictEqual(geoV6.geo.city, 'Tallinn');
+    assert.strictEqual(geoV6.geo.isp, 'Elisa');
+    assert.strictEqual(geoV6.geo.ipType, 'IPv6');
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_private', sessionId: 'ip_private_s' }, { 'X-Forwarded-For': '10.0.0.4' })).res.status, 204);
+    const privateGeo = storedEvents().find(item => item.visitorId === 'ip_private').geo;
+    assert.strictEqual(privateGeo.country, 'Unknown');
+    assert.strictEqual(privateGeo.city, '');
+    assert.strictEqual(privateGeo.isp, '');
+    assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_missing_db', sessionId: 'ip_missing_db_s' }, { 'X-Forwarded-For': '198.51.100.45' })).res.status, 204);
+    const missingDbGeo = storedEvents().find(item => item.visitorId === 'ip_missing_db').geo;
+    assert.strictEqual(missingDbGeo.country, 'Unknown');
+    assert.strictEqual(missingDbGeo.city, '');
+    assert.strictEqual(missingDbGeo.isp, '');
+    assert.strictEqual(missingDbGeo.ipType, 'IPv4');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_v6', sessionId: 'ip_cf_v6_s' }, { 'CF-Connecting-IP': '2001:db8::123', 'X-Forwarded-For': '162.158.1.10, 152.233.43.33', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_cf_v6').ip === '2001:db8::123');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_cf_mapped', sessionId: 'ip_cf_mapped_s' }, { 'CF-Connecting-IP': '::ffff:198.51.100.23', 'X-Forwarded-For': '162.158.1.10, 152.233.43.33', 'CF-Ray': 'a27f3817eecd340e-RIX' })).res.status, 204);
@@ -134,6 +176,7 @@ async function main() {
     assert(storedEvents().find(item => item.visitorId === 'ip_v4_mapped').ip === '203.0.113.44');
     assert.strictEqual((await event({ eventType: 'page_view', visitorId: 'ip_unknown', sessionId: 'ip_unknown_s' }, { 'X-Real-IP': 'bad-ip', 'X-Forwarded-For': 'also-bad' })).res.status, 204);
     assert(storedEvents().find(item => item.visitorId === 'ip_unknown').ip === 'unknown');
+    assert.strictEqual(storedEvents().find(item => item.visitorId === 'ip_unknown').geo.country, 'Unknown');
 
     const flowEvents = [
       { eventType: 'page_view' },
@@ -167,17 +210,18 @@ async function main() {
       { id: 'detail_2', visitorId: detailVisitorId, sessionId: 'detail_s1', eventType: 'model_view', timestamp: new Date(detailBaseTime + 1000).toISOString(), ip: '198.51.100.1', bot: false },
       { id: 'detail_3', visitorId: detailVisitorId, sessionId: 'detail_s1', eventType: 'assistant_open', timestamp: new Date(detailBaseTime + 2000).toISOString(), ip: '2001:db8::4', metadata: null, bot: false },
       { id: 'detail_4', visitorId: detailVisitorId, eventType: 'whatsapp_click', timestamp: new Date(detailBaseTime + 3000).toISOString(), ip: '2001:db8::4', bot: false },
+      { id: 'historical_geo_1', visitorId: 'historical_geo_v', sessionId: 'historical_geo_s', eventType: 'page_view', timestamp: new Date(detailBaseTime + 4000).toISOString(), ip: '203.0.113.10', bot: false },
     ];
     writeJson('visitor-analytics-events.json', [...storedEvents(), ...detailEvents]);
 
     const token = await login();
     const list = await request('/api/admin/analytics/visitors?limit=10', { headers: auth(token) });
     assert.strictEqual(list.res.status, 200);
-    assert.strictEqual(list.body.summary.uniqueVisitors, 16);
+    assert.strictEqual(list.body.summary.uniqueVisitors, 22);
     assert.strictEqual(list.body.summary.returningVisitors, 3);
     assert.strictEqual(list.body.summary.assistantUsers, 2);
     assert.strictEqual(list.body.summary.contactClicks, 3);
-    assert.strictEqual(list.body.summary.pageViews, 18);
+    assert.strictEqual(list.body.summary.pageViews, 24);
     const flowVisitor = list.body.items.find(row => row.visitorId === 'flow_v');
     assert(flowVisitor);
     assert.strictEqual(flowVisitor.sessionCount, 3);
@@ -193,7 +237,14 @@ async function main() {
     assert(visitorA.ips.includes('2001:db8::2'));
 
     const withBots = await request('/api/admin/analytics/visitors?includeBots=true', { headers: auth(token) });
-    assert.strictEqual(withBots.body.summary.uniqueVisitors, 17);
+    assert.strictEqual(withBots.body.summary.uniqueVisitors, 23);
+    const historicalGeoList = await request('/api/admin/analytics/visitors?search=historical_geo_v&limit=5', { headers: auth(token) });
+    assert.strictEqual(historicalGeoList.res.status, 200);
+    const historicalGeoRow = historicalGeoList.body.items.find(row => row.visitorId === 'historical_geo_v');
+    assert(historicalGeoRow);
+    assert.strictEqual(historicalGeoRow.geo.country, 'Lithuania');
+    assert.strictEqual(historicalGeoRow.geo.city, 'Vilnius');
+    assert.strictEqual(historicalGeoRow.geo.isp, 'Telia');
 
     const detail = await request('/api/admin/analytics/visitors/visitor_a', { headers: auth(token) });
     assert.strictEqual(detail.res.status, 200);

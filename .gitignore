@@ -5,3 +5,4 @@ reports/
 artifacts/
 test-results/
 .codex/
+*.mmdb

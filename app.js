@@ -1452,10 +1452,22 @@ function shortVisitorId(value) {
   return text.length > 16 ? `${text.slice(0, 8)}...${text.slice(-6)}` : text;
 }
 
+function countryFlag(code) {
+  const clean = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(clean)) return '';
+  return [...clean].map(char => String.fromCodePoint(127397 + char.charCodeAt(0))).join('');
+}
+
+function formatVisitorCountry(geo = {}) {
+  const country = geo.country || 'Unknown';
+  const flag = countryFlag(geo.countryCode);
+  return `${flag ? `${flag} ` : ''}${country}`;
+}
+
 async function renderVisitorAnalytics() {
   const tbody = document.getElementById('visitor-analytics-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Loading visitor activity...</td></tr>';
+  tbody.innerHTML = '<tr class="empty-row"><td colspan="14">Loading visitor activity...</td></tr>';
   try {
     const res = await fetch(`/api/admin/analytics/visitors?${visitorAnalyticsParams()}`, { headers: authHeaders() });
     const data = await res.json();
@@ -1469,6 +1481,9 @@ async function renderVisitorAnalytics() {
         <td><input type="checkbox" class="visitor-analytics-select" value="${esc(row.visitorId)}"></td>
         <td><code title="${esc(row.visitorId)}">${esc(shortVisitorId(row.visitorId))}</code></td>
         <td>${esc(row.latestIp || '-')}</td>
+        <td>${esc(formatVisitorCountry(row.geo || {}))}</td>
+        <td>${esc(row.geo?.city || '—')}</td>
+        <td>${esc(row.geo?.isp || '—')}</td>
         <td>${Number(row.visitCount) || 0}</td>
         <td>${Number(row.sessionCount) || 0}</td>
         <td>${formatAssistantDate(row.firstSeen)}</td>
@@ -1478,13 +1493,13 @@ async function renderVisitorAnalytics() {
         <td>${Number(row.eventCount) || 0}<br><button class="btn-edit" onclick="openVisitorAnalyticsDetail('${esc(row.visitorId)}')">Details</button></td>
         <td><button class="btn-delete" onclick="deleteVisitorAnalytics('${esc(row.visitorId)}')">Delete</button></td>
       </tr>
-    `).join('') : '<tr class="empty-row"><td colspan="11">No visitor activity found.</td></tr>';
+    `).join('') : '<tr class="empty-row"><td colspan="14">No visitor activity found.</td></tr>';
     const selectAll = document.getElementById('visitor-analytics-select-all');
     if (selectAll) selectAll.checked = false;
     document.getElementById('visitor-analytics-count').textContent = `${visitorAnalyticsTotal} visitors`;
     document.getElementById('visitor-analytics-page').textContent = `Page ${data.page || visitorAnalyticsPage} / ${Math.max(1, Math.ceil(visitorAnalyticsTotal / visitorAnalyticsLimit))}`;
   } catch (e) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="11">Could not load visitor activity: ${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="14">Could not load visitor activity: ${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1558,6 +1573,9 @@ async function openVisitorAnalyticsDetail(visitorId) {
       <h3>Visitor ${esc(shortVisitorId(data.visitorId))}</h3>
       <div class="assistant-report-grid">
         <div><strong>${esc((data.ips || []).join(', ') || '-')}</strong><span>IP history</span></div>
+        <div><strong>${esc(formatVisitorCountry(data.geo || {}))}</strong><span>Country</span></div>
+        <div><strong>${esc(data.geo?.city || '—')}</strong><span>City</span></div>
+        <div><strong>${esc(data.geo?.isp || '—')}</strong><span>ISP</span></div>
         <div><strong>${formatAssistantDate(data.firstSeen)}</strong><span>First seen</span></div>
         <div><strong>${formatAssistantDate(data.lastSeen)}</strong><span>Last seen</span></div>
         <div><strong>${Number(data.sessionCount) || 0}</strong><span>Sessions</span></div>

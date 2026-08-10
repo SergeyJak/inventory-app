@@ -1123,6 +1123,131 @@ function analyticsDevice(userAgent) {
 }
 
 const analyticsRateBuckets = new Map();
+const visitorGeoCache = new Map();
+let maxMindReadersPromise = null;
+let visitorGeoUnavailableLogged = false;
+let visitorGeoErrorLogged = false;
+
+function ipVersion(ip) {
+  if (isValidIpv4(ip)) return 'IPv4';
+  if (isValidIpv6(ip)) return 'IPv6';
+  return '';
+}
+
+function ipv4Number(ip) {
+  if (!isValidIpv4(ip)) return null;
+  return ip.split('.').reduce((sum, part) => (sum * 256) + Number(part), 0);
+}
+
+function isPrivateAnalyticsIp(ip) {
+  const clean = normalizeIp(ip).toLowerCase();
+  if (!clean || clean === 'unknown') return true;
+  const v4 = ipv4Number(clean);
+  if (v4 !== null) {
+    const first = Number(clean.split('.')[0]);
+    const second = Number(clean.split('.')[1]);
+    return first === 10
+      || first === 127
+      || (first === 172 && second >= 16 && second <= 31)
+      || (first === 192 && second === 168)
+      || (first === 169 && second === 254)
+      || (first === 100 && second >= 64 && second <= 127)
+      || v4 === 0
+      || v4 >= ipv4Number('224.0.0.0');
+  }
+  return clean === '::1'
+    || clean === '::'
+    || clean.startsWith('fc')
+    || clean.startsWith('fd')
+    || clean.startsWith('fe80:')
+    || clean.startsWith('ff')
+    || clean.startsWith('2001:db8:');
+}
+
+function unknownGeo(ip) {
+  return { country: 'Unknown', countryCode: '', city: '', isp: '', asn: '', ipType: ipVersion(ip) };
+}
+
+function sanitizeGeoRecord(raw, ip) {
+  if (!raw || typeof raw !== 'object') return unknownGeo(ip);
+  const asn = raw.asn ? sanitizeAnalyticsString(raw.asn, 80) : '';
+  const countryName = typeof raw.country === 'string' ? raw.country : raw.country?.names?.en;
+  const cityName = typeof raw.city === 'string' ? raw.city : raw.city?.names?.en;
+  const isp = sanitizeAnalyticsString(raw.isp || raw.organization || raw.org || raw.autonomous_system_organization || asn, 120);
+  return {
+    country: sanitizeAnalyticsString(countryName || raw.countryName || raw.registered_country?.names?.en || 'Unknown', 80) || 'Unknown',
+    countryCode: sanitizeAnalyticsString(raw.countryCode || raw.isoCode || raw.country?.iso_code || raw.registered_country?.iso_code || '', 2).toUpperCase(),
+    city: sanitizeAnalyticsString(cityName || '', 80),
+    isp,
+    asn: sanitizeAnalyticsString(asn || raw.autonomous_system_number || '', 80),
+    ipType: ipVersion(ip),
+  };
+}
+
+function lookupMockGeo(ip) {
+  if (!process.env.ANALYTICS_GEO_MOCK_FILE) return null;
+  try {
+    const records = JSON.parse(fs.readFileSync(process.env.ANALYTICS_GEO_MOCK_FILE, 'utf8'));
+    if (!records || typeof records !== 'object') return null;
+    return Object.prototype.hasOwnProperty.call(records, ip) ? sanitizeGeoRecord(records[ip], ip) : unknownGeo(ip);
+  } catch {
+    return unknownGeo(ip);
+  }
+}
+
+function logVisitorGeoUnavailable(message) {
+  if (visitorGeoUnavailableLogged) return;
+  visitorGeoUnavailableLogged = true;
+  console.warn(`Visitor geo unavailable: ${message}`);
+}
+
+async function lookupMaxMindGeo(ip) {
+  const cityDbPath = process.env.GEOLITE2_CITY_DB || path.join(DATA_DIR, 'GeoLite2-City.mmdb');
+  const asnDbPath = process.env.GEOLITE2_ASN_DB || path.join(DATA_DIR, 'GeoLite2-ASN.mmdb');
+  if (!fs.existsSync(cityDbPath) && !fs.existsSync(asnDbPath)) {
+    logVisitorGeoUnavailable('GeoLite2 database files are missing; showing Unknown locations.');
+    return null;
+  }
+  try {
+    const maxmind = require('maxmind');
+    if (!maxMindReadersPromise) {
+      maxMindReadersPromise = Promise.all([
+        fs.existsSync(cityDbPath) ? maxmind.open(cityDbPath) : null,
+        fs.existsSync(asnDbPath) ? maxmind.open(asnDbPath) : null,
+      ]);
+    }
+    const [cityReader, asnReader] = await maxMindReadersPromise;
+    const city = cityReader ? cityReader.get(ip) : {};
+    const asn = asnReader ? asnReader.get(ip) : {};
+    return sanitizeGeoRecord({ ...city, ...asn }, ip);
+  } catch (err) {
+    if (!visitorGeoErrorLogged) {
+      visitorGeoErrorLogged = true;
+      console.warn(`Visitor geo lookup failed: ${err.message}`);
+    }
+    return unknownGeo(ip);
+  }
+}
+
+async function resolveVisitorGeo(ip) {
+  const clean = validAnalyticsIp(ip);
+  if (!clean || isPrivateAnalyticsIp(clean)) return unknownGeo(clean);
+  if (visitorGeoCache.has(clean)) return visitorGeoCache.get(clean);
+  let geo = lookupMockGeo(clean);
+  if (!geo) geo = await lookupMaxMindGeo(clean);
+  if (!geo) geo = unknownGeo(clean);
+  visitorGeoCache.set(clean, geo);
+  return geo;
+}
+
+async function geoForAnalyticsEvent(event) {
+  const ip = normalizeIp(event?.ip);
+  if (event?.geo && typeof event.geo === 'object' && event.geo.country) {
+    return sanitizeGeoRecord(event.geo, ip);
+  }
+  return resolveVisitorGeo(ip);
+}
+
 function analyticsRateAllowed(req, limit = 90) {
   const key = analyticsClientIp(req) || req.socket?.remoteAddress || 'unknown';
   const now = Date.now();
@@ -1171,6 +1296,7 @@ async function saveVisitorAnalyticsEvent(req, body) {
     browser: device.browser,
     bot: device.bot,
   };
+  event.geo = await resolveVisitorGeo(event.ip);
   await cleanupVisitorAnalytics();
   if (USE_MONGO) await db.collection(COLL.visitorAnalyticsEvents).insertOne(event);
   else {
@@ -1230,7 +1356,7 @@ function visitorSummaryFromEvents(events) {
   return { uniqueVisitors: visitors.size, sessions: sessions.size, pageViews, returningVisitors, assistantUsers, contactClicks };
 }
 
-function aggregateVisitorRows(events, query = {}) {
+async function aggregateVisitorRows(events, query = {}) {
   const search = sanitizeAnalyticsString(query.search, 120).toLowerCase();
   const map = new Map();
   for (const event of events) {
@@ -1248,6 +1374,7 @@ function aggregateVisitorRows(events, query = {}) {
       assistantQuestionCount: 0,
       contactClickCount: 0,
       modelsViewed: new Set(),
+      geo: unknownGeo(event.ip),
     };
     row.eventCount += 1;
     row.sessions.add(event.sessionId);
@@ -1259,6 +1386,7 @@ function aggregateVisitorRows(events, query = {}) {
       row.latestIp = event.ip || row.latestIp;
       row.locale = event.locale || row.locale;
       row.device = event.device || row.device;
+      row.geo = await geoForAnalyticsEvent(event);
     }
     if (event.eventType === 'assistant_question') row.assistantQuestionCount += 1;
     if (['contact_click', 'whatsapp_click', 'telegram_click'].includes(event.eventType)) row.contactClickCount += 1;
@@ -1268,11 +1396,17 @@ function aggregateVisitorRows(events, query = {}) {
   let rows = [...map.values()].map(row => ({
     ...row,
     ips: [...row.ips].sort(),
+    geo: sanitizeGeoRecord(row.geo, row.latestIp),
     visitCount: row.days.size,
     sessionCount: row.sessions.size,
     modelsViewed: [...row.modelsViewed].sort(),
   }));
-  rows = rows.filter(row => !search || row.visitorId.toLowerCase().includes(search) || row.ips.some(ip => ip.toLowerCase().includes(search)));
+  rows = rows.filter(row => !search
+    || row.visitorId.toLowerCase().includes(search)
+    || row.ips.some(ip => ip.toLowerCase().includes(search))
+    || String(row.geo.country || '').toLowerCase().includes(search)
+    || String(row.geo.city || '').toLowerCase().includes(search)
+    || String(row.geo.isp || '').toLowerCase().includes(search));
   const sort = ['firstSeen', 'eventCount', 'visitCount'].includes(query.sort) ? query.sort : 'lastSeen';
   rows.sort((a, b) => sort === 'firstSeen' ? String(a.firstSeen).localeCompare(String(b.firstSeen)) : sort === 'eventCount' ? b.eventCount - a.eventCount : sort === 'visitCount' ? b.visitCount - a.visitCount : String(b.lastSeen).localeCompare(String(a.lastSeen)));
   return rows;
@@ -1282,7 +1416,7 @@ async function visitorAnalyticsList(query = {}) {
   const events = await loadVisitorAnalyticsEvents(query);
   const page = Math.max(1, Math.min(10000, Number(query.page) || 1));
   const limit = Math.max(1, Math.min(100, Number(query.limit) || 25));
-  const rows = aggregateVisitorRows(events, query);
+  const rows = await aggregateVisitorRows(events, query);
   const start = (page - 1) * limit;
   return { summary: visitorSummaryFromEvents(events), items: rows.slice(start, start + limit), total: rows.length, page, limit, meta: { retentionDays: ANALYTICS_RETENTION_DAYS, includeBots: query.includeBots === 'true' } };
 }
@@ -1335,6 +1469,7 @@ async function visitorAnalyticsDetail(visitorId, query = {}) {
     body: {
       visitorId: cleanVisitorId,
       ips: [...new Set(events.map(e => normalizeIp(e.ip)).filter(Boolean))].sort(),
+      geo: await geoForAnalyticsEvent(events[events.length - 1]),
       firstSeen: String(events[0]?.timestamp || ''),
       lastSeen: String(events[events.length - 1]?.timestamp || ''),
       sessionCount: new Set(events.map(e => sanitizeAnalyticsId(e.sessionId) || 'unknown-session')).size,
