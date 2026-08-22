@@ -44,23 +44,51 @@ function findOriginalRecipient(parsed) {
     'x-envelope-to',
     'apparently-to',
   ];
+
   for (const name of headerNames) {
     for (const value of headerValues(parsed, name)) {
       const match = emailsFromValue(value).map(normalizeMailEmail).find(Boolean);
       if (match) return match;
     }
   }
+
   const addressFields = [parsed?.to, parsed?.cc, parsed?.bcc];
+
   for (const field of addressFields) {
     const match = emailsFromValue(field).map(normalizeMailEmail).find(Boolean);
     if (match) return match;
   }
+
   return '';
 }
 
 function sanitizeMailHtml(html) {
   return sanitizeHtml(String(html || ''), {
-    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'img'],
+    allowedTags: [
+      'p',
+      'br',
+      'strong',
+      'b',
+      'em',
+      'i',
+      'u',
+      'a',
+      'ul',
+      'ol',
+      'li',
+      'blockquote',
+      'code',
+      'pre',
+      'span',
+      'div',
+      'table',
+      'thead',
+      'tbody',
+      'tr',
+      'td',
+      'th',
+      'img',
+    ],
     allowedAttributes: {
       a: ['href', 'title'],
       img: ['src', 'alt', 'width', 'height'],
@@ -69,15 +97,23 @@ function sanitizeMailHtml(html) {
     },
     allowedSchemes: ['http', 'https', 'mailto'],
     transformTags: {
-      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }),
+      a: sanitizeHtml.simpleTransform('a', {
+        rel: 'noopener noreferrer',
+        target: '_blank',
+      }),
     },
   }).trim();
 }
 
 function extractVerificationCode(value) {
   const text = String(value || '').replace(/\s+/g, ' ');
-  const codeContext = text.match(/(?:код|code|verification|confirm|подтвержд)[^\d]{0,30}(\d[\d\s-]{3,10}\d)/i);
-  const raw = codeContext ? codeContext[1] : (text.match(/\b\d{4,8}\b/) || [])[0];
+  const codeContext = text.match(
+    /(?:код|code|verification|confirm|подтвержд)[^\d]{0,30}(\d[\d\s-]{3,10}\d)/i
+  );
+  const raw = codeContext
+    ? codeContext[1]
+    : (text.match(/\b\d{4,8}\b/) || [])[0];
+
   const code = String(raw || '').replace(/\D/g, '');
   return code.length >= 4 && code.length <= 8 ? code : '';
 }
@@ -85,8 +121,17 @@ function extractVerificationCode(value) {
 function mapParsedMessage(parsed, options) {
   const text = String(parsed?.text || '').trim();
   const html = sanitizeMailHtml(parsed?.html || '');
-  const receivedAt = parsed?.date instanceof Date && !Number.isNaN(parsed.date.getTime()) ? parsed.date : new Date();
-  const messageId = String(parsed?.messageId || options.fallbackMessageId || crypto.randomUUID());
+  const receivedAt =
+    parsed?.date instanceof Date && !Number.isNaN(parsed.date.getTime())
+      ? parsed.date
+      : new Date();
+
+  const messageId = String(
+    parsed?.messageId ||
+      options.fallbackMessageId ||
+      crypto.randomUUID()
+  );
+
   return {
     accountId: options.accountId,
     email: normalizeMailEmail(options.email),
@@ -96,7 +141,9 @@ function mapParsedMessage(parsed, options) {
     subject: String(parsed?.subject || '').slice(0, 500),
     text,
     html,
-    verificationCode: extractVerificationCode(`${parsed?.subject || ''} ${text}`),
+    verificationCode: extractVerificationCode(
+      `${parsed?.subject || ''} ${text}`
+    ),
     receivedAt,
     isRead: false,
     createdAt: new Date(),
@@ -123,7 +170,11 @@ function publicMessage(message) {
     subject: message.subject,
     text: message.text,
     html: message.html,
-    verificationCode: message.verificationCode || extractVerificationCode(`${message.subject || ''} ${message.text || ''}`),
+    verificationCode:
+      message.verificationCode ||
+      extractVerificationCode(
+        `${message.subject || ''} ${message.text || ''}`
+      ),
     receivedAt: message.receivedAt,
     isRead: Boolean(message.isRead),
     createdAt: message.createdAt,
@@ -136,12 +187,21 @@ function generateMailboxPassword() {
 
 function cookieValue(req, name) {
   const raw = String(req.headers.cookie || '');
-  const found = raw.split(';').map(part => part.trim()).find(part => part.startsWith(name + '='));
-  return found ? decodeURIComponent(found.slice(name.length + 1)) : '';
+  const found = raw
+    .split(';')
+    .map(part => part.trim())
+    .find(part => part.startsWith(name + '='));
+
+  return found
+    ? decodeURIComponent(found.slice(name.length + 1))
+    : '';
 }
 
 function mailCookieOptions(req) {
-  const secure = req.secure || String(req.headers['x-forwarded-proto'] || '').split(',')[0] === 'https';
+  const secure =
+    req.secure ||
+    String(req.headers['x-forwarded-proto'] || '').split(',')[0] === 'https';
+
   return {
     httpOnly: true,
     secure,
@@ -152,47 +212,137 @@ function mailCookieOptions(req) {
 }
 
 function rateKey(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  return String(
+    req.headers['x-forwarded-for'] ||
+      req.socket.remoteAddress ||
+      'unknown'
+  )
+    .split(',')[0]
+    .trim();
 }
 
 function mailLoginAllowed(req) {
   const key = rateKey(req);
   const now = Date.now();
-  const recent = (loginAttempts.get(key) || []).filter(time => now - time < 10 * 60 * 1000);
+
+  const recent = (loginAttempts.get(key) || []).filter(
+    time => now - time < 10 * 60 * 1000
+  );
+
   if (recent.length >= 8) {
     loginAttempts.set(key, recent);
     return false;
   }
+
   recent.push(now);
   loginAttempts.set(key, recent);
   return true;
 }
 
+function createImapClient(env = process.env, label = 'IMAP') {
+  const client = new ImapFlow({
+    host: env.IMAP_HOST || 'imap.gmail.com',
+    port: Number(env.IMAP_PORT || 993),
+    secure: true,
+    auth: {
+      user: env.IMAP_USER,
+      pass: env.IMAP_PASSWORD,
+    },
+    logger: false,
+  });
+
+  /*
+   * IMPORTANT:
+   * ImapFlow is an EventEmitter. If it emits an "error" event
+   * without a listener, Node.js can terminate the entire process.
+   *
+   * IMAP problems must never crash the shop/API process.
+   */
+  client.on('error', err => {
+    console.error(
+      `HeySmart Mail ${label} error:`,
+      err?.message || err
+    );
+  });
+
+  return client;
+}
+
+async function safeImapLogout(client, label = 'IMAP') {
+  if (!client) return;
+
+  try {
+    if (client.usable) {
+      await client.logout();
+    }
+  } catch (err) {
+    console.warn(
+      `HeySmart Mail ${label} logout error:`,
+      err?.message || err
+    );
+  }
+}
+
 async function ensureMailIndexes(db, options = {}) {
-  const ttlSeconds = Number(options.ttlSeconds || process.env.MAIL_TTL_SECONDS || DEFAULT_MAIL_TTL_SECONDS);
+  const ttlSeconds = Number(
+    options.ttlSeconds ||
+      process.env.MAIL_TTL_SECONDS ||
+      DEFAULT_MAIL_TTL_SECONDS
+  );
+
   await Promise.all([
-    db.collection('mail_accounts').createIndex({ email: 1 }, { unique: true }),
-    db.collection('mail_messages').createIndex({ accountId: 1, messageId: 1 }, { unique: true }),
-    db.collection('mail_messages').createIndex({ accountId: 1, receivedAt: -1 }),
-    db.collection('mail_messages').createIndex({ createdAt: 1 }, { expireAfterSeconds: ttlSeconds }),
+    db
+      .collection('mail_accounts')
+      .createIndex({ email: 1 }, { unique: true }),
+
+    db
+      .collection('mail_messages')
+      .createIndex(
+        { accountId: 1, messageId: 1 },
+        { unique: true }
+      ),
+
+    db
+      .collection('mail_messages')
+      .createIndex({ accountId: 1, receivedAt: -1 }),
+
+    db
+      .collection('mail_messages')
+      .createIndex(
+        { createdAt: 1 },
+        { expireAfterSeconds: ttlSeconds }
+      ),
   ]);
 }
 
 async function createMailAccount(db, username, password) {
-  const cleanUser = String(username || '').trim().toLowerCase().replace(/@heysmart\.lv$/, '');
+  const cleanUser = String(username || '')
+    .trim()
+    .toLowerCase()
+    .replace(/@heysmart\.lv$/, '');
+
   if (!/^[a-z0-9._%+-]{2,64}$/.test(cleanUser)) {
     const err = new Error('Invalid username');
     err.status = 400;
     throw err;
   }
+
   const cleanPassword = String(password || '');
+
   if (cleanPassword.length < 8) {
-    const err = new Error('Password is required and must be at least 8 characters');
+    const err = new Error(
+      'Password is required and must be at least 8 characters'
+    );
     err.status = 400;
     throw err;
   }
-  const email = normalizeMailEmail(`${cleanUser}@${MAIL_DOMAIN}`);
+
+  const email = normalizeMailEmail(
+    `${cleanUser}@${MAIL_DOMAIN}`
+  );
+
   const now = new Date();
+
   const doc = {
     email,
     passwordHash: await bcrypt.hash(cleanPassword, 10),
@@ -201,337 +351,958 @@ async function createMailAccount(db, username, password) {
     updatedAt: now,
     lastLoginAt: null,
   };
+
   await db.collection('mail_accounts').insertOne(doc);
-  return { account: publicAccount(doc), password: cleanPassword, link: 'https://heysmart.lv/mail' };
+
+  return {
+    account: publicAccount(doc),
+    password: cleanPassword,
+    link: 'https://heysmart.lv/mail',
+  };
 }
 
 async function resetMailPassword(db, id) {
   const password = generateMailboxPassword();
-  const result = await db.collection('mail_accounts').findOneAndUpdate(
-    { _id: new ObjectId(id) },
-    { $set: { passwordHash: await bcrypt.hash(password, 10), updatedAt: new Date() } },
-    { returnDocument: 'after' }
-  );
+
+  const result = await db
+    .collection('mail_accounts')
+    .findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          passwordHash: await bcrypt.hash(password, 10),
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+
   if (!result) {
     const err = new Error('Mail account not found');
     err.status = 404;
     throw err;
   }
-  return { account: publicAccount(result), password, link: 'https://heysmart.lv/mail' };
+
+  return {
+    account: publicAccount(result),
+    password,
+    link: 'https://heysmart.lv/mail',
+  };
 }
 
 async function changeMailPassword(db, id, password) {
   const cleanPassword = String(password || '');
+
   if (cleanPassword.length < 8) {
-    const err = new Error('Password is required and must be at least 8 characters');
+    const err = new Error(
+      'Password is required and must be at least 8 characters'
+    );
     err.status = 400;
     throw err;
   }
-  const result = await db.collection('mail_accounts').findOneAndUpdate(
-    { _id: new ObjectId(id) },
-    { $set: { passwordHash: await bcrypt.hash(cleanPassword, 10), updatedAt: new Date() } },
-    { returnDocument: 'after' }
-  );
+
+  const result = await db
+    .collection('mail_accounts')
+    .findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          passwordHash: await bcrypt.hash(cleanPassword, 10),
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+
   if (!result) {
     const err = new Error('Mail account not found');
     err.status = 404;
     throw err;
   }
-  return { account: publicAccount(result), password: cleanPassword, link: 'https://heysmart.lv/mail' };
+
+  return {
+    account: publicAccount(result),
+    password: cleanPassword,
+    link: 'https://heysmart.lv/mail',
+  };
 }
 
 async function authenticateMailbox(db, email, password) {
   const normalized = normalizeMailEmail(email);
+
   if (!normalized || !password) return null;
-  const account = await db.collection('mail_accounts').findOne({ email: normalized, active: true });
+
+  const account = await db
+    .collection('mail_accounts')
+    .findOne({
+      email: normalized,
+      active: true,
+    });
+
   if (!account) return null;
-  const ok = await bcrypt.compare(password, account.passwordHash);
+
+  const ok = await bcrypt.compare(
+    password,
+    account.passwordHash
+  );
+
   if (!ok) return null;
-  await db.collection('mail_accounts').updateOne({ _id: account._id }, { $set: { lastLoginAt: new Date(), updatedAt: new Date() } });
+
+  await db.collection('mail_accounts').updateOne(
+    { _id: account._id },
+    {
+      $set: {
+        lastLoginAt: new Date(),
+        updatedAt: new Date(),
+      },
+    }
+  );
+
   return account;
 }
 
 async function testImapConnection(env = process.env) {
   if (!env.IMAP_USER || !env.IMAP_PASSWORD) {
-    return { ok: false, disabled: true, reason: 'IMAP_USER or IMAP_PASSWORD missing' };
+    return {
+      ok: false,
+      disabled: true,
+      reason: 'IMAP_USER or IMAP_PASSWORD missing',
+    };
   }
-  const client = new ImapFlow({
-    host: env.IMAP_HOST || 'imap.gmail.com',
-    port: Number(env.IMAP_PORT || 993),
-    secure: true,
-    auth: { user: env.IMAP_USER, pass: env.IMAP_PASSWORD },
-    logger: false,
-  });
-  await client.connect();
+
+  const client = createImapClient(env, 'IMAP test');
+
   try {
+    await client.connect();
+
     const lock = await client.getMailboxLock('INBOX');
+
     try {
-      const status = await client.status('INBOX', { messages: true, unseen: true });
+      const status = await client.status('INBOX', {
+        messages: true,
+        unseen: true,
+      });
+
       let newest = null;
-      for await (const message of client.fetch({ seq: `${Math.max(1, status.messages || 1)}:*` }, { envelope: true, uid: true, source: false })) {
+
+      for await (
+        const message of client.fetch(
+          {
+            seq: `${Math.max(
+              1,
+              status.messages || 1
+            )}:*`,
+          },
+          {
+            envelope: true,
+            uid: true,
+            source: false,
+          }
+        )
+      ) {
         newest = {
           uid: message.uid,
           subject: message.envelope?.subject || '',
           date: message.envelope?.date || null,
-          from: (message.envelope?.from || []).map(item => item.address).join(', '),
+          from: (message.envelope?.from || [])
+            .map(item => item.address)
+            .join(', '),
         };
       }
-      return { ok: true, messages: status.messages || 0, unseen: status.unseen || 0, newest };
+
+      return {
+        ok: true,
+        messages: status.messages || 0,
+        unseen: status.unseen || 0,
+        newest,
+      };
     } finally {
       lock.release();
     }
   } finally {
-    await client.logout();
+    await safeImapLogout(client, 'IMAP test');
   }
 }
 
 function imapReady(env = process.env) {
-  return Boolean(env.IMAP_USER && env.IMAP_PASSWORD);
+  return Boolean(
+    env.IMAP_USER &&
+      env.IMAP_PASSWORD
+  );
 }
 
 async function pollInboxOnce(db, env = process.env) {
-  if (!imapReady(env)) return { ok: false, disabled: true, saved: 0, skipped: 0 };
-  const client = new ImapFlow({
-    host: env.IMAP_HOST || 'imap.gmail.com',
-    port: Number(env.IMAP_PORT || 993),
-    secure: true,
-    auth: { user: env.IMAP_USER, pass: env.IMAP_PASSWORD },
-    logger: false,
-  });
+  if (!imapReady(env)) {
+    return {
+      ok: false,
+      disabled: true,
+      saved: 0,
+      skipped: 0,
+    };
+  }
+
+  const client = createImapClient(env, 'poll');
+
   let saved = 0;
   let skipped = 0;
-  await client.connect();
+
   try {
+    await client.connect();
+
     const lock = await client.getMailboxLock('INBOX');
+
     try {
-      for await (const message of client.fetch({ seen: false }, { uid: true, source: true, envelope: true })) {
-        const parsed = await simpleParser(message.source);
+      for await (
+        const message of client.fetch(
+          { seen: false },
+          {
+            uid: true,
+            source: true,
+            envelope: true,
+          }
+        )
+      ) {
+        const parsed = await simpleParser(
+          message.source
+        );
+
         const email = findOriginalRecipient(parsed);
+
         if (!email) {
           skipped++;
           continue;
         }
-        const account = await db.collection('mail_accounts').findOne({ email, active: true });
+
+        const account = await db
+          .collection('mail_accounts')
+          .findOne({
+            email,
+            active: true,
+          });
+
         if (!account) {
           skipped++;
           continue;
         }
+
         const doc = mapParsedMessage(parsed, {
           accountId: account._id,
           email,
           fallbackMessageId: `imap:${message.uid}`,
         });
-        const result = await db.collection('mail_messages').updateOne(
-          { accountId: account._id, messageId: doc.messageId },
-          { $setOnInsert: doc },
-          { upsert: true }
-        );
-        if (result.upsertedCount) saved++;
-        else skipped++;
+
+        const result = await db
+          .collection('mail_messages')
+          .updateOne(
+            {
+              accountId: account._id,
+              messageId: doc.messageId,
+            },
+            {
+              $setOnInsert: doc,
+            },
+            {
+              upsert: true,
+            }
+          );
+
+        if (result.upsertedCount) {
+          saved++;
+        } else {
+          skipped++;
+        }
       }
-      return { ok: true, saved, skipped };
+
+      return {
+        ok: true,
+        saved,
+        skipped,
+      };
     } finally {
       lock.release();
     }
   } finally {
-    await client.logout();
+    await safeImapLogout(client, 'poll');
   }
 }
 
 function startMailPoller(db, env = process.env) {
   if (!imapReady(env)) {
-    console.log('HeySmart Mail IMAP disabled: IMAP_USER or IMAP_PASSWORD missing');
+    console.log(
+      'HeySmart Mail IMAP disabled: IMAP_USER or IMAP_PASSWORD missing'
+    );
     return null;
   }
-  const intervalMs = Math.max(5000, Number(env.MAIL_POLL_INTERVAL_MS || DEFAULT_MAIL_POLL_MS));
+
+  const intervalMs = Math.max(
+    5000,
+    Number(
+      env.MAIL_POLL_INTERVAL_MS ||
+        DEFAULT_MAIL_POLL_MS
+    )
+  );
+
   let running = false;
+
   const tick = async () => {
     if (running) return;
+
     running = true;
+
     try {
       const result = await pollInboxOnce(db, env);
-      if (result.saved) console.log(`HeySmart Mail saved ${result.saved} message(s)`);
+
+      if (result.saved) {
+        console.log(
+          `HeySmart Mail saved ${result.saved} message(s)`
+        );
+      }
     } catch (err) {
-      console.error('HeySmart Mail poll error:', err.message);
+      /*
+       * A broken IMAP connection is not fatal.
+       * The next poll will simply try again.
+       */
+      console.error(
+        'HeySmart Mail poll error:',
+        err?.message || err
+      );
     } finally {
       running = false;
     }
   };
+
   tick();
-  return setInterval(tick, intervalMs);
+
+  return setInterval(
+    tick,
+    intervalMs
+  );
 }
 
-function createMailService({ express, dbProvider, jwtSecret, requireAuth, requireAdmin }) {
+function createMailService({
+  express,
+  dbProvider,
+  jwtSecret,
+  requireAuth,
+  requireAdmin,
+}) {
   const router = express.Router();
 
   function db() {
     const value = dbProvider();
-    if (!value) throw new Error('MongoDB is required for HeySmart Mail');
+
+    if (!value) {
+      throw new Error(
+        'MongoDB is required for HeySmart Mail'
+      );
+    }
+
     return value;
   }
 
   function signMailbox(account) {
     return jwt.sign(
-      { purpose: MAIL_TOKEN_PURPOSE, accountId: String(account._id), email: account.email },
+      {
+        purpose: MAIL_TOKEN_PURPOSE,
+        accountId: String(account._id),
+        email: account.email,
+      },
       jwtSecret,
-      { expiresIn: '7d' }
+      {
+        expiresIn: '7d',
+      }
     );
   }
 
   function requireMailbox(req, res, next) {
     try {
-      const token = cookieValue(req, MAIL_COOKIE);
-      const payload = jwt.verify(token, jwtSecret);
-      if (payload.purpose !== MAIL_TOKEN_PURPOSE || !normalizeMailEmail(payload.email)) {
-        return res.status(401).json({ error: 'Unauthorized' });
+      const token = cookieValue(
+        req,
+        MAIL_COOKIE
+      );
+
+      const payload = jwt.verify(
+        token,
+        jwtSecret
+      );
+
+      if (
+        payload.purpose !== MAIL_TOKEN_PURPOSE ||
+        !normalizeMailEmail(payload.email)
+      ) {
+        return res
+          .status(401)
+          .json({
+            error: 'Unauthorized',
+          });
       }
+
       req.mailbox = payload;
       return next();
     } catch {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res
+        .status(401)
+        .json({
+          error: 'Unauthorized',
+        });
     }
   }
 
-  router.get('/api/admin/mail/accounts', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const accounts = await db().collection('mail_accounts').find({}, { projection: { passwordHash: 0 } }).sort({ createdAt: -1 }).toArray();
-      res.json({ accounts: accounts.map(publicAccount) });
-    } catch (err) {
-      console.error('Mail accounts list error:', err.message);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
+  router.get(
+    '/api/admin/mail/accounts',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const accounts = await db()
+          .collection('mail_accounts')
+          .find(
+            {},
+            {
+              projection: {
+                passwordHash: 0,
+              },
+            }
+          )
+          .sort({
+            createdAt: -1,
+          })
+          .toArray();
 
-  router.post('/api/admin/mail/accounts', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      if (String(req.body?.password || '') !== String(req.body?.confirmPassword || '')) {
-        return res.status(400).json({ error: 'Passwords do not match' });
+        res.json({
+          accounts: accounts.map(
+            publicAccount
+          ),
+        });
+      } catch (err) {
+        console.error(
+          'Mail accounts list error:',
+          err.message
+        );
+
+        res
+          .status(500)
+          .json({
+            error: 'Internal server error',
+          });
       }
-      const result = await createMailAccount(db(), req.body?.username, req.body?.password);
-      res.status(201).json(result);
-    } catch (err) {
-      const duplicate = err.code === 11000;
-      res.status(err.status || (duplicate ? 409 : 500)).json({ error: duplicate ? 'Mail account already exists' : err.message });
     }
-  });
+  );
 
-  router.post('/api/admin/mail/accounts/:id/deactivate', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      await db().collection('mail_accounts').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { active: false, updatedAt: new Date() } });
-      res.json({ ok: true });
-    } catch {
-      res.status(400).json({ error: 'Invalid account id' });
-    }
-  });
-
-  router.post('/api/admin/mail/accounts/:id/activate', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      await db().collection('mail_accounts').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { active: true, updatedAt: new Date() } });
-      res.json({ ok: true });
-    } catch {
-      res.status(400).json({ error: 'Invalid account id' });
-    }
-  });
-
-  router.post('/api/admin/mail/accounts/:id/reset-password', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      if (req.body?.password !== undefined) {
-        if (String(req.body?.password || '') !== String(req.body?.confirmPassword || '')) {
-          return res.status(400).json({ error: 'Passwords do not match' });
+  router.post(
+    '/api/admin/mail/accounts',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        if (
+          String(req.body?.password || '') !==
+          String(
+            req.body?.confirmPassword || ''
+          )
+        ) {
+          return res
+            .status(400)
+            .json({
+              error:
+                'Passwords do not match',
+            });
         }
-        return res.json(await changeMailPassword(db(), req.params.id, req.body.password));
+
+        const result =
+          await createMailAccount(
+            db(),
+            req.body?.username,
+            req.body?.password
+          );
+
+        res
+          .status(201)
+          .json(result);
+      } catch (err) {
+        const duplicate =
+          err.code === 11000;
+
+        res
+          .status(
+            err.status ||
+              (duplicate ? 409 : 500)
+          )
+          .json({
+            error: duplicate
+              ? 'Mail account already exists'
+              : err.message,
+          });
       }
-      res.json(await resetMailPassword(db(), req.params.id));
-    } catch (err) {
-      res.status(err.status || 400).json({ error: err.message });
     }
-  });
+  );
 
-  router.delete('/api/admin/mail/accounts/:id', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const accountId = new ObjectId(req.params.id);
-      const accountResult = await db().collection('mail_accounts').deleteOne({ _id: accountId });
-      await db().collection('mail_messages').deleteMany({ accountId });
-      if (!accountResult.deletedCount) return res.status(404).json({ error: 'Mail account not found' });
-      res.json({ ok: true });
-    } catch {
-      res.status(400).json({ error: 'Invalid account id' });
+  router.post(
+    '/api/admin/mail/accounts/:id/deactivate',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        await db()
+          .collection('mail_accounts')
+          .updateOne(
+            {
+              _id: new ObjectId(
+                req.params.id
+              ),
+            },
+            {
+              $set: {
+                active: false,
+                updatedAt:
+                  new Date(),
+              },
+            }
+          );
+
+        res.json({
+          ok: true,
+        });
+      } catch {
+        res
+          .status(400)
+          .json({
+            error:
+              'Invalid account id',
+          });
+      }
     }
-  });
+  );
 
-  router.get('/api/admin/mail/accounts/:id/messages', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const accountId = new ObjectId(req.params.id);
-      const messages = await db().collection('mail_messages').find({ accountId }).sort({ receivedAt: -1 }).limit(100).toArray();
-      res.json({ messages: messages.map(publicMessage) });
-    } catch {
-      res.status(400).json({ error: 'Invalid account id' });
+  router.post(
+    '/api/admin/mail/accounts/:id/activate',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        await db()
+          .collection('mail_accounts')
+          .updateOne(
+            {
+              _id: new ObjectId(
+                req.params.id
+              ),
+            },
+            {
+              $set: {
+                active: true,
+                updatedAt:
+                  new Date(),
+              },
+            }
+          );
+
+        res.json({
+          ok: true,
+        });
+      } catch {
+        res
+          .status(400)
+          .json({
+            error:
+              'Invalid account id',
+          });
+      }
     }
-  });
+  );
 
-  router.post('/api/mail/login', async (req, res) => {
-    try {
-      if (!mailLoginAllowed(req)) return res.status(429).json({ error: 'Too many attempts' });
-      const account = await authenticateMailbox(db(), req.body?.email, req.body?.password);
-      if (!account) return res.status(401).json({ error: 'Invalid credentials' });
-      res.cookie(MAIL_COOKIE, signMailbox(account), mailCookieOptions(req));
-      res.json({ account: { email: account.email } });
-    } catch (err) {
-      console.error('Mailbox login error:', err.message);
-      res.status(500).json({ error: 'Internal server error' });
+  router.post(
+    '/api/admin/mail/accounts/:id/reset-password',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        if (
+          req.body?.password !== undefined
+        ) {
+          if (
+            String(
+              req.body?.password || ''
+            ) !==
+            String(
+              req.body
+                ?.confirmPassword || ''
+            )
+          ) {
+            return res
+              .status(400)
+              .json({
+                error:
+                  'Passwords do not match',
+              });
+          }
+
+          return res.json(
+            await changeMailPassword(
+              db(),
+              req.params.id,
+              req.body.password
+            )
+          );
+        }
+
+        res.json(
+          await resetMailPassword(
+            db(),
+            req.params.id
+          )
+        );
+      } catch (err) {
+        res
+          .status(
+            err.status || 400
+          )
+          .json({
+            error: err.message,
+          });
+      }
     }
-  });
+  );
 
-  router.post('/api/mail/logout', (req, res) => {
-    res.clearCookie(MAIL_COOKIE, {
-      path: '/',
-      sameSite: 'lax',
-      secure: req.secure || String(req.headers['x-forwarded-proto'] || '').split(',')[0] === 'https',
-    });
-    res.json({ ok: true });
-  });
+  router.delete(
+    '/api/admin/mail/accounts/:id',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const accountId =
+          new ObjectId(
+            req.params.id
+          );
 
-  router.get('/api/mail/me', requireMailbox, (req, res) => {
-    res.json({ account: { email: req.mailbox.email } });
-  });
+        const accountResult =
+          await db()
+            .collection(
+              'mail_accounts'
+            )
+            .deleteOne({
+              _id: accountId,
+            });
 
-  router.get('/api/mail/messages', requireMailbox, async (req, res) => {
-    const accountId = new ObjectId(req.mailbox.accountId);
-    const messages = await db().collection('mail_messages').find({ accountId }).sort({ receivedAt: -1 }).limit(100).toArray();
-    res.json({ messages: messages.map(publicMessage) });
-  });
+        await db()
+          .collection(
+            'mail_messages'
+          )
+          .deleteMany({
+            accountId,
+          });
 
-  router.get('/api/mail/messages/:id', requireMailbox, async (req, res) => {
-    try {
-      const accountId = new ObjectId(req.mailbox.accountId);
-      const _id = new ObjectId(req.params.id);
-      const message = await db().collection('mail_messages').findOne({ _id, accountId });
-      if (!message) return res.status(404).json({ error: 'Not found' });
-      await db().collection('mail_messages').updateOne({ _id, accountId }, { $set: { isRead: true } });
-      res.json({ message: publicMessage({ ...message, isRead: true }) });
-    } catch {
-      res.status(404).json({ error: 'Not found' });
+        if (
+          !accountResult.deletedCount
+        ) {
+          return res
+            .status(404)
+            .json({
+              error:
+                'Mail account not found',
+            });
+        }
+
+        res.json({
+          ok: true,
+        });
+      } catch {
+        res
+          .status(400)
+          .json({
+            error:
+              'Invalid account id',
+          });
+      }
     }
-  });
+  );
 
-  router.post('/api/mail/sync', requireMailbox, async (req, res) => {
-    try {
-      res.json(await pollInboxOnce(db()));
-    } catch (err) {
-      console.error('Manual mail sync error:', err.message);
-      res.status(500).json({ error: 'Sync failed' });
+  router.get(
+    '/api/admin/mail/accounts/:id/messages',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const accountId =
+          new ObjectId(
+            req.params.id
+          );
+
+        const messages =
+          await db()
+            .collection(
+              'mail_messages'
+            )
+            .find({
+              accountId,
+            })
+            .sort({
+              receivedAt: -1,
+            })
+            .limit(100)
+            .toArray();
+
+        res.json({
+          messages:
+            messages.map(
+              publicMessage
+            ),
+        });
+      } catch {
+        res
+          .status(400)
+          .json({
+            error:
+              'Invalid account id',
+          });
+      }
     }
-  });
+  );
 
-  router.get('/api/admin/mail/imap-test', requireAuth, requireAdmin, async (req, res) => {
-    try {
-      res.json(await testImapConnection());
-    } catch (err) {
-      res.status(500).json({ ok: false, error: err.message });
+  router.post(
+    '/api/mail/login',
+    async (req, res) => {
+      try {
+        if (
+          !mailLoginAllowed(req)
+        ) {
+          return res
+            .status(429)
+            .json({
+              error:
+                'Too many attempts',
+            });
+        }
+
+        const account =
+          await authenticateMailbox(
+            db(),
+            req.body?.email,
+            req.body?.password
+          );
+
+        if (!account) {
+          return res
+            .status(401)
+            .json({
+              error:
+                'Invalid credentials',
+            });
+        }
+
+        res.cookie(
+          MAIL_COOKIE,
+          signMailbox(account),
+          mailCookieOptions(req)
+        );
+
+        res.json({
+          account: {
+            email: account.email,
+          },
+        });
+      } catch (err) {
+        console.error(
+          'Mailbox login error:',
+          err.message
+        );
+
+        res
+          .status(500)
+          .json({
+            error:
+              'Internal server error',
+          });
+      }
     }
-  });
+  );
 
-  return { router, ensureMailIndexes, startMailPoller };
+  router.post(
+    '/api/mail/logout',
+    (req, res) => {
+      res.clearCookie(
+        MAIL_COOKIE,
+        {
+          path: '/',
+          sameSite: 'lax',
+          secure:
+            req.secure ||
+            String(
+              req.headers[
+                'x-forwarded-proto'
+              ] || ''
+            ).split(',')[0] ===
+              'https',
+        }
+      );
+
+      res.json({
+        ok: true,
+      });
+    }
+  );
+
+  router.get(
+    '/api/mail/me',
+    requireMailbox,
+    (req, res) => {
+      res.json({
+        account: {
+          email:
+            req.mailbox.email,
+        },
+      });
+    }
+  );
+
+  router.get(
+    '/api/mail/messages',
+    requireMailbox,
+    async (req, res) => {
+      const accountId =
+        new ObjectId(
+          req.mailbox.accountId
+        );
+
+      const messages =
+        await db()
+          .collection(
+            'mail_messages'
+          )
+          .find({
+            accountId,
+          })
+          .sort({
+            receivedAt: -1,
+          })
+          .limit(100)
+          .toArray();
+
+      res.json({
+        messages:
+          messages.map(
+            publicMessage
+          ),
+      });
+    }
+  );
+
+  router.get(
+    '/api/mail/messages/:id',
+    requireMailbox,
+    async (req, res) => {
+      try {
+        const accountId =
+          new ObjectId(
+            req.mailbox.accountId
+          );
+
+        const _id =
+          new ObjectId(
+            req.params.id
+          );
+
+        const message =
+          await db()
+            .collection(
+              'mail_messages'
+            )
+            .findOne({
+              _id,
+              accountId,
+            });
+
+        if (!message) {
+          return res
+            .status(404)
+            .json({
+              error: 'Not found',
+            });
+        }
+
+        await db()
+          .collection(
+            'mail_messages'
+          )
+          .updateOne(
+            {
+              _id,
+              accountId,
+            },
+            {
+              $set: {
+                isRead: true,
+              },
+            }
+          );
+
+        res.json({
+          message:
+            publicMessage({
+              ...message,
+              isRead: true,
+            }),
+        });
+      } catch {
+        res
+          .status(404)
+          .json({
+            error: 'Not found',
+          });
+      }
+    }
+  );
+
+  router.post(
+    '/api/mail/sync',
+    requireMailbox,
+    async (req, res) => {
+      try {
+        res.json(
+          await pollInboxOnce(
+            db()
+          )
+        );
+      } catch (err) {
+        console.error(
+          'Manual mail sync error:',
+          err.message
+        );
+
+        res
+          .status(500)
+          .json({
+            error: 'Sync failed',
+          });
+      }
+    }
+  );
+
+  router.get(
+    '/api/admin/mail/imap-test',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        res.json(
+          await testImapConnection()
+        );
+      } catch (err) {
+        res
+          .status(500)
+          .json({
+            ok: false,
+            error: err.message,
+          });
+      }
+    }
+  );
+
+  return {
+    router,
+    ensureMailIndexes,
+    startMailPoller,
+  };
 }
 
 module.exports = {
