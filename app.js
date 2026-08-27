@@ -781,7 +781,7 @@ function subAccountSearchBlob(sub) {
 }
 
 function populateSubHostSelect(selected) {
-  populateHostSelect('sub-host', selected);
+  populateHostSelect('sub-host', selected, { includeEmpty: true });
 }
 
 function populateHostSelect(selectId, selected, options = {}) {
@@ -796,9 +796,10 @@ function populateHostSelect(selectId, selected, options = {}) {
       return subs.filter(sub => subMatchesHost(sub, host)).length < options.maxSubAccounts;
     })
     .sort((a, b) => String(a.hostMail || '').localeCompare(String(b.hostMail || '')));
+  const emptyOption = options.includeEmpty ? '<option value="">No host</option>' : '';
   sel.innerHTML = hosts.length
-    ? hosts.map(h => `<option value="${esc(h.hostMail || h.id)}">${esc(h.hostMail || h.id)}</option>`).join('')
-    : '<option value="">No hosts</option>';
+    ? emptyOption + hosts.map(h => `<option value="${esc(h.hostMail || h.id)}">${esc(h.hostMail || h.id)}</option>`).join('')
+    : emptyOption || '<option value="">No hosts</option>';
   if (selected) sel.value = selected;
 }
 
@@ -1034,14 +1035,15 @@ function deleteHostSubscription(id) {
 function saveSubAccount() {
   const id = document.getElementById('edit-sub-id').value || genId();
   const hostProvider = document.getElementById('sub-host').value;
+  const status = document.getElementById('sub-status').value.trim();
   const subs = loadSubAccounts();
   const sub = {
     id,
     email: document.getElementById('sub-email').value.trim(),
     tel: document.getElementById('sub-tel').value.trim(),
     name: document.getElementById('sub-name').value.trim(),
-    hostProvider,
-    status: document.getElementById('sub-status').value.trim()
+    hostProvider: isCancelledSub({ status }) ? '' : hostProvider,
+    status
   };
   sub.startDate = isNotActiveSub(sub) ? '' : document.getElementById('sub-start-date').value;
   if (!sub.email) return showToast('Sub-account email is required', 'error');
@@ -1058,7 +1060,7 @@ function syncSubAccountLink(sub) {
   const hosts = loadHostSubscriptions();
   hosts.forEach(host => {
     host.linkedAccounts = (host.linkedAccounts || []).filter(x => x !== sub.id && x !== sub.email);
-    if (String(host.hostMail || host.id) === String(sub.hostProvider)) host.linkedAccounts.push(sub.id);
+    if (sub.hostProvider && String(host.hostMail || host.id) === String(sub.hostProvider)) host.linkedAccounts.push(sub.id);
   });
   saveHostSubscriptions(hosts);
 }
