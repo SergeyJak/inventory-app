@@ -142,6 +142,12 @@ function renderProductRows(p, colCount) {
     : '—';
 
   function sClass(qty) { return qty <= 3 ? 'tag-low-stock' : ''; }
+  function sellPriceCell(showEditor) {
+    const editButton = showEditor && getRole() !== 'viewer'
+      ? ' <button class="btn-edit" type="button" title="Изменить цену продажи" aria-label="Изменить цену продажи для ' + esc(pLabel(p)) + '" onclick="changeSellPrice(\'' + p.id + '\')">✏️</button>'
+      : '';
+    return '<td>' + fmt(p.sellPrice) + editButton + '</td>';
+  }
   function sTxt(qty) {
     return qty + (qty > 0 && qty <= 3 ? ' ⚠️' : '') + (qty === 0 ? ' ❌ нет' : '');
   }
@@ -157,7 +163,7 @@ function renderProductRows(p, colCount) {
         + '<td><strong>' + esc(p.productType) + '</strong></td>'
         + '<td>' + esc(p.color) + '</td>'
         + '<td>' + buyCell + '</td>'
-        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + sellPriceCell(false)
         + '<td class="' + sClass(stock) + '">' + sTxt(stock) + '</td>'
         + '<td>' + fmt(stockVal) + '</td>'
         + '<td>' + margin + '</td>'
@@ -167,7 +173,7 @@ function renderProductRows(p, colCount) {
         + '<td><strong>' + esc(p.productType) + '</strong></td>'
         + '<td>' + esc(p.color) + '</td>'
         + '<td>' + buyCell + '</td>'
-        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + sellPriceCell(true)
         + '<td class="' + sClass(stock) + '">' + sTxt(stock) + '</td>'
         + '<td>' + arrival + '</td>'
         + '<td>' + margin + '</td>'
@@ -191,7 +197,7 @@ function renderProductRows(p, colCount) {
       return '<tr class="lot-sub-row ' + typeClass(p.productType) + '">'
         + tCells
         + '<td><span class="lot-tag">П' + (i + 1) + '</span> ' + fmt(l.buyPrice) + '</td>'
-        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + sellPriceCell(false)
         + '<td class="' + sClass(l.qty) + '">' + sTxt(l.qty) + '</td>'
         + '<td>' + fmt(lVal) + '</td>'
         + '<td>' + marginBadge(l.buyPrice, p.sellPrice) + '</td>'
@@ -209,7 +215,7 @@ function renderProductRows(p, colCount) {
       return '<tr class="lot-sub-row ' + typeClass(p.productType) + '">'
         + tCells
         + '<td><span class="lot-tag">П' + (i + 1) + '</span> ' + fmt(l.buyPrice) + '</td>'
-        + '<td>' + fmt(p.sellPrice) + '</td>'
+        + sellPriceCell(isFirst)
         + '<td class="' + sClass(l.qty) + '">' + sTxt(l.qty) + '</td>'
         + '<td>' + lotDate + '</td>'
         + '<td>' + marginBadge(l.buyPrice, p.sellPrice) + '</td>'
@@ -616,6 +622,20 @@ function editProduct(id) {
   document.getElementById('cancel-product-btn').style.display = 'inline-block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
   checkProductForm();
+}
+
+function changeSellPrice(id) {
+  if (getRole() === 'viewer') return;
+  const products = loadProducts();
+  const product = products.find(p => p.id === id);
+  if (!product) return;
+  const newPrice = parseFloat(prompt(`Новая цена продажи для «${pLabel(product)}» (€):`, product.sellPrice));
+  if (isNaN(newPrice) || newPrice < 0) return showToast('Укажите корректную цену продажи', 'error');
+  product.sellPrice = newPrice;
+  saveProducts(products);
+  renderProducts();
+  renderDashboard();
+  showToast(`Цена продажи «${pLabel(product)}» обновлена: ${fmt(newPrice)}`);
 }
 
 function cancelProductEdit() { clearProductForm(); }
