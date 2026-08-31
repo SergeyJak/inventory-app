@@ -10,6 +10,12 @@ const MAIL_DOMAIN = 'heysmart.lv';
 const MAIL_COOKIE = 'hs_mail_token';
 const MAIL_TOKEN_PURPOSE = 'mailbox';
 const DEFAULT_MAIL_POLL_MS = 12000;
+const IMAP_CONNECTION_TIMEOUT_MS = 15000;
+const IMAP_GREETING_TIMEOUT_MS = 10000;
+const IMAP_SOCKET_TIMEOUT_MS = 30000;
+const MAIL_SYNC_TIMEOUT_MS = 45000;
+const MAIL_LOGOUT_TIMEOUT_MS = 5000;
+const MAIL_SYNC_OPERATION_TIMEOUT_MS = MAIL_SYNC_TIMEOUT_MS - MAIL_LOGOUT_TIMEOUT_MS;
 const DEFAULT_MAIL_TTL_SECONDS = 30 * 24 * 60 * 60;
 const loginAttempts = new Map();
 
@@ -239,8 +245,8 @@ function mailLoginAllowed(req) {
   return true;
 }
 
-function createImapClient(env = process.env, label = 'IMAP') {
-  const client = new ImapFlow({
+function imapClientOptions(env = process.env) {
+  return {
     host: env.IMAP_HOST || 'imap.gmail.com',
     port: Number(env.IMAP_PORT || 993),
     secure: true,
@@ -249,7 +255,14 @@ function createImapClient(env = process.env, label = 'IMAP') {
       pass: env.IMAP_PASSWORD,
     },
     logger: false,
-  });
+    connectionTimeout: IMAP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: IMAP_GREETING_TIMEOUT_MS,
+    socketTimeout: IMAP_SOCKET_TIMEOUT_MS,
+  };
+}
+
+function createImapClient(env = process.env, label = 'IMAP') {
+  const client = new ImapFlow(imapClientOptions(env));
 
   /*
    * IMPORTANT:
@@ -273,13 +286,56 @@ async function safeImapLogout(client, label = 'IMAP') {
 
   try {
     if (client.usable) {
-      await client.logout();
+      let timer;
+      try {
+        await Promise.race([
+          client.logout(),
+          new Promise(resolve => { timer = setTimeout(resolve, MAIL_LOGOUT_TIMEOUT_MS); }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
     }
   } catch (err) {
     console.warn(
       `HeySmart Mail ${label} logout error:`,
       err?.message || err
     );
+  }
+}
+
+function closeImapClient(client) {
+  try {
+    client?.close();
+  } catch (err) {
+    console.warn('HeySmart Mail IMAP close error:', err?.message || err);
+  }
+}
+
+function mailSyncTimeoutError(timeoutMs = MAIL_SYNC_TIMEOUT_MS) {
+  const err = new Error(`Mail synchronization exceeded ${timeoutMs}ms`);
+  err.name = 'MailSyncTimeoutError';
+  err.code = 'MAIL_SYNC_TIMEOUT';
+  return err;
+}
+
+async function withMailSyncDeadline(operation, onTimeout, timeoutMs = MAIL_SYNC_TIMEOUT_MS) {
+  let timer;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise((resolve, reject) => {
+        timer = setTimeout(() => {
+          try {
+            onTimeout?.();
+          } finally {
+            reject(mailSyncTimeoutError(timeoutMs));
+          }
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -461,7 +517,7 @@ async function authenticateMailbox(db, email, password) {
   return account;
 }
 
-async function testImapConnection(env = process.env) {
+async function testImapConnection(env = process.env, options = {}) {
   if (!env.IMAP_USER || !env.IMAP_PASSWORD) {
     return {
       ok: false,
@@ -471,9 +527,15 @@ async function testImapConnection(env = process.env) {
   }
 
   const client = createImapClient(env, 'IMAP test');
+  const startedAt = Date.now();
+  const log = (event, data = {}) => console.log(`[mail-imap-test] ${event}`, JSON.stringify({
+    durationMs: Date.now() - startedAt,
+    ...data,
+  }));
 
   try {
     await client.connect();
+    log('connected', { connectDurationMs: Date.now() - startedAt });
 
     const lock = await client.getMailboxLock('INBOX');
 
@@ -519,8 +581,17 @@ async function testImapConnection(env = process.env) {
     } finally {
       lock.release();
     }
+  } catch (err) {
+    log('error', {
+      errorName: err.name || 'Error',
+      errorCode: err.code || null,
+      errorMessage: err.message || String(err),
+    });
+    throw err;
   } finally {
     await safeImapLogout(client, 'IMAP test');
+    closeImapClient(client);
+    log('complete');
   }
 }
 
@@ -531,7 +602,7 @@ function imapReady(env = process.env) {
   );
 }
 
-async function pollInboxOnce(db, env = process.env) {
+async function pollInboxOnce(db, env = process.env, options = {}) {
   if (!imapReady(env)) {
     return {
       ok: false,
@@ -541,92 +612,159 @@ async function pollInboxOnce(db, env = process.env) {
     };
   }
 
-  const client = createImapClient(env, 'poll');
+  const client = (options.createClient || createImapClient)(env, 'poll');
 
   let saved = 0;
   let skipped = 0;
+  let fetched = 0;
+  let matched = 0;
+  let phase = 'connect';
+  const startedAt = Date.now();
+  const progress = (event, data = {}) => options.onProgress?.(event, {
+    pollId: options.pollId,
+    trigger: options.trigger,
+    durationMs: Date.now() - startedAt,
+    ...data,
+  });
 
   try {
-    await client.connect();
+    return await withMailSyncDeadline((async () => {
+      await client.connect();
+      progress('connected', { connectDurationMs: Date.now() - startedAt });
 
-    const lock = await client.getMailboxLock('INBOX');
+      phase = 'inbox';
+      const lock = await client.getMailboxLock('INBOX');
 
-    try {
-      for await (
-        const message of client.fetch(
-          { seen: false },
-          {
-            uid: true,
-            source: true,
-            envelope: true,
+      try {
+        const status = await client.status('INBOX', { unseen: true });
+        progress('inbox', { unread: status.unseen || 0 });
+
+        phase = 'fetch';
+        for await (
+          const message of client.fetch(
+            { seen: false },
+            {
+              uid: true,
+              source: true,
+              envelope: true,
+            }
+          )
+        ) {
+          fetched++;
+          phase = 'parse';
+          const parsed = await simpleParser(message.source);
+
+          const email = findOriginalRecipient(parsed);
+
+          if (!email) {
+            skipped++;
+            continue;
           }
-        )
-      ) {
-        const parsed = await simpleParser(
-          message.source
-        );
 
-        const email = findOriginalRecipient(parsed);
+          phase = 'account';
+          const account = await db
+            .collection('mail_accounts')
+            .findOne({
+              email,
+              active: true,
+            });
 
-        if (!email) {
-          skipped++;
-          continue;
-        }
+          if (!account) {
+            skipped++;
+            continue;
+          }
 
-        const account = await db
-          .collection('mail_accounts')
-          .findOne({
+          matched++;
+          const doc = mapParsedMessage(parsed, {
+            accountId: account._id,
             email,
-            active: true,
+            fallbackMessageId: `imap:${message.uid}`,
           });
 
-        if (!account) {
-          skipped++;
-          continue;
+          phase = 'write';
+          const result = await db
+            .collection('mail_messages')
+            .updateOne(
+              {
+                accountId: account._id,
+                messageId: doc.messageId,
+              },
+              {
+                $setOnInsert: doc,
+              },
+              {
+                upsert: true,
+              }
+            );
+
+          if (result.upsertedCount) {
+            saved++;
+          } else {
+            skipped++;
+          }
         }
 
-        const doc = mapParsedMessage(parsed, {
-          accountId: account._id,
-          email,
-          fallbackMessageId: `imap:${message.uid}`,
-        });
-
-        const result = await db
-          .collection('mail_messages')
-          .updateOne(
-            {
-              accountId: account._id,
-              messageId: doc.messageId,
-            },
-            {
-              $setOnInsert: doc,
-            },
-            {
-              upsert: true,
-            }
-          );
-
-        if (result.upsertedCount) {
-          saved++;
-        } else {
-          skipped++;
-        }
+        return { ok: true, saved, skipped, fetched, matched };
+      } finally {
+        lock.release();
       }
-
-      return {
-        ok: true,
-        saved,
-        skipped,
-      };
-    } finally {
-      lock.release();
-    }
+    })(), () => closeImapClient(client), options.timeoutMs || MAIL_SYNC_OPERATION_TIMEOUT_MS);
+  } catch (err) {
+    err.mailSyncPhase = phase;
+    throw err;
   } finally {
     await safeImapLogout(client, 'poll');
+    closeImapClient(client);
   }
 }
 
-function startMailPoller(db, env = process.env) {
+function createMailSyncCoordinator({ db, env = process.env, intervalMs, sync = pollInboxOnce }) {
+  let running = false;
+  let pollSequence = 0;
+
+  async function run(trigger) {
+    if (running) return { ok: false, inProgress: true };
+
+    running = true;
+    const pollId = `mail-${Date.now()}-${++pollSequence}`;
+    const startedAt = Date.now();
+    const log = (event, data = {}) => console.log(`[mail-sync] ${event}`, JSON.stringify({
+      pollId,
+      trigger,
+      durationMs: Date.now() - startedAt,
+      ...data,
+    }));
+
+    log('start', { configuredPollIntervalMs: intervalMs });
+    try {
+      const result = await sync(db, env, {
+        pollId,
+        trigger,
+        onProgress(event, data) { log(event, data); },
+      });
+      log('complete', result);
+      return result;
+    } catch (err) {
+      log('error', {
+        phase: err.mailSyncPhase || 'unknown',
+        errorName: err.name || 'Error',
+        errorCode: err.code || null,
+        errorMessage: err.message || String(err),
+      });
+      throw err;
+    } finally {
+      running = false;
+    }
+  }
+
+  return { run, isRunning: () => running };
+}
+
+function mailPollIntervalMs(env = process.env) {
+  return Math.max(5000, Number(env.MAIL_POLL_INTERVAL_MS || DEFAULT_MAIL_POLL_MS));
+}
+
+function startMailPoller(db, env = process.env, coordinator = null) {
   if (!imapReady(env)) {
     console.log(
       'HeySmart Mail IMAP disabled: IMAP_USER or IMAP_PASSWORD missing'
@@ -634,49 +772,32 @@ function startMailPoller(db, env = process.env) {
     return null;
   }
 
-  const intervalMs = Math.max(
-    5000,
-    Number(
-      env.MAIL_POLL_INTERVAL_MS ||
-        DEFAULT_MAIL_POLL_MS
-    )
-  );
+  const intervalMs = mailPollIntervalMs(env);
 
-  let running = false;
+  const syncCoordinator = coordinator || createMailSyncCoordinator({ db, env, intervalMs });
 
   const tick = async () => {
-    if (running) return;
-
-    running = true;
+    if (syncCoordinator.isRunning()) {
+      console.log('[mail-sync] skipped', JSON.stringify({ trigger: 'interval', reason: 'sync-in-progress' }));
+      return;
+    }
 
     try {
-      const result = await pollInboxOnce(db, env);
-
-      if (result.saved) {
-        console.log(
-          `HeySmart Mail saved ${result.saved} message(s)`
-        );
-      }
+      await syncCoordinator.run('startup');
     } catch (err) {
-      /*
-       * A broken IMAP connection is not fatal.
-       * The next poll will simply try again.
-       */
-      console.error(
-        'HeySmart Mail poll error:',
-        err?.message || err
-      );
-    } finally {
-      running = false;
+      // The coordinator has already logged structured error details.
     }
   };
 
   tick();
 
-  return setInterval(
-    tick,
-    intervalMs
-  );
+  return setInterval(async () => {
+    if (syncCoordinator.isRunning()) {
+      console.log('[mail-sync] skipped', JSON.stringify({ trigger: 'interval', reason: 'sync-in-progress' }));
+      return;
+    }
+    try { await syncCoordinator.run('interval'); } catch { /* logged above */ }
+  }, intervalMs);
 }
 
 function createMailService({
@@ -687,6 +808,27 @@ function createMailService({
   requireAdmin,
 }) {
   const router = express.Router();
+  let syncCoordinator = null;
+
+  function coordinator() {
+    if (!syncCoordinator) {
+      syncCoordinator = createMailSyncCoordinator({
+        db: db(),
+        env: process.env,
+        intervalMs: mailPollIntervalMs(process.env),
+      });
+    }
+    return syncCoordinator;
+  }
+
+  function startServiceMailPoller(database, env = process.env) {
+    syncCoordinator = createMailSyncCoordinator({
+      db: database,
+      env,
+      intervalMs: mailPollIntervalMs(env),
+    });
+    return startMailPoller(database, env, syncCoordinator);
+  }
 
   function db() {
     const value = dbProvider();
@@ -1258,11 +1400,15 @@ function createMailService({
     requireMailbox,
     async (req, res) => {
       try {
-        res.json(
-          await pollInboxOnce(
-            db()
-          )
-        );
+        const result = await coordinator().run('manual');
+        if (result.inProgress) {
+          return res.status(409).json({
+            ok: false,
+            inProgress: true,
+            error: 'Mail synchronization is already in progress',
+          });
+        }
+        res.json(result);
       } catch (err) {
         console.error(
           'Manual mail sync error:',
@@ -1283,6 +1429,15 @@ function createMailService({
     requireAuth,
     requireAdmin,
     async (req, res) => {
+      let closedEarly = false;
+      const onAborted = () => {
+        closedEarly = true;
+        console.warn('[mail-imap-test] request-aborted', JSON.stringify({ path: req.originalUrl }));
+      };
+      req.on('aborted', onAborted);
+      res.on('close', () => {
+        if (!res.writableEnded && !closedEarly) onAborted();
+      });
       try {
         res.json(
           await testImapConnection()
@@ -1301,17 +1456,24 @@ function createMailService({
   return {
     router,
     ensureMailIndexes,
-    startMailPoller,
+    startMailPoller: startServiceMailPoller,
   };
 }
 
 module.exports = {
   changeMailPassword,
+  createMailSyncCoordinator,
   createMailAccount,
   createMailService,
   ensureMailIndexes,
   extractVerificationCode,
   findOriginalRecipient,
+  imapClientOptions,
+  IMAP_CONNECTION_TIMEOUT_MS,
+  IMAP_GREETING_TIMEOUT_MS,
+  IMAP_SOCKET_TIMEOUT_MS,
+  MAIL_SYNC_TIMEOUT_MS,
+  mailPollIntervalMs,
   mapParsedMessage,
   normalizeMailEmail,
   pollInboxOnce,

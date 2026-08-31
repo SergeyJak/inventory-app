@@ -2,11 +2,17 @@ const assert = require('assert');
 
 const {
   changeMailPassword,
+  createMailSyncCoordinator,
   createMailAccount,
   extractVerificationCode,
   findOriginalRecipient,
+  imapClientOptions,
+  IMAP_CONNECTION_TIMEOUT_MS,
+  IMAP_GREETING_TIMEOUT_MS,
+  IMAP_SOCKET_TIMEOUT_MS,
   mapParsedMessage,
   normalizeMailEmail,
+  pollInboxOnce,
   sanitizeMailHtml,
 } = require('../mail-service');
 const bcrypt = require('bcryptjs');
@@ -134,4 +140,65 @@ test('changeMailPassword stores admin-provided password hash', async () => {
   const result = await changeMailPassword(fakeDb, '507f1f77bcf86cd799439011', 'NewManual123');
   assert.strictEqual(result.password, 'NewManual123');
   assert.strictEqual(await bcrypt.compare('NewManual123', update.patch.$set.passwordHash), true);
+});
+
+test('IMAP client uses explicit bounded timeouts', () => {
+  const options = imapClientOptions({ IMAP_USER: 'user', IMAP_PASSWORD: 'pass' });
+  assert.strictEqual(options.connectionTimeout, IMAP_CONNECTION_TIMEOUT_MS);
+  assert.strictEqual(options.greetingTimeout, IMAP_GREETING_TIMEOUT_MS);
+  assert.strictEqual(options.socketTimeout, IMAP_SOCKET_TIMEOUT_MS);
+  assert.strictEqual(options.socketTimeout, 30000);
+});
+
+test('mail sync coordinator prevents overlapping manual sync while background sync runs', async () => {
+  let release;
+  const coordinator = createMailSyncCoordinator({
+    db: {},
+    env: {},
+    intervalMs: 12000,
+    sync: async () => new Promise(resolve => { release = resolve; }),
+  });
+  const background = coordinator.run('interval');
+  assert.strictEqual(coordinator.isRunning(), true);
+  assert.deepStrictEqual(await coordinator.run('manual'), { ok: false, inProgress: true });
+  release({ ok: true, saved: 0, skipped: 0, fetched: 0, matched: 0 });
+  await background;
+  assert.strictEqual(coordinator.isRunning(), false);
+});
+
+test('mail sync coordinator releases its lock after failure', async () => {
+  let attempts = 0;
+  const coordinator = createMailSyncCoordinator({
+    db: {}, env: {}, intervalMs: 12000,
+    sync: async () => {
+      attempts++;
+      if (attempts === 1) throw new Error('temporary IMAP failure');
+      return { ok: true, saved: 0, skipped: 0, fetched: 0, matched: 0 };
+    },
+  });
+  await assert.rejects(() => coordinator.run('interval'), /temporary IMAP failure/);
+  assert.strictEqual(coordinator.isRunning(), false);
+  assert.strictEqual((await coordinator.run('interval')).ok, true);
+});
+
+test('poll timeout closes IMAP client and coordinator lock is released', async () => {
+  let closed = false;
+  const client = {
+    usable: false,
+    connect: () => new Promise(() => {}),
+    close: () => { closed = true; },
+  };
+  const coordinator = createMailSyncCoordinator({
+    db: {},
+    env: { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' },
+    intervalMs: 12000,
+    sync: (db, env, options) => pollInboxOnce(db, env, {
+      ...options,
+      timeoutMs: 20,
+      createClient: () => client,
+    }),
+  });
+  await assert.rejects(() => coordinator.run('interval'), err => err.code === 'MAIL_SYNC_TIMEOUT');
+  assert.strictEqual(closed, true);
+  assert.strictEqual(coordinator.isRunning(), false);
 });
