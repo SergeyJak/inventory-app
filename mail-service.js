@@ -325,6 +325,10 @@ function imapClientOptions(env = process.env, diagnostics = false) {
     connectionTimeout: IMAP_CONNECTION_TIMEOUT_MS,
     greetingTimeout: IMAP_GREETING_TIMEOUT_MS,
     socketTimeout: IMAP_SOCKET_TIMEOUT_MS,
+    // This poller only opens INBOX, searches unread mail, and fetches message source.
+    // Gmail's optional post-auth COMPRESS and ENABLE negotiation is slow in Railway.
+    disableCompression: true,
+    disableAutoEnable: true,
   };
 }
 

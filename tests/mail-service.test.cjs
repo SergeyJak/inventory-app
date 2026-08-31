@@ -150,6 +150,8 @@ test('IMAP client uses explicit bounded timeouts', () => {
   assert.strictEqual(options.greetingTimeout, IMAP_GREETING_TIMEOUT_MS);
   assert.strictEqual(options.socketTimeout, IMAP_SOCKET_TIMEOUT_MS);
   assert.strictEqual(options.socketTimeout, 30000);
+  assert.strictEqual(options.disableCompression, true);
+  assert.strictEqual(options.disableAutoEnable, true);
 });
 
 test('IMAP diagnostics are disabled unless explicitly enabled', () => {
