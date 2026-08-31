@@ -6,6 +6,8 @@ const {
   createMailAccount,
   extractVerificationCode,
   findOriginalRecipient,
+  imapDiagnosticsEnabled,
+  imapLogMarker,
   imapClientOptions,
   IMAP_CONNECTION_TIMEOUT_MS,
   IMAP_GREETING_TIMEOUT_MS,
@@ -148,6 +150,21 @@ test('IMAP client uses explicit bounded timeouts', () => {
   assert.strictEqual(options.greetingTimeout, IMAP_GREETING_TIMEOUT_MS);
   assert.strictEqual(options.socketTimeout, IMAP_SOCKET_TIMEOUT_MS);
   assert.strictEqual(options.socketTimeout, 30000);
+});
+
+test('IMAP diagnostics are disabled unless explicitly enabled', () => {
+  assert.strictEqual(imapDiagnosticsEnabled({}), false);
+  assert.strictEqual(imapDiagnosticsEnabled({ MAIL_IMAP_DIAGNOSTICS: 'false' }), false);
+  assert.strictEqual(imapDiagnosticsEnabled({ MAIL_IMAP_DIAGNOSTICS: 'true' }), true);
+  assert.strictEqual(imapClientOptions({}).emitLogs, false);
+  assert.strictEqual(imapClientOptions({ MAIL_IMAP_DIAGNOSTICS: 'true' }, true).emitLogs, true);
+});
+
+test('IMAP diagnostic markers never include command payloads or credentials', () => {
+  const secret = 'never-log-this-password';
+  assert.strictEqual(imapLogMarker({ src: 'auth', msg: 'User authenticated' }), 'authentication-completed');
+  assert.strictEqual(imapLogMarker({ src: 'c', msg: `A1 LOGIN user@example.com ${secret}` }), 'imap-command-LOGIN');
+  assert.strictEqual(imapLogMarker({ src: 'c', msg: `A1 FETCH 1 BODY[] ${secret}` }), '');
 });
 
 test('mail sync coordinator prevents overlapping manual sync while background sync runs', async () => {

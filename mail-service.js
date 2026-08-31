@@ -245,7 +245,73 @@ function mailLoginAllowed(req) {
   return true;
 }
 
-function imapClientOptions(env = process.env) {
+function imapDiagnosticsEnabled(env = process.env) {
+  return String(env.MAIL_IMAP_DIAGNOSTICS || '').trim().toLowerCase() === 'true';
+}
+
+function addressFamilyName(family) {
+  return Number(family) === 6 ? 'IPv6' : Number(family) === 4 ? 'IPv4' : null;
+}
+
+function createImapDiagnostics(env = process.env, context = {}) {
+  const enabled = imapDiagnosticsEnabled(env);
+  const startedAt = Date.now();
+  const log = (phase, fields = {}) => {
+    if (!enabled) return;
+    console.log('[mail-imap-phase]', JSON.stringify({
+      pollId: context.pollId || null,
+      trigger: context.trigger || null,
+      phase,
+      durationMs: Date.now() - startedAt,
+      ...fields,
+    }));
+  };
+
+  return { enabled, startedAt, log };
+}
+
+function imapLogMarker(entry) {
+  if (entry?.src === 'connection' && /Established .*TCP connection/.test(entry.msg || '')) {
+    return 'secure-tcp-established';
+  }
+  if (entry?.src === 'auth' && entry.msg === 'User authenticated') {
+    return 'authentication-completed';
+  }
+  const command = String(entry?.msg || '').match(/^\S+\s+(CAPABILITY|ID|AUTHENTICATE|LOGIN|NAMESPACE|COMPRESS|ENABLE|SELECT|STATUS)\b/i);
+  return command ? `imap-command-${command[1].toUpperCase()}` : '';
+}
+
+function attachSocketDiagnostics(socket, diagnostics) {
+  if (!diagnostics?.enabled || !socket || socket.__mailImapDiagnosticsAttached) return;
+  socket.__mailImapDiagnosticsAttached = true;
+
+  socket.on('lookup', (err, _address, family) => {
+    diagnostics.log('dns-lookup', {
+      resolvedAddressFamily: addressFamilyName(family),
+      errorCode: err?.code || null,
+    });
+  });
+  socket.on('connectionAttempt', (_ip, _port, family) => {
+    diagnostics.log('tcp-connection-attempt', { resolvedAddressFamily: addressFamilyName(family) });
+  });
+  socket.on('connectionAttemptFailed', (_ip, _port, family, err) => {
+    diagnostics.log('tcp-connection-attempt-failed', {
+      resolvedAddressFamily: addressFamilyName(family),
+      errorCode: err?.code || null,
+    });
+  });
+  socket.on('connectionAttemptTimeout', (_ip, _port, family) => {
+    diagnostics.log('tcp-connection-attempt-timeout', { resolvedAddressFamily: addressFamilyName(family) });
+  });
+  socket.on('connect', () => {
+    diagnostics.log('tcp-connected', { remoteAddressFamily: addressFamilyName(socket.remoteFamily) });
+  });
+  socket.on('secureConnect', () => {
+    diagnostics.log('tls-secure-connect', { remoteAddressFamily: addressFamilyName(socket.remoteFamily) });
+  });
+}
+
+function imapClientOptions(env = process.env, diagnostics = false) {
   return {
     host: env.IMAP_HOST || 'imap.gmail.com',
     port: Number(env.IMAP_PORT || 993),
@@ -255,14 +321,15 @@ function imapClientOptions(env = process.env) {
       pass: env.IMAP_PASSWORD,
     },
     logger: false,
+    emitLogs: diagnostics,
     connectionTimeout: IMAP_CONNECTION_TIMEOUT_MS,
     greetingTimeout: IMAP_GREETING_TIMEOUT_MS,
     socketTimeout: IMAP_SOCKET_TIMEOUT_MS,
   };
 }
 
-function createImapClient(env = process.env, label = 'IMAP') {
-  const client = new ImapFlow(imapClientOptions(env));
+function createImapClient(env = process.env, label = 'IMAP', diagnostics = null) {
+  const client = new ImapFlow(imapClientOptions(env, Boolean(diagnostics?.enabled)));
 
   /*
    * IMPORTANT:
@@ -526,7 +593,8 @@ async function testImapConnection(env = process.env, options = {}) {
     };
   }
 
-  const client = createImapClient(env, 'IMAP test');
+  const diagnostics = createImapDiagnostics(env, { trigger: 'imap-test' });
+  const client = createImapClient(env, 'IMAP test', diagnostics);
   const startedAt = Date.now();
   const log = (event, data = {}) => console.log(`[mail-imap-test] ${event}`, JSON.stringify({
     durationMs: Date.now() - startedAt,
@@ -534,16 +602,24 @@ async function testImapConnection(env = process.env, options = {}) {
   }));
 
   try {
-    await client.connect();
+    const connectStartedAt = Date.now();
+    const connectPromise = client.connect();
+    attachSocketDiagnostics(client.socket, diagnostics);
+    await connectPromise;
+    diagnostics.log('connect', { durationMs: Date.now() - connectStartedAt });
     log('connected', { connectDurationMs: Date.now() - startedAt });
 
+    const lockStartedAt = Date.now();
     const lock = await client.getMailboxLock('INBOX');
+    diagnostics.log('mailbox-lock', { durationMs: Date.now() - lockStartedAt });
 
     try {
+      const statusStartedAt = Date.now();
       const status = await client.status('INBOX', {
         messages: true,
         unseen: true,
       });
+      diagnostics.log('status', { durationMs: Date.now() - statusStartedAt });
 
       let newest = null;
 
@@ -612,7 +688,11 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
     };
   }
 
-  const client = (options.createClient || createImapClient)(env, 'poll');
+  const diagnostics = createImapDiagnostics(env, {
+    pollId: options.pollId,
+    trigger: options.trigger,
+  });
+  const client = (options.createClient || createImapClient)(env, 'poll', diagnostics);
 
   let saved = 0;
   let skipped = 0;
@@ -627,16 +707,31 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
     ...data,
   });
 
+  if (diagnostics?.enabled) {
+    client.on('log', entry => {
+      const marker = imapLogMarker(entry);
+      if (marker) diagnostics.log(marker);
+    });
+  }
+
   try {
     return await withMailSyncDeadline((async () => {
-      await client.connect();
+      const connectStartedAt = Date.now();
+      const connectPromise = client.connect();
+      attachSocketDiagnostics(client.socket, diagnostics);
+      await connectPromise;
+      diagnostics.log('connect', { durationMs: Date.now() - connectStartedAt });
       progress('connected', { connectDurationMs: Date.now() - startedAt });
 
       phase = 'inbox';
+      const lockStartedAt = Date.now();
       const lock = await client.getMailboxLock('INBOX');
+      diagnostics.log('mailbox-lock', { durationMs: Date.now() - lockStartedAt });
 
       try {
+        const statusStartedAt = Date.now();
         const status = await client.status('INBOX', { unseen: true });
+        diagnostics.log('status', { durationMs: Date.now() - statusStartedAt });
         progress('inbox', { unread: status.unseen || 0 });
 
         phase = 'fetch';
@@ -1468,6 +1563,8 @@ module.exports = {
   ensureMailIndexes,
   extractVerificationCode,
   findOriginalRecipient,
+  imapDiagnosticsEnabled,
+  imapLogMarker,
   imapClientOptions,
   IMAP_CONNECTION_TIMEOUT_MS,
   IMAP_GREETING_TIMEOUT_MS,
