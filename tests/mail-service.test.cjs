@@ -4,12 +4,14 @@ const { EventEmitter } = require('events');
 const {
   changeMailPassword,
   createMailIdleController,
+  createImapCommandLedger,
   createMailSyncCoordinator,
   createPersistentImapConnectionManager,
   createMailAccount,
   extractVerificationCode,
   findOriginalRecipient,
   imapDiagnosticsEnabled,
+  imapCommandDiagnosticEnabled,
   imapLogMarker,
   imapClientOptions,
   IMAP_CONNECTION_TIMEOUT_MS,
@@ -279,6 +281,29 @@ test('IMAP diagnostics are disabled unless explicitly enabled', () => {
   assert.strictEqual(imapClientOptions({ MAIL_IMAP_DIAGNOSTICS: 'true' }, true).emitLogs, true);
 });
 
+test('IMAP command ledger correlates tags and DONE with the active IDLE command without payloads', () => {
+  const lines = [];
+  const ledger = createImapCommandLedger({ enabled: true, log: (_phase, data) => lines.push(data) });
+  ledger.onLog({ src: 'c', msg: 'A1 IDLE', t: 1 });
+  ledger.onLog({ src: 's', msg: '+ idling', t: 2 });
+  ledger.onLog({ src: 'c', msg: 'DONE', t: 2 });
+  ledger.onLog({ src: 's', msg: 'A1 OK IDLE terminated', t: 3 });
+  ledger.onLog({ src: 'c', msg: 'A2 UID SEARCH UID 999:*', t: 4 });
+  ledger.onLog({ src: 's', msg: '* SEARCH', t: 5 });
+  ledger.onLog({ src: 's', msg: 'A2 OK SEARCH done', t: 6 });
+  assert.deepStrictEqual(lines.map(line => [line.command, line.tag, line.state]), [
+    ['IDLE', 'A1', 'sent'], ['IDLE', 'A1', 'accepted'], ['DONE', 'A1', 'sent'],
+    ['IDLE', 'A1', 'completed'], ['SEARCH', 'A2', 'sent'], ['SEARCH', 'A2', 'completed'],
+  ]);
+  const idleCompletion = lines.find(line => line.command === 'IDLE' && line.state === 'completed');
+  assert.ok(idleCompletion.idleDoneToCompletionMs >= 0);
+  assert.strictEqual(idleCompletion.queueWaitMs, null);
+  assert.strictEqual(idleCompletion.resolveLagMs, null);
+  assert.ok(!JSON.stringify(lines).includes('999:*'));
+  assert.strictEqual(imapCommandDiagnosticEnabled({}), false);
+  assert.strictEqual(imapCommandDiagnosticEnabled({ MAIL_IMAP_COMMAND_DIAGNOSTIC: 'true' }), true);
+});
+
 test('IMAP diagnostic markers never include command payloads or credentials', () => {
   const secret = 'never-log-this-password';
   assert.deepStrictEqual(imapLogMarker({ src: 'auth', msg: 'User authenticated' }), { phase: 'authentication-completed', direction: 'received', kind: 'lifecycle' });
@@ -538,6 +563,40 @@ test('IDLE exists notifications trigger one coalesced sync through the existing 
   client.emit('exists', { count: 3, prevCount: 2 });
   await flushAsync();
   assert.deepStrictEqual(triggers, ['idle']);
+  controller.shutdown();
+});
+
+test('one-shot IMAP command benchmark is explicitly gated and runs through the coordinator without ingestion', async () => {
+  const client = idleClient();
+  client.mailbox = { uidNext: 2, path: 'INBOX' };
+  let lockCount = 0;
+  let noopCount = 0;
+  let searchCount = 0;
+  let fetchCount = 0;
+  client.getMailboxLock = async () => ({ release() { lockCount++; } });
+  client.noop = async () => { noopCount++; };
+  client.search = async () => { searchCount++; return []; };
+  client.fetch = async function* () { fetchCount++; };
+  const manager = createPersistentImapConnectionManager({ env: {}, createClient: () => client });
+  const triggers = [];
+  const coordinator = createMailSyncCoordinator({
+    db: {}, env: {}, intervalMs: 120000,
+    sync: async (_db, _env, options) => { triggers.push(options.trigger); return { ok: true }; },
+  });
+  const output = [];
+  const controller = createMailIdleController({
+    connectionManager: manager, coordinator, env: { MAIL_IMAP_COMMAND_DIAGNOSTIC: 'true' },
+    log: (...parts) => output.push(parts),
+  });
+  await manager.getClient({ enabled: false, log() {} });
+  await coordinator.run('startup');
+  for (let i = 0; i < 4; i++) await flushAsync();
+  assert.deepStrictEqual(triggers, ['startup']);
+  assert.strictEqual(noopCount, 3);
+  assert.strictEqual(searchCount, 3);
+  assert.strictEqual(fetchCount, 3);
+  assert.strictEqual(lockCount, 1);
+  assert.ok(output.some(parts => parts[0] === '[mail-imap-benchmark-summary]'));
   controller.shutdown();
 });
 

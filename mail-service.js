@@ -258,12 +258,16 @@ function imapDiagnosticsEnabled(env = process.env) {
   return String(env.MAIL_IMAP_DIAGNOSTICS || '').trim().toLowerCase() === 'true';
 }
 
+function imapCommandDiagnosticEnabled(env = process.env) {
+  return String(env.MAIL_IMAP_COMMAND_DIAGNOSTIC || '').trim().toLowerCase() === 'true';
+}
+
 function addressFamilyName(family) {
   return Number(family) === 6 ? 'IPv6' : Number(family) === 4 ? 'IPv4' : null;
 }
 
 function createImapDiagnostics(env = process.env, context = {}) {
-  const enabled = imapDiagnosticsEnabled(env);
+  const enabled = imapDiagnosticsEnabled(env) || imapCommandDiagnosticEnabled(env);
   const startedAt = Date.now();
   const log = (phase, fields = {}) => {
     if (!enabled) return;
@@ -276,7 +280,89 @@ function createImapDiagnostics(env = process.env, context = {}) {
     }));
   };
 
-  return { enabled, startedAt, log };
+  return { enabled, startedAt, log, context };
+}
+
+function createImapCommandLedger(diagnostics, getGeneration = () => null) {
+  const commands = new Map();
+  let activeTag = null;
+  let activeIdleTag = null;
+  const now = () => Date.now();
+  const commandFromLine = line => String(line || '').match(/^([^\s]+)\s+(?:UID\s+)?(IDLE|NOOP|SEARCH|FETCH|LIST|SELECT|NAMESPACE)\b/i);
+
+  function emit(entry, extra = {}) {
+    if (!entry || !diagnostics?.enabled) return;
+    const completedAt = extra.completedAt || now();
+    diagnostics.log('command', {
+      connectionGeneration: getGeneration(), command: entry.command, tag: entry.tag, state: 'completed',
+      // ImapFlow emits the wire event only when it writes a command. It does
+      // not expose the time it queued or resolved that command, so leave these
+      // fields explicit rather than implying a zero-length wait.
+      queuedAt: null, queueWaitMs: null, resolvedAt: null, resolveLagMs: null,
+      firstResponseMs: entry.firstResponseAt ? entry.firstResponseAt - entry.sentAt : null,
+      completionMs: completedAt - entry.sentAt, totalMs: completedAt - entry.sentAt,
+      nativeSentAt: entry.nativeSentAt, nativeCompletedAt: extra.nativeTimestamp || null,
+      ...extra,
+    });
+  }
+
+  function onLog(entry) {
+    const candidateTimestamp = Number(entry?.t);
+    const nativeTimestamp = Number.isFinite(candidateTimestamp) ? candidateTimestamp : null;
+    const sent = entry?.src === 'c' && commandFromLine(entry.msg);
+    if (sent) {
+      const [, tag, command] = sent;
+      const record = { tag, command: command.toUpperCase(), sentAt: now(), nativeSentAt: nativeTimestamp, firstResponseAt: null };
+      commands.set(tag, record);
+      activeTag = tag;
+      if (record.command === 'IDLE') activeIdleTag = tag;
+      diagnostics.log('command', {
+        connectionGeneration: getGeneration(), command: record.command, tag: record.tag, state: 'sent',
+        nativeSentAt: nativeTimestamp,
+      });
+      return;
+    }
+    if (entry?.src === 'c' && String(entry.msg || '').trim().toUpperCase() === 'DONE') {
+      const idle = activeIdleTag && commands.get(activeIdleTag);
+      if (idle) {
+        idle.doneSentAt = now();
+        diagnostics.log('command', {
+          connectionGeneration: getGeneration(), command: 'DONE', tag: idle.tag, state: 'sent', nativeSentAt: nativeTimestamp,
+        });
+      }
+      return;
+    }
+    if (entry?.src === 's' && /^\+/.test(String(entry.msg || ''))) {
+      const idle = activeIdleTag && commands.get(activeIdleTag);
+      if (idle) {
+        idle.firstResponseAt ||= now();
+        idle.acceptedAt = now();
+        diagnostics.log('command', {
+          connectionGeneration: getGeneration(), command: 'IDLE', tag: idle.tag, state: 'accepted',
+          acceptedMs: idle.acceptedAt - idle.sentAt, nativeTimestamp,
+        });
+      }
+      return;
+    }
+    if (entry?.src === 's' && /^\*/.test(String(entry.msg || ''))) {
+      const record = activeTag && commands.get(activeTag);
+      if (record && !record.firstResponseAt) record.firstResponseAt = now();
+      return;
+    }
+    const completed = entry?.src === 's' && String(entry.msg || '').match(/^([^\s]+)\s+(OK|NO|BAD)\b/i);
+    if (!completed) return;
+    const record = commands.get(completed[1]);
+    if (!record) return;
+    emit(record, {
+      completionStatus: completed[2].toUpperCase(), nativeTimestamp,
+      idleAcceptedMs: record.acceptedAt ? record.acceptedAt - record.sentAt : null,
+      idleDoneToCompletionMs: record.doneSentAt ? now() - record.doneSentAt : null,
+    });
+    commands.delete(record.tag);
+    if (activeTag === record.tag) activeTag = null;
+    if (activeIdleTag === record.tag) activeIdleTag = null;
+  }
+  return { onLog };
 }
 
 function imapLogMarker(entry) {
@@ -368,10 +454,21 @@ function createImapClient(env = process.env, label = 'IMAP', diagnostics = null,
   });
 
   if (diagnostics?.enabled) {
+    const ledgerDiagnostics = {
+      get enabled() { return (diagnosticsRef?.current || diagnostics).enabled; },
+      log(...args) { return (diagnosticsRef?.current || diagnostics).log(...args); },
+    };
+    const ledger = createImapCommandLedger(ledgerDiagnostics, () => client.__mailConnectionGeneration || null);
     client.on('log', entry => {
+      ledger.onLog(entry);
       const marker = imapLogMarker(entry);
       const activeDiagnostics = diagnosticsRef?.current || diagnostics;
-      if (marker) activeDiagnostics.log(marker.phase, { direction: marker.direction, kind: marker.kind });
+      const candidateTimestamp = Number(entry?.t);
+      if (marker) activeDiagnostics.log(marker.phase, {
+        direction: marker.direction,
+        kind: marker.kind,
+        nativeTimestamp: Number.isFinite(candidateTimestamp) ? candidateTimestamp : null,
+      });
     });
     client.on('response', response => {
       const activeDiagnostics = diagnosticsRef?.current || diagnostics;
@@ -890,6 +987,7 @@ function createPersistentImapConnectionManager({ env = process.env, createClient
     const newClient = createClient(env, 'poll', diagnostics, diagnosticsRef);
     client = newClient;
     const connectionGeneration = ++generation;
+    newClient.__mailConnectionGeneration = connectionGeneration;
     newClient.on('close', () => {
       if (client !== newClient) return;
       client = null;
@@ -1153,7 +1251,7 @@ function createMailSyncCoordinator({ db, env = process.env, intervalMs, sync = p
     for (const listener of listeners) listener(event, data);
   }
 
-  async function run(trigger) {
+  async function run(trigger, operation = null) {
     if (running) return { ok: false, inProgress: true };
 
     running = true;
@@ -1169,7 +1267,7 @@ function createMailSyncCoordinator({ db, env = process.env, intervalMs, sync = p
 
     log('start', { configuredPollIntervalMs: intervalMs });
     try {
-      const result = await sync(db, env, {
+      const result = await (operation || sync)(db, env, {
         pollId,
         trigger,
         onProgress(event, data) { log(event, data); },
@@ -1206,13 +1304,28 @@ function mailPollIntervalMs(env = process.env) {
   return Math.max(5000, Number(env.MAIL_POLL_INTERVAL_MS || DEFAULT_MAIL_POLL_MS));
 }
 
-function createMailIdleController({ connectionManager, coordinator, log = console.log } = {}) {
+function createMailIdleController({ connectionManager, coordinator, env = process.env, log = console.log } = {}) {
   let stopped = false;
   let wakePending = false;
   let wakeScheduled = false;
   let active = null;
+  let lagTimer = null;
+  let expectedLagTick = 0;
+  let benchmarkStarted = false;
 
   const idleLog = (event, data = {}) => log(`[mail-idle] ${event}`, JSON.stringify(data));
+
+  if (imapCommandDiagnosticEnabled(env)) {
+    const intervalMs = 1000;
+    expectedLagTick = Date.now() + intervalMs;
+    lagTimer = setInterval(() => {
+      const actual = Date.now();
+      const lagMs = actual - expectedLagTick;
+      expectedLagTick = actual + intervalMs;
+      if (lagMs > 100) log('[mail-event-loop] lag', JSON.stringify({ lagMs, connectionGeneration: active?.connectionGeneration || null, activeSyncId: coordinator.activePollId?.() || null }));
+    }, intervalMs);
+    lagTimer.unref?.();
+  }
 
   function cleanup(reason, data = {}) {
     if (!active) return;
@@ -1289,6 +1402,39 @@ function createMailIdleController({ connectionManager, coordinator, log = consol
     });
   }
 
+  function scheduleBenchmark() {
+    if (!imapCommandDiagnosticEnabled(env) || benchmarkStarted || !active || coordinator.isRunning()) return;
+    benchmarkStarted = true;
+    queueMicrotask(async () => {
+      if (stopped || !active) return;
+      const samples = { noop: [], search: [], fetch: [] };
+      try {
+        await coordinator.run('imap-benchmark', async () => {
+          const client = active?.client;
+          const lock = await client.getMailboxLock(MAIL_SYNC_MAILBOX);
+          try {
+            for (let iteration = 1; iteration <= 3; iteration++) {
+              const startedAt = Date.now(); await client.noop(); const totalMs = Date.now() - startedAt;
+              samples.noop.push(totalMs); log('[mail-imap-benchmark]', JSON.stringify({ operation: 'NOOP', iteration, totalMs }));
+            }
+            const emptyFromUid = Math.max(1, Number(client.mailbox?.uidNext || 1) + 1000000);
+            for (let iteration = 1; iteration <= 3; iteration++) {
+              const startedAt = Date.now(); await client.search({ uid: `${emptyFromUid}:*` }, { uid: true }); const totalMs = Date.now() - startedAt;
+              samples.search.push(totalMs); log('[mail-imap-benchmark]', JSON.stringify({ operation: 'SEARCH', iteration, totalMs }));
+            }
+            const fetchUid = Number(client.mailbox?.uidNext || 1) - 1;
+            if (fetchUid > 0) for (let iteration = 1; iteration <= 3; iteration++) {
+              const startedAt = Date.now(); for await (const _message of client.fetch([fetchUid], { uid: true, headers: ['message-id'] }, { uid: true })) {} const totalMs = Date.now() - startedAt;
+              samples.fetch.push(totalMs); log('[mail-imap-benchmark]', JSON.stringify({ operation: 'FETCH', iteration, totalMs }));
+            }
+          } finally { lock.release(); }
+          return { ok: true, benchmark: true };
+        });
+        log('[mail-imap-benchmark-summary]', JSON.stringify({ ...samples }));
+      } catch (err) { idleLog('error', { connectionGeneration: active?.connectionGeneration || null, reason: 'benchmark-failed', errorCode: err?.code || null, errorMessage: err?.message || String(err) }); }
+    });
+  }
+
   const unsubscribeLifecycle = connectionManager.subscribe((event, data) => {
     if (event === 'created') {
       cleanup('new-generation');
@@ -1329,6 +1475,7 @@ function createMailIdleController({ connectionManager, coordinator, log = consol
       else scheduleReconnect(null);
       return;
     }
+    scheduleBenchmark();
     beginIdle('sync-settled');
     idleLog('resumed', { connectionGeneration: active?.connectionGeneration || null, syncId: data.pollId });
   });
@@ -1340,6 +1487,7 @@ function createMailIdleController({ connectionManager, coordinator, log = consol
       unsubscribeLifecycle();
       unsubscribeCoordinator();
       cleanup('shutdown');
+      if (lagTimer) clearInterval(lagTimer);
     },
     requestWake,
   };
@@ -1416,7 +1564,7 @@ function createMailService({
   function coordinator() {
     if (!syncCoordinator) {
       syncCoordinator = createPersistentCoordinator(db(), process.env);
-      idleController = createMailIdleController({ connectionManager: connectionManager(process.env), coordinator: syncCoordinator });
+      idleController = createMailIdleController({ connectionManager: connectionManager(process.env), coordinator: syncCoordinator, env: process.env });
     }
     return syncCoordinator;
   }
@@ -1424,7 +1572,7 @@ function createMailService({
   function startServiceMailPoller(database, env = process.env) {
     syncCoordinator = createPersistentCoordinator(database, env);
     idleController?.shutdown();
-    idleController = createMailIdleController({ connectionManager: connectionManager(env), coordinator: syncCoordinator });
+    idleController = createMailIdleController({ connectionManager: connectionManager(env), coordinator: syncCoordinator, env });
     return startMailPoller(database, env, syncCoordinator);
   }
 
@@ -2076,6 +2224,8 @@ module.exports = {
   extractVerificationCode,
   findOriginalRecipient,
   imapDiagnosticsEnabled,
+  imapCommandDiagnosticEnabled,
+  createImapCommandLedger,
   imapLogMarker,
   imapClientOptions,
   IMAP_CONNECTION_TIMEOUT_MS,
