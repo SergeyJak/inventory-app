@@ -3,6 +3,7 @@ const { EventEmitter } = require('events');
 
 const {
   changeMailPassword,
+  createMailIdleController,
   createMailSyncCoordinator,
   createPersistentImapConnectionManager,
   createMailAccount,
@@ -15,6 +16,7 @@ const {
   IMAP_GREETING_TIMEOUT_MS,
   IMAP_SOCKET_TIMEOUT_MS,
   MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS,
+  mailPollIntervalMs,
   mailSyncDeadlineMs,
   mapParsedMessage,
   normalizeMailEmail,
@@ -111,6 +113,22 @@ function uidClient({ uidValidity = 1n, uidNext = 1, searchResults = [], fetched 
 
 function reusedManager(client) {
   return { getClient: async () => ({ client, reused: true }), usable: () => true, invalidate() {} };
+}
+
+function idleClient() {
+  const client = new EventEmitter();
+  client.usable = true;
+  client.isClosed = false;
+  client.socket = { destroyed: false };
+  client.logout = async () => {};
+  client.close = () => { client.isClosed = true; client.socket.destroyed = true; client.emit('close'); };
+  client.idle = () => new Promise(() => {});
+  return client;
+}
+
+async function flushAsync() {
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
 }
 
 function parsedClientMessage(uid, recipient = 'client@heysmart.lv', messageId = `<${uid}@mail>`) {
@@ -250,6 +268,7 @@ test('IMAP client uses explicit bounded timeouts', () => {
   assert.strictEqual(options.socketTimeout, 30000);
   assert.strictEqual(options.disableCompression, true);
   assert.strictEqual(options.disableAutoEnable, true);
+  assert.strictEqual(options.disableAutoIdle, true);
 });
 
 test('IMAP diagnostics are disabled unless explicitly enabled', () => {
@@ -503,6 +522,69 @@ test('persistent IMAP manager logs out and closes its client during graceful shu
   await manager.shutdown();
   assert.strictEqual(loggedOut, true);
   assert.strictEqual(closed, true);
+});
+
+test('IDLE exists notifications trigger one coalesced sync through the existing coordinator', async () => {
+  const client = idleClient();
+  const manager = createPersistentImapConnectionManager({ env: {}, createClient: () => client });
+  const triggers = [];
+  const coordinator = createMailSyncCoordinator({
+    db: {}, env: {}, intervalMs: 120000,
+    sync: async (_db, _env, options) => { triggers.push(options.trigger); return { ok: true }; },
+  });
+  const controller = createMailIdleController({ connectionManager: manager, coordinator, log() {} });
+  await manager.getClient({ enabled: false, log() {} });
+  client.emit('exists', { count: 2, prevCount: 1 });
+  client.emit('exists', { count: 3, prevCount: 2 });
+  await flushAsync();
+  assert.deepStrictEqual(triggers, ['idle']);
+  controller.shutdown();
+});
+
+test('IDLE notification during a sync schedules exactly one follow-up catch-up', async () => {
+  const client = idleClient();
+  const manager = createPersistentImapConnectionManager({ env: {}, createClient: () => client });
+  let release;
+  const triggers = [];
+  const coordinator = createMailSyncCoordinator({
+    db: {}, env: {}, intervalMs: 120000,
+    sync: async (_db, _env, options) => {
+      triggers.push(options.trigger);
+      if (triggers.length === 1) await new Promise(resolve => { release = resolve; });
+      return { ok: true };
+    },
+  });
+  const controller = createMailIdleController({ connectionManager: manager, coordinator, log() {} });
+  await manager.getClient({ enabled: false, log() {} });
+  client.emit('exists', { count: 2, prevCount: 1 });
+  await flushAsync();
+  client.emit('exists', { count: 3, prevCount: 2 });
+  client.emit('exists', { count: 4, prevCount: 3 });
+  release();
+  await flushAsync();
+  assert.deepStrictEqual(triggers, ['idle', 'idle']);
+  controller.shutdown();
+});
+
+test('IDLE controller ignores stale-generation events and removes listeners on shutdown', async () => {
+  const clients = [];
+  const manager = createPersistentImapConnectionManager({ env: {}, createClient: () => { const client = idleClient(); clients.push(client); return client; } });
+  let runs = 0;
+  const coordinator = createMailSyncCoordinator({ db: {}, env: {}, intervalMs: 120000, sync: async () => { runs++; return { ok: true }; } });
+  const controller = createMailIdleController({ connectionManager: manager, coordinator, log() {} });
+  await manager.getClient({ enabled: false, log() {} });
+  manager.invalidate('test-reconnect');
+  clients[0].emit('exists', { count: 2, prevCount: 1 });
+  await flushAsync();
+  assert.strictEqual(runs, 1);
+  await manager.getClient({ enabled: false, log() {} });
+  controller.shutdown();
+  assert.strictEqual(clients[1].listenerCount('exists'), 0);
+});
+
+test('IDLE fallback default is two minutes while explicit poll interval overrides it', () => {
+  assert.strictEqual(mailPollIntervalMs({}), 120000);
+  assert.strictEqual(mailPollIntervalMs({ MAIL_POLL_INTERVAL_MS: '15000' }), 15000);
 });
 
 test('persistent bootstrap uses a longer deadline while reused polls retain the normal deadline', () => {

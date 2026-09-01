@@ -9,7 +9,7 @@ const { ObjectId } = require('mongodb');
 const MAIL_DOMAIN = 'heysmart.lv';
 const MAIL_COOKIE = 'hs_mail_token';
 const MAIL_TOKEN_PURPOSE = 'mailbox';
-const DEFAULT_MAIL_POLL_MS = 12000;
+const DEFAULT_MAIL_POLL_MS = 120000;
 const IMAP_CONNECTION_TIMEOUT_MS = 15000;
 const IMAP_GREETING_TIMEOUT_MS = 10000;
 const IMAP_SOCKET_TIMEOUT_MS = 30000;
@@ -322,6 +322,9 @@ function attachSocketDiagnostics(socket, diagnostics) {
   socket.on('secureConnect', () => {
     diagnostics.log('tls-secure-connect', { remoteAddressFamily: addressFamilyName(socket.remoteFamily) });
   });
+  socket.on('timeout', () => {
+    diagnostics.log('socket-timeout', { remoteAddressFamily: addressFamilyName(socket.remoteFamily) });
+  });
 }
 
 function imapClientOptions(env = process.env, diagnostics = false) {
@@ -342,6 +345,8 @@ function imapClientOptions(env = process.env, diagnostics = false) {
     // Gmail's optional post-auth COMPRESS and ENABLE negotiation is slow in Railway.
     disableCompression: true,
     disableAutoEnable: true,
+    // The persistent manager explicitly controls IDLE after checkpoint syncs.
+    disableAutoIdle: true,
   };
 }
 
@@ -852,7 +857,13 @@ function imapReady(env = process.env) {
 
 function createPersistentImapConnectionManager({ env = process.env, createClient = createImapClient } = {}) {
   let client = null;
+  let generation = 0;
   const diagnosticsRef = { current: null };
+  const lifecycleListeners = new Set();
+
+  function lifecycle(event, data = {}) {
+    for (const listener of lifecycleListeners) listener(event, data);
+  }
 
   function usable() {
     return Boolean(client && client.usable && !client.isClosed && !client.socket?.destroyed);
@@ -861,7 +872,9 @@ function createPersistentImapConnectionManager({ env = process.env, createClient
   function invalidate(reason = 'invalidated') {
     if (!client) return;
     const staleClient = client;
+    const staleGeneration = generation;
     client = null;
+    lifecycle('invalidated', { client: staleClient, connectionGeneration: staleGeneration, reason });
     diagnosticsRef.current?.log('persistent-connection-invalidated', { reason });
     closeImapClient(staleClient);
   }
@@ -870,17 +883,24 @@ function createPersistentImapConnectionManager({ env = process.env, createClient
     diagnosticsRef.current = diagnostics;
     if (usable()) {
       diagnostics.log('persistent-connection-reused');
-      return { client, reused: true };
+      return { client, reused: true, connectionGeneration: generation };
     }
 
     invalidate('unusable');
     const newClient = createClient(env, 'poll', diagnostics, diagnosticsRef);
     client = newClient;
+    const connectionGeneration = ++generation;
     newClient.on('close', () => {
-      if (client === newClient) client = null;
+      if (client !== newClient) return;
+      client = null;
+      lifecycle('disconnected', { client: newClient, connectionGeneration, reason: 'close' });
     });
+    newClient.on('error', () => {
+      if (client === newClient) invalidate('client-error');
+    });
+    lifecycle('created', { client: newClient, connectionGeneration });
     diagnostics.log('persistent-connection-created');
-    return { client, reused: false };
+    return { client, reused: false, connectionGeneration };
   }
 
   async function shutdown() {
@@ -891,7 +911,12 @@ function createPersistentImapConnectionManager({ env = process.env, createClient
     closeImapClient(activeClient);
   }
 
-  return { getClient, invalidate, shutdown, usable };
+  function subscribe(listener) {
+    lifecycleListeners.add(listener);
+    return () => lifecycleListeners.delete(listener);
+  }
+
+  return { getClient, invalidate, shutdown, usable, subscribe, current: () => client, generation: () => generation };
 }
 
 async function pollInboxOnce(db, env = process.env, options = {}) {
@@ -1121,12 +1146,19 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
 function createMailSyncCoordinator({ db, env = process.env, intervalMs, sync = pollInboxOnce }) {
   let running = false;
   let pollSequence = 0;
+  let activePollId = null;
+  const listeners = new Set();
+
+  function notify(event, data = {}) {
+    for (const listener of listeners) listener(event, data);
+  }
 
   async function run(trigger) {
     if (running) return { ok: false, inProgress: true };
 
     running = true;
     const pollId = `mail-${Date.now()}-${++pollSequence}`;
+    activePollId = pollId;
     const startedAt = Date.now();
     const log = (event, data = {}) => console.log(`[mail-sync] ${event}`, JSON.stringify({
       pollId,
@@ -1154,14 +1186,163 @@ function createMailSyncCoordinator({ db, env = process.env, intervalMs, sync = p
       throw err;
     } finally {
       running = false;
+      activePollId = null;
+      notify('settled', { pollId, trigger });
     }
   }
 
-  return { run, isRunning: () => running };
+  return {
+    run,
+    isRunning: () => running,
+    activePollId: () => activePollId,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
 }
 
 function mailPollIntervalMs(env = process.env) {
   return Math.max(5000, Number(env.MAIL_POLL_INTERVAL_MS || DEFAULT_MAIL_POLL_MS));
+}
+
+function createMailIdleController({ connectionManager, coordinator, log = console.log } = {}) {
+  let stopped = false;
+  let wakePending = false;
+  let wakeScheduled = false;
+  let active = null;
+
+  const idleLog = (event, data = {}) => log(`[mail-idle] ${event}`, JSON.stringify(data));
+
+  function cleanup(reason, data = {}) {
+    if (!active) return;
+    const previous = active;
+    active = null;
+    previous.client.removeListener?.('exists', previous.onExists);
+    idleLog('cleanup', { connectionGeneration: previous.connectionGeneration, reason, ...data });
+  }
+
+  function beginIdle(reason) {
+    if (stopped || !active || !connectionManager.usable()) return;
+    const { client, connectionGeneration } = active;
+    if (active.idlePromise || client.idling || typeof client.idle !== 'function') return;
+
+    const startedAt = Date.now();
+    try {
+      const idlePromise = Promise.resolve(client.idle());
+      active.idlePromise = idlePromise;
+      idleLog('entered', { connectionGeneration, reason });
+      idlePromise.then(() => {
+        if (active?.client !== client || active.idlePromise !== idlePromise) return;
+        active.idlePromise = null;
+        idleLog('exited', { connectionGeneration, reason: 'command-or-server', durationMs: Date.now() - startedAt });
+      }).catch(err => {
+        if (active?.client !== client || active.idlePromise !== idlePromise) return;
+        active.idlePromise = null;
+        idleLog('error', { connectionGeneration, reason: 'idle-failed', durationMs: Date.now() - startedAt, errorCode: err?.code || null, errorMessage: err?.message || String(err) });
+      });
+    } catch (err) {
+      idleLog('error', { connectionGeneration, reason: 'idle-start-failed', errorCode: err?.code || null, errorMessage: err?.message || String(err) });
+    }
+  }
+
+  function requestWake(reason, data = {}) {
+    if (stopped || !active) return;
+    const connectionGeneration = active.connectionGeneration;
+    if (coordinator.isRunning() || wakeScheduled) {
+      // Events queued before the first wake starts are already covered by that
+      // wake. Only events during an active sync need a follow-up catch-up.
+      if (coordinator.isRunning()) wakePending = true;
+      idleLog('wake-coalesced', { connectionGeneration, reason, wakePending, syncId: coordinator.activePollId?.() || null, ...data });
+      return;
+    }
+
+    wakeScheduled = true;
+    idleLog('wake-requested', { connectionGeneration, reason, wakePending, ...data });
+    queueMicrotask(async () => {
+      wakeScheduled = false;
+      if (stopped || !active || active.connectionGeneration !== connectionGeneration) return;
+      try {
+        await coordinator.run(reason === 'reconnect' ? 'idle-reconnect' : 'idle');
+      } catch (err) {
+        idleLog('error', { connectionGeneration, reason: 'wake-sync-failed', errorCode: err?.code || null, errorMessage: err?.message || String(err) });
+      }
+    });
+  }
+
+  function scheduleReconnect(connectionGeneration) {
+    if (stopped || wakeScheduled) return;
+    if (coordinator.isRunning()) {
+      wakePending = true;
+      return;
+    }
+    wakeScheduled = true;
+    idleLog('wake-requested', { connectionGeneration, reason: 'reconnect', wakePending });
+    queueMicrotask(async () => {
+      wakeScheduled = false;
+      if (stopped) return;
+      try {
+        await coordinator.run('idle-reconnect');
+      } catch (err) {
+        idleLog('error', { connectionGeneration, reason: 'reconnect-sync-failed', errorCode: err?.code || null, errorMessage: err?.message || String(err) });
+      }
+    });
+  }
+
+  const unsubscribeLifecycle = connectionManager.subscribe((event, data) => {
+    if (event === 'created') {
+      cleanup('new-generation');
+      const { client, connectionGeneration } = data;
+      const onExists = eventData => {
+        if (stopped || active?.client !== client || active.connectionGeneration !== connectionGeneration) {
+          idleLog('generation-stale', { connectionGeneration, reason: 'exists' });
+          return;
+        }
+        idleLog('exists', { connectionGeneration, count: eventData?.count ?? null, prevCount: eventData?.prevCount ?? null });
+        requestWake('exists', { count: eventData?.count ?? null, prevCount: eventData?.prevCount ?? null });
+      };
+      active = { client, connectionGeneration, onExists, idlePromise: null };
+      client.on('exists', onExists);
+      idleLog('listener-attached', { connectionGeneration });
+      return;
+    }
+
+    if (event === 'invalidated' || event === 'disconnected') {
+      if (active?.client !== data.client || active.connectionGeneration !== data.connectionGeneration) {
+        idleLog('generation-stale', { connectionGeneration: data.connectionGeneration, reason: event });
+        return;
+      }
+      cleanup(event, { reason: data.reason || event });
+      if (!stopped) {
+        idleLog('disconnected', { connectionGeneration: data.connectionGeneration, reason: data.reason || event });
+        scheduleReconnect(data.connectionGeneration);
+      }
+    }
+  });
+
+  const unsubscribeCoordinator = coordinator.subscribe((event, data) => {
+    if (event !== 'settled' || stopped) return;
+    if (wakePending) {
+      wakePending = false;
+      idleLog('follow-up-sync', { connectionGeneration: active?.connectionGeneration || null, syncId: data.pollId, wakePending });
+      if (active) requestWake('exists');
+      else scheduleReconnect(null);
+      return;
+    }
+    beginIdle('sync-settled');
+    idleLog('resumed', { connectionGeneration: active?.connectionGeneration || null, syncId: data.pollId });
+  });
+
+  return {
+    shutdown() {
+      stopped = true;
+      wakePending = false;
+      unsubscribeLifecycle();
+      unsubscribeCoordinator();
+      cleanup('shutdown');
+    },
+    requestWake,
+  };
 }
 
 function startMailPoller(db, env = process.env, coordinator = null) {
@@ -1210,6 +1391,7 @@ function createMailService({
   const router = express.Router();
   let syncCoordinator = null;
   let imapConnectionManager = null;
+  let idleController = null;
 
   function connectionManager(env = process.env) {
     if (!imapConnectionManager) {
@@ -1234,16 +1416,21 @@ function createMailService({
   function coordinator() {
     if (!syncCoordinator) {
       syncCoordinator = createPersistentCoordinator(db(), process.env);
+      idleController = createMailIdleController({ connectionManager: connectionManager(process.env), coordinator: syncCoordinator });
     }
     return syncCoordinator;
   }
 
   function startServiceMailPoller(database, env = process.env) {
     syncCoordinator = createPersistentCoordinator(database, env);
+    idleController?.shutdown();
+    idleController = createMailIdleController({ connectionManager: connectionManager(env), coordinator: syncCoordinator });
     return startMailPoller(database, env, syncCoordinator);
   }
 
   async function shutdownMailPoller() {
+    idleController?.shutdown();
+    idleController = null;
     await imapConnectionManager?.shutdown();
   }
 
@@ -1881,6 +2068,7 @@ function createMailService({
 module.exports = {
   changeMailPassword,
   createMailSyncCoordinator,
+  createMailIdleController,
   createPersistentImapConnectionManager,
   createMailAccount,
   createMailService,
