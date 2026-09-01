@@ -302,13 +302,20 @@ input:focus { border-color: var(--ink); box-shadow: 0 0 0 4px rgba(17,17,20,.07)
   text-transform: uppercase;
   backdrop-filter: blur(12px);
 }
+.message-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: stretch;
+  gap: 2px;
+  margin-bottom: 7px;
+}
 .message-item {
   width: 100%;
   min-height: 78px;
   display: grid;
   gap: 6px;
   padding: 14px 15px;
-  margin-bottom: 7px;
+  margin-bottom: 0;
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
@@ -353,6 +360,35 @@ input:focus { border-color: var(--ink); box-shadow: 0 0 0 4px rgba(17,17,20,.07)
   background: var(--ink);
   vertical-align: 1px;
 }
+.message-delete {
+  width: 44px;
+  min-height: 44px;
+  align-self: center;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--muted-2);
+  transition: color .18s ease, background .18s ease, border-color .18s ease;
+}
+.message-delete svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.message-delete:hover,
+.message-delete:focus-visible {
+  color: var(--danger);
+  border-color: rgba(180, 35, 66, .16);
+  background: #fff5f6;
+  outline: none;
+}
+.message-delete:focus-visible { box-shadow: 0 0 0 3px rgba(180, 35, 66, .12); }
 .message-detail {
   overflow-y: auto;
   overflow-x: hidden;
@@ -473,13 +509,44 @@ input:focus { border-color: var(--ink); box-shadow: 0 0 0 4px rgba(17,17,20,.07)
 }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.error { background: var(--danger); }
+.delete-dialog {
+  width: min(calc(100vw - 32px), 340px);
+  margin: auto;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 24px 70px rgba(17, 17, 20, .2);
+}
+.delete-dialog::backdrop { background: rgba(17, 17, 20, .34); }
+.delete-dialog p { margin: 0 0 20px; font-size: 17px; font-weight: 900; }
+.delete-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.delete-dialog button {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #f2f3f0;
+  color: var(--ink);
+  font-weight: 900;
+}
+.delete-dialog .delete-dialog-confirm { background: var(--danger); color: #fff; }
 
 @media (max-width: 780px) {
+  body[data-mail-screen="inbox"] { overflow: auto; }
+  .mail-shell { min-height: 100%; height: auto; }
   .login-view { padding: 18px; place-items: center; }
   .back-link { top: 18px; left: 18px; }
   .login-card { padding: 24px; border-radius: 21px; }
   .email-login-row span { font-size: 13px; padding-right: 12px; }
-  .inbox-view { padding: 12px; align-content: stretch; }
+  .inbox-view {
+    min-height: 100dvh;
+    height: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
   .mail-header {
     height: auto;
     min-height: 154px;
@@ -493,14 +560,15 @@ input:focus { border-color: var(--ink); box-shadow: 0 0 0 4px rgba(17,17,20,.07)
   .mail-actions button { min-height: 48px; padding-inline: 14px; }
   .mail-layout {
     width: 100%;
-    height: calc(100vh - 194px);
+    height: auto;
+    min-height: 0;
     grid-template-columns: 1fr;
     gap: 0;
   }
   .message-list,
   .message-detail { border-radius: 22px; }
-  .message-list { padding: 10px; }
-  .message-detail { padding: 18px; }
+  .message-list { padding: 10px; overflow: visible; }
+  .message-detail { padding: 18px; overflow: visible; }
   .inbox-view.detail-open .message-list { display: none; }
   .inbox-view:not(.detail-open) .message-detail { display: none; }
   .detail-back {

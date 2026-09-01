@@ -9,6 +9,7 @@ const messageDetail = document.getElementById('message-detail');
 const refreshBtn = document.getElementById('refresh-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const toast = document.getElementById('toast');
+const deleteDialog = document.getElementById('delete-dialog');
 
 const LANGUAGES = ['ru', 'lv', 'en'];
 const MAIL_I18N = {
@@ -44,6 +45,11 @@ const MAIL_I18N = {
     copiedCode: 'Код скопирован',
     copiedButton: 'Скопировано',
     noSubject: '(без темы)',
+    deleteMessage: 'Удалить письмо',
+    deleteConfirm: 'Удалить письмо?',
+    cancel: 'Отмена',
+    delete: 'Удалить',
+    deleteError: 'Не удалось удалить письмо',
   },
   lv: {
     catalog: '← Katalogs',
@@ -77,6 +83,11 @@ const MAIL_I18N = {
     copiedCode: 'Kods nokopēts',
     copiedButton: 'Nokopēts',
     noSubject: '(bez temata)',
+    deleteMessage: 'Dzēst vēstuli',
+    deleteConfirm: 'Dzēst vēstuli?',
+    cancel: 'Atcelt',
+    delete: 'Dzēst',
+    deleteError: 'Neizdevās izdzēst vēstuli',
   },
   en: {
     catalog: '← Catalog',
@@ -110,6 +121,11 @@ const MAIL_I18N = {
     copiedCode: 'Code copied',
     copiedButton: 'Copied',
     noSubject: '(no subject)',
+    deleteMessage: 'Delete email',
+    deleteConfirm: 'Delete email?',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    deleteError: 'Could not delete email',
   },
 };
 
@@ -118,6 +134,8 @@ let messages = [];
 let activeMessageId = '';
 let refreshTimer = null;
 let toastTimer = null;
+let pendingDeleteId = '';
+const deletingMessageIds = new Set();
 
 function resolveInitialLanguage() {
   const saved = localStorage.getItem('catalogLanguage');
@@ -151,6 +169,9 @@ function applyTranslations() {
   });
   refreshBtn.textContent = t('refresh');
   logoutBtn.textContent = t('logout');
+  deleteDialog.querySelector('#delete-dialog-title').textContent = t('deleteConfirm');
+  deleteDialog.querySelector('[value="cancel"]').textContent = t('cancel');
+  deleteDialog.querySelector('[value="confirm"]').textContent = t('delete');
   if (messages.length) renderList();
   else {
     messageList.innerHTML = emptyStateHtml();
@@ -252,11 +273,16 @@ function renderList() {
     return;
   }
   messageList.innerHTML = `<div class="list-heading">${escapeHtml(t('inbox'))}</div>${messages.map(message => `
-    <button class="message-item ${message.isRead ? '' : 'unread'} ${message._id === activeMessageId ? 'active' : ''}" type="button" data-id="${escapeHtml(message._id)}">
-      <strong>${escapeHtml(message.subject || t('noSubject'))}</strong>
-      <span>${escapeHtml(message.from || '')}</span>
-      <time>${escapeHtml(formatDate(message.receivedAt))}</time>
-    </button>
+    <div class="message-row">
+      <button class="message-item ${message.isRead ? '' : 'unread'} ${message._id === activeMessageId ? 'active' : ''}" type="button" data-id="${escapeHtml(message._id)}">
+        <strong>${escapeHtml(message.subject || t('noSubject'))}</strong>
+        <span>${escapeHtml(message.from || '')}</span>
+        <time>${escapeHtml(formatDate(message.receivedAt))}</time>
+      </button>
+      <button class="message-delete" type="button" data-delete-id="${escapeHtml(message._id)}" aria-label="${escapeHtml(t('deleteMessage'))}" title="${escapeHtml(t('deleteMessage'))}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 13h8l1-13" /></svg>
+      </button>
+    </div>
   `).join('')}`;
   if (!activeMessageId && window.matchMedia('(min-width: 781px)').matches) {
     openMessage(messages[0]._id, { silent: true });
@@ -323,6 +349,40 @@ async function openMessage(id, options = {}) {
   }
 }
 
+function requestDeleteMessage(id) {
+  if (!id || deletingMessageIds.has(id) || deleteDialog.open) return;
+  pendingDeleteId = id;
+  if (typeof deleteDialog.showModal === 'function') {
+    deleteDialog.showModal();
+    return;
+  }
+  if (window.confirm(t('deleteConfirm'))) deleteMessage(id);
+  else pendingDeleteId = '';
+}
+
+async function deleteMessage(id) {
+  if (!id || deletingMessageIds.has(id)) return;
+  deletingMessageIds.add(id);
+  const button = messageList.querySelector(`[data-delete-id="${CSS.escape(id)}"]`);
+  if (button) button.disabled = true;
+  try {
+    await api(`/api/mail/messages/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    messages = messages.filter(message => message._id !== id);
+    if (activeMessageId === id) {
+      activeMessageId = '';
+      inboxView.classList.remove('detail-open');
+      renderEmptyDetail();
+    }
+    renderList();
+    setStatus(messageCountLabel(messages.length));
+  } catch (_err) {
+    notify(t('deleteError'), 'error');
+    if (button) button.disabled = false;
+  } finally {
+    deletingMessageIds.delete(id);
+  }
+}
+
 function renderMessage(message) {
   const body = message.html || `<pre>${escapeHtml(message.text || '')}</pre>`;
   const code = message.verificationCode ? `
@@ -373,8 +433,21 @@ loginForm.addEventListener('submit', async event => {
 });
 
 messageList.addEventListener('click', event => {
+  const deleteButton = event.target.closest('[data-delete-id]');
+  if (deleteButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    requestDeleteMessage(deleteButton.dataset.deleteId);
+    return;
+  }
   const item = event.target.closest('[data-id]');
   if (item) openMessage(item.dataset.id);
+});
+
+deleteDialog.addEventListener('close', () => {
+  const id = pendingDeleteId;
+  pendingDeleteId = '';
+  if (deleteDialog.returnValue === 'confirm') deleteMessage(id);
 });
 
 messageDetail.addEventListener('click', event => {

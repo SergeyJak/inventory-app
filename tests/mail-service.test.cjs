@@ -8,6 +8,7 @@ const {
   createMailSyncCoordinator,
   createPersistentImapConnectionManager,
   createMailAccount,
+  deleteMailboxMessage,
   extractVerificationCode,
   findOriginalRecipient,
   imapDiagnosticsEnabled,
@@ -89,6 +90,12 @@ function checkpointTestDb({ checkpoint = null, accounts = [{ _id: 'account-1', e
           }
           state.messages.push({ ...(patch.$setOnInsert || {}), ...(patch.$set || {}) });
           return { upsertedCount: 1 };
+        },
+        deleteOne: async query => {
+          const index = state.messages.findIndex(message => message._id === query._id && message.accountId === query.accountId);
+          if (index < 0) return { deletedCount: 0 };
+          state.messages.splice(index, 1);
+          return { deletedCount: 1 };
         },
       };
       return { createIndex: async () => 'index' };
@@ -333,6 +340,25 @@ test('steady poll ingests Gmail-Seen messages above the baseline and avoids STAT
   assert.deepStrictEqual(client.calls.fetch[0], [101]);
   assert.strictEqual(db.state.checkpoint.lastProcessedUid, 101);
   assert.strictEqual(db.state.messages[0].imapUid, 101);
+});
+
+test('local mailbox deletion is account-scoped and does not replay the durable UID checkpoint', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 65 } });
+  db.state.messages.push(
+    { _id: 'own-message', accountId: 'account-1', messageId: '<65@mail>', imapUid: 65 },
+    { _id: 'other-message', accountId: 'account-2', messageId: '<other@mail>', imapUid: 65 }
+  );
+
+  assert.strictEqual(await deleteMailboxMessage(db, 'account-1', 'own-message'), true);
+  assert.strictEqual(await deleteMailboxMessage(db, 'account-1', 'other-message'), false);
+  assert.strictEqual(await deleteMailboxMessage(db, 'account-1', 'missing-message'), false);
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 65);
+
+  const client = uidClient({ uidNext: 66, searchResults: [65], fetched: [parsedClientMessage(65)] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage });
+  assert.deepStrictEqual(client.calls.fetch, []);
+  assert.strictEqual(db.state.messages.some(message => message._id === 'own-message'), false);
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 65);
 });
 
 test('inclusive checkpoint 65 filters a stale UID 65 result without fetching or processing it', async () => {

@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex" />
   <title>HeySmart Mail</title>
   <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
-  <link rel="stylesheet" href="/mail.css?v=20260628-polish1" />
+  <link rel="stylesheet" href="/mail.css?v=20260901-delete" />
 </head>
 <body data-mail-screen="checking">
   <main class="mail-shell">
@@ -54,7 +54,16 @@
       </div>
     </section>
   </main>
+  <dialog class="delete-dialog" id="delete-dialog" aria-labelledby="delete-dialog-title">
+    <form method="dialog">
+      <p id="delete-dialog-title">Удалить письмо?</p>
+      <div class="delete-dialog-actions">
+        <button type="submit" value="cancel">Отмена</button>
+        <button type="submit" value="confirm" class="delete-dialog-confirm">Удалить</button>
+      </div>
+    </form>
+  </dialog>
   <div class="toast" id="toast"></div>
-  <script src="/mail.js?v=20260626-i18n2"></script>
+  <script src="/mail.js?v=20260901-delete"></script>
 </body>
 </html>

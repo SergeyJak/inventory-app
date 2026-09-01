@@ -258,6 +258,13 @@ function imapDiagnosticsEnabled(env = process.env) {
   return String(env.MAIL_IMAP_DIAGNOSTICS || '').trim().toLowerCase() === 'true';
 }
 
+async function deleteMailboxMessage(db, accountId, messageId) {
+  const result = await db
+    .collection('mail_messages')
+    .deleteOne({ _id: messageId, accountId });
+  return Boolean(result.deletedCount);
+}
+
 function imapCommandDiagnosticEnabled(env = process.env) {
   return String(env.MAIL_IMAP_COMMAND_DIAGNOSTIC || '').trim().toLowerCase() === 'true';
 }
@@ -2147,6 +2154,30 @@ function createMailService({
     }
   );
 
+  router.delete(
+    '/api/mail/messages/:id',
+    requireMailbox,
+    async (req, res) => {
+      let accountId;
+      let messageId;
+      try {
+        accountId = new ObjectId(req.mailbox.accountId);
+        messageId = new ObjectId(req.params.id);
+      } catch {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      try {
+        const deleted = await deleteMailboxMessage(db(), accountId, messageId);
+        if (!deleted) return res.status(404).json({ error: 'Not found' });
+        return res.json({ ok: true });
+      } catch (err) {
+        console.error('Mail message delete error:', err.message);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+  );
+
   router.post(
     '/api/mail/sync',
     requireMailbox,
@@ -2220,6 +2251,7 @@ module.exports = {
   createPersistentImapConnectionManager,
   createMailAccount,
   createMailService,
+  deleteMailboxMessage,
   ensureMailIndexes,
   extractVerificationCode,
   findOriginalRecipient,
