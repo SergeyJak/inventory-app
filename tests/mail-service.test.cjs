@@ -291,17 +291,54 @@ test('steady poll ingests Gmail-Seen messages above the baseline and avoids STAT
   assert.strictEqual(db.state.messages[0].imapUid, 101);
 });
 
-test('inclusive checkpoint 65 searches from 66 and never fetches UID 65 again', async () => {
+test('inclusive checkpoint 65 filters a stale UID 65 result without fetching or processing it', async () => {
   const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 65 } });
-  const client = uidClient({ searchResults: [] });
+  const client = uidClient({ searchResults: [65] });
   const searches = [];
   await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, {
     connectionManager: reusedManager(client), parser: parseTestMessage,
     onProgress(event, data) { if (event === 'uid-search') searches.push(data); },
   });
   assert.deepStrictEqual(client.calls.search[0], { uid: '66:*' });
-  assert.strictEqual(searches[0].fromUid, 66);
+  assert.strictEqual(searches[0].requestedFromUid, 66);
+  assert.strictEqual(searches[0].rawFoundCount, 1);
+  assert.strictEqual(searches[0].candidateFoundCount, 0);
+  assert.strictEqual(searches[0].rawMinUid, 65);
+  assert.strictEqual(searches[0].rawMaxUid, 65);
   assert.strictEqual(client.calls.fetch.length, 0);
+  assert.strictEqual(db.state.messages.length, 0);
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 65);
+});
+
+test('steady UID filtering fetches only candidates above the inclusive checkpoint', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 65 } });
+  const client = uidClient({ searchResults: [65, 66], fetched: [parsedClientMessage(66)] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, {
+    connectionManager: reusedManager(client), parser: parseTestMessage,
+  });
+  assert.deepStrictEqual(client.calls.fetch[0], [66]);
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 66);
+});
+
+test('steady UID filtering fetches and advances an exact next UID candidate', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 65 } });
+  const client = uidClient({ searchResults: [66], fetched: [parsedClientMessage(66)] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, {
+    connectionManager: reusedManager(client), parser: parseTestMessage,
+  });
+  assert.deepStrictEqual(client.calls.fetch[0], [66]);
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 66);
+});
+
+test('steady UID filtering ignores only-stale results below or at the checkpoint', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 65 } });
+  const client = uidClient({ searchResults: [64, 65] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, {
+    connectionManager: reusedManager(client), parser: parseTestMessage,
+  });
+  assert.strictEqual(client.calls.fetch.length, 0);
+  assert.strictEqual(db.state.messages.length, 0);
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 65);
 });
 
 test('legacy baseline B-1 and restart/reconnect checkpoints resume from B/P+1', async () => {

@@ -1015,8 +1015,28 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
           requestedUids = await client.search({ uid: `${searchFromUid}:*` }, { uid: true });
         }
 
-        requestedUids = [...new Set((requestedUids || []).map(Number))].sort((a, b) => a - b);
-        progress('uid-search', { uidValidity, fromUid: searchFromUid, toUid: requestedUids.at(-1) || null, foundCount: requestedUids.length, recoveryMode: mode });
+        const rawUids = [...new Set((requestedUids || []).map(Number))].sort((a, b) => a - b);
+        if (mode === 'steady') {
+          // IMAP sequence sets are inclusive even when "*" resolves below the
+          // left endpoint (for example, UID 66:* may return UID 65). The
+          // durable checkpoint is authoritative, so never fetch it again.
+          requestedUids = rawUids.filter(uid => uid > Number(checkpoint.lastProcessedUid));
+        } else if (mode === 'uidvalidity-recovery') {
+          // Recovery intentionally revisits historical UIDs, but only within
+          // the exact requested recovery range.
+          requestedUids = rawUids.filter(uid => uid >= searchFromUid && uid < boundaryUid);
+        } else {
+          requestedUids = rawUids;
+        }
+        progress('uid-search', {
+          uidValidity,
+          requestedFromUid: searchFromUid,
+          rawFoundCount: rawUids.length,
+          candidateFoundCount: requestedUids.length,
+          rawMinUid: rawUids.at(0) || null,
+          rawMaxUid: rawUids.at(-1) || null,
+          recoveryMode: mode,
+        });
         phase = 'fetch';
         fetchedMessages = await fetchUidMessages(client, requestedUids, diagnostics);
         fetched = fetchedMessages.length;
