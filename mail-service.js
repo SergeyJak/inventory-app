@@ -469,6 +469,31 @@ function checkpointFilter() {
   return { source: MAIL_SYNC_SOURCE, mailbox: MAIL_SYNC_MAILBOX };
 }
 
+// lastProcessedUid is inclusive: every terminal UID through it is handled.
+// Every future UID SEARCH must therefore begin at lastProcessedUid + 1.
+function nextUidAfter(lastProcessedUid) {
+  return Number(lastProcessedUid) + 1;
+}
+
+async function initializeCheckpoint(db, checkpointDoc) {
+  const collection = db.collection('mail_sync_checkpoints');
+  try {
+    const result = await collection.updateOne(
+      checkpointFilter(),
+      { $setOnInsert: checkpointDoc },
+      { upsert: true }
+    );
+    if (result.upsertedCount) return { created: true, checkpoint: checkpointDoc };
+  } catch (err) {
+    // A concurrent initializer can still win the unique-index race. Load it below.
+    if (err?.code !== 11000 && err?.codeName !== 'DuplicateKey') throw err;
+  }
+
+  const existing = await collection.findOne(checkpointFilter());
+  if (!existing) throw new Error('Mail checkpoint initialization did not persist');
+  return { created: false, checkpoint: existing };
+}
+
 async function fetchUidMessages(client, uids, diagnostics) {
   if (!uids.length) return [];
   const startedAt = Date.now();
@@ -932,6 +957,7 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
       let requestedUids = [];
       let uidValidity;
       let fetchedMessages = [];
+      let searchFromUid = 1;
 
       try {
         uidValidity = uidValidityValue(client.mailbox?.uidValidity);
@@ -953,6 +979,7 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
           uidValidity = uidValidityValue(status.uidValidity || client.mailbox?.uidValidity);
           boundaryUid = Math.max(1, Number(status.uidNext || client.mailbox?.uidNext || 1));
           const legacyRange = boundaryUid > 1 ? `1:${boundaryUid - 1}` : '';
+          searchFromUid = 1;
           requestedUids = legacyRange
             ? await client.search({ uid: legacyRange, seen: false }, { uid: true })
             : [];
@@ -978,19 +1005,18 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
             progress('uidvalidity-recovery-start', { uidValidity, toUid: boundaryUid - 1, recoveryMode: mode });
           }
           boundaryUid = Number(checkpoint.recoveryBoundaryUid);
-          const fromUid = Number(checkpoint.recoveryNextUid || 1);
-          requestedUids = fromUid < boundaryUid
-            ? (await client.search({ uid: `${fromUid}:${boundaryUid - 1}` }, { uid: true })).slice(0, UIDVALIDITY_RECOVERY_BATCH_SIZE)
+          searchFromUid = Number(checkpoint.recoveryNextUid || 1);
+          requestedUids = searchFromUid < boundaryUid
+            ? (await client.search({ uid: `${searchFromUid}:${boundaryUid - 1}` }, { uid: true })).slice(0, UIDVALIDITY_RECOVERY_BATCH_SIZE)
             : [];
         } else {
           mode = 'steady';
-          const fromUid = Number(checkpoint.lastProcessedUid) + 1;
-          requestedUids = await client.search({ uid: `${fromUid}:*` }, { uid: true });
+          searchFromUid = nextUidAfter(checkpoint.lastProcessedUid);
+          requestedUids = await client.search({ uid: `${searchFromUid}:*` }, { uid: true });
         }
 
         requestedUids = [...new Set((requestedUids || []).map(Number))].sort((a, b) => a - b);
-        const fromUid = requestedUids[0] || (mode === 'steady' ? Number(checkpoint.lastProcessedUid) + 1 : 1);
-        progress('uid-search', { uidValidity, fromUid, toUid: requestedUids.at(-1) || null, foundCount: requestedUids.length, recoveryMode: mode });
+        progress('uid-search', { uidValidity, fromUid: searchFromUid, toUid: requestedUids.at(-1) || null, foundCount: requestedUids.length, recoveryMode: mode });
         phase = 'fetch';
         fetchedMessages = await fetchUidMessages(client, requestedUids, diagnostics);
         fetched = fetchedMessages.length;
@@ -1012,8 +1038,13 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
           legacyBaselineUid: boundaryUid - 1, mode: 'post-legacy-baseline',
           initializedAt: new Date(), updatedAt: new Date(), lastSuccessAt: new Date(),
         };
-        await db.collection('mail_sync_checkpoints').insertOne(checkpointDoc);
-        progress('checkpoint-initialized', { uidValidity, checkpointAfter: checkpointDoc.lastProcessedUid, recoveryMode: mode });
+        const initialized = await initializeCheckpoint(db, checkpointDoc);
+        checkpoint = initialized.checkpoint;
+        progress(initialized.created ? 'checkpoint-initialized' : 'checkpoint-loaded', {
+          uidValidity: checkpoint.uidValidity,
+          checkpointAfter: checkpoint.lastProcessedUid,
+          recoveryMode: mode,
+        });
       } else if (mode === 'uidvalidity-recovery') {
         const nextUid = processed.lastTerminalUid ? processed.lastTerminalUid + 1 : Number(checkpoint.recoveryNextUid || 1);
         if (processed.lastTerminalUid) {
