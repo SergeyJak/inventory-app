@@ -6,3 +6,5 @@ artifacts/
 test-results/
 .codex/
 *.mmdb
+scripts/imap-latency-test.cjs
+scripts/raw-imap-latency-test.cjs
