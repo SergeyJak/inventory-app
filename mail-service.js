@@ -16,6 +16,7 @@ const IMAP_SOCKET_TIMEOUT_MS = 30000;
 const MAIL_SYNC_TIMEOUT_MS = 45000;
 const MAIL_LOGOUT_TIMEOUT_MS = 5000;
 const MAIL_SYNC_OPERATION_TIMEOUT_MS = MAIL_SYNC_TIMEOUT_MS - MAIL_LOGOUT_TIMEOUT_MS;
+const MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS = 90000;
 const DEFAULT_MAIL_TTL_SECONDS = 30 * 24 * 60 * 60;
 const loginAttempts = new Map();
 
@@ -413,15 +414,23 @@ function mailSyncTimeoutError(timeoutMs = MAIL_SYNC_TIMEOUT_MS) {
 
 async function withMailSyncDeadline(operation, onTimeout, timeoutMs = MAIL_SYNC_TIMEOUT_MS) {
   let timer;
+  let deferredTimeout = null;
   try {
     return await Promise.race([
-      operation,
+      Promise.resolve(operation).then(result => {
+        if (deferredTimeout) throw deferredTimeout;
+        return result;
+      }),
       new Promise((resolve, reject) => {
         timer = setTimeout(() => {
           try {
-            onTimeout?.();
+            const defer = onTimeout?.();
+            if (defer) {
+              deferredTimeout = mailSyncTimeoutError(timeoutMs);
+              return;
+            }
           } finally {
-            reject(mailSyncTimeoutError(timeoutMs));
+            if (!deferredTimeout) reject(mailSyncTimeoutError(timeoutMs));
           }
         }, timeoutMs);
       }),
@@ -429,6 +438,17 @@ async function withMailSyncDeadline(operation, onTimeout, timeoutMs = MAIL_SYNC_
   } finally {
     clearTimeout(timer);
   }
+}
+
+function mailSyncDeadlineMs({ persistent = false, connectionMode = 'new', timeoutMs } = {}) {
+  if (Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0) return Number(timeoutMs);
+  return persistent && connectionMode === 'new'
+    ? MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS
+    : MAIL_SYNC_OPERATION_TIMEOUT_MS;
+}
+
+function isApplicationProcessingPhase(phase) {
+  return phase === 'parse' || phase === 'account' || phase === 'write';
 }
 
 async function ensureMailIndexes(db, options = {}) {
@@ -766,12 +786,19 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
     ? await connectionManager.getClient(diagnostics)
     : { client: (options.createClient || createImapClient)(env, 'poll', diagnostics), reused: false };
   const client = clientInfo.client;
+  const connectionMode = clientInfo.reused ? 'reused' : 'new';
+  const deadlineMs = mailSyncDeadlineMs({
+    persistent: Boolean(connectionManager),
+    connectionMode,
+    timeoutMs: options.timeoutMs,
+  });
 
   let saved = 0;
   let skipped = 0;
   let fetched = 0;
   let matched = 0;
   let phase = 'connect';
+  let preservedApplicationTimeout = false;
   const startedAt = Date.now();
   const progress = (event, data = {}) => options.onProgress?.(event, {
     pollId: options.pollId,
@@ -779,6 +806,8 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
     durationMs: Date.now() - startedAt,
     ...data,
   });
+
+  progress('deadline', { connectionMode, deadlineMs });
 
   try {
     return await withMailSyncDeadline((async () => {
@@ -795,6 +824,7 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
       const lockStartedAt = Date.now();
       const lock = await client.getMailboxLock('INBOX');
       diagnostics.log('mailbox-lock', { durationMs: Date.now() - lockStartedAt });
+      const fetchedMessages = [];
 
       try {
         const statusStartedAt = Date.now();
@@ -814,70 +844,87 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
           )
         ) {
           fetched++;
-          phase = 'parse';
-          const parsed = await simpleParser(message.source);
-
-          const email = findOriginalRecipient(parsed);
-
-          if (!email) {
-            skipped++;
-            continue;
-          }
-
-          phase = 'account';
-          const account = await db
-            .collection('mail_accounts')
-            .findOne({
-              email,
-              active: true,
-            });
-
-          if (!account) {
-            skipped++;
-            continue;
-          }
-
-          matched++;
-          const doc = mapParsedMessage(parsed, {
-            accountId: account._id,
-            email,
-            fallbackMessageId: `imap:${message.uid}`,
-          });
-
-          phase = 'write';
-          const result = await db
-            .collection('mail_messages')
-            .updateOne(
-              {
-                accountId: account._id,
-                messageId: doc.messageId,
-              },
-              {
-                $setOnInsert: doc,
-              },
-              {
-                upsert: true,
-              }
-            );
-
-          if (result.upsertedCount) {
-            saved++;
-          } else {
-            skipped++;
-          }
+          fetchedMessages.push(message);
         }
-
-        return { ok: true, saved, skipped, fetched, matched };
       } finally {
         lock.release();
       }
+
+      for (const message of fetchedMessages) {
+        phase = 'parse';
+        const parsed = await simpleParser(message.source);
+
+        const email = findOriginalRecipient(parsed);
+
+        if (!email) {
+          skipped++;
+          continue;
+        }
+
+        phase = 'account';
+        const account = await db
+          .collection('mail_accounts')
+          .findOne({
+            email,
+            active: true,
+          });
+
+        if (!account) {
+          skipped++;
+          continue;
+        }
+
+        matched++;
+        const doc = mapParsedMessage(parsed, {
+          accountId: account._id,
+          email,
+          fallbackMessageId: `imap:${message.uid}`,
+        });
+
+        phase = 'write';
+        const result = await db
+          .collection('mail_messages')
+          .updateOne(
+            {
+              accountId: account._id,
+              messageId: doc.messageId,
+            },
+            {
+              $setOnInsert: doc,
+            },
+            {
+              upsert: true,
+            }
+          );
+
+        if (result.upsertedCount) {
+          saved++;
+        } else {
+          skipped++;
+        }
+      }
+
+      return { ok: true, saved, skipped, fetched, matched };
     })(), () => {
+      const preserveConnection = Boolean(
+        connectionManager &&
+        clientInfo.reused &&
+        isApplicationProcessingPhase(phase) &&
+        connectionManager.usable()
+      );
+      if (preserveConnection) {
+        preservedApplicationTimeout = true;
+        return true;
+      }
       if (connectionManager) connectionManager.invalidate('sync-timeout');
       else closeImapClient(client);
-    }, options.timeoutMs || MAIL_SYNC_OPERATION_TIMEOUT_MS);
+      return false;
+    }, deadlineMs);
   } catch (err) {
     err.mailSyncPhase = phase;
-    if (connectionManager) connectionManager.invalidate(err.code || 'sync-error');
+    if (connectionManager && !(preservedApplicationTimeout && err.code === 'MAIL_SYNC_TIMEOUT')) {
+      connectionManager.invalidate(err.code || 'sync-error');
+    }
     throw err;
   } finally {
     if (!connectionManager) {
@@ -1662,7 +1709,9 @@ module.exports = {
   IMAP_CONNECTION_TIMEOUT_MS,
   IMAP_GREETING_TIMEOUT_MS,
   IMAP_SOCKET_TIMEOUT_MS,
+  MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS,
   MAIL_SYNC_TIMEOUT_MS,
+  mailSyncDeadlineMs,
   mailPollIntervalMs,
   mapParsedMessage,
   normalizeMailEmail,

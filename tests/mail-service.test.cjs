@@ -14,6 +14,8 @@ const {
   IMAP_CONNECTION_TIMEOUT_MS,
   IMAP_GREETING_TIMEOUT_MS,
   IMAP_SOCKET_TIMEOUT_MS,
+  MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS,
+  mailSyncDeadlineMs,
   mapParsedMessage,
   normalizeMailEmail,
   pollInboxOnce,
@@ -225,6 +227,117 @@ test('persistent IMAP manager logs out and closes its client during graceful shu
   await manager.shutdown();
   assert.strictEqual(loggedOut, true);
   assert.strictEqual(closed, true);
+});
+
+test('persistent bootstrap uses a longer deadline while reused polls retain the normal deadline', () => {
+  assert.strictEqual(mailSyncDeadlineMs({ persistent: true, connectionMode: 'new' }), MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS);
+  assert.strictEqual(mailSyncDeadlineMs({ persistent: true, connectionMode: 'reused' }), 40000);
+  assert.strictEqual(mailSyncDeadlineMs({ persistent: true, connectionMode: 'new', timeoutMs: 20 }), 20);
+});
+
+test('successful bootstrap client survives and is reused by the second poll', async () => {
+  let created = 0;
+  let connected = 0;
+  const deadlineEvents = [];
+  const client = new EventEmitter();
+  client.usable = true;
+  client.isClosed = false;
+  client.socket = { destroyed: false };
+  client.connect = async () => { connected++; };
+  client.getMailboxLock = async () => ({ release() {} });
+  client.status = async () => ({ unseen: 0 });
+  client.fetch = async function* () {};
+  client.close = () => { client.isClosed = true; client.socket.destroyed = true; client.emit('close'); };
+  client.logout = async () => {};
+  const manager = createPersistentImapConnectionManager({
+    env: {},
+    createClient: () => { created++; return client; },
+  });
+  const db = { collection: () => ({}) };
+  const env = { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' };
+  await pollInboxOnce(db, env, {
+    connectionManager: manager,
+    onProgress(event, data) { if (event === 'deadline') deadlineEvents.push(data); },
+  });
+  await pollInboxOnce(db, env, {
+    connectionManager: manager,
+    onProgress(event, data) { if (event === 'deadline') deadlineEvents.push(data); },
+  });
+  assert.strictEqual(created, 1);
+  assert.strictEqual(connected, 1);
+  assert.deepStrictEqual(deadlineEvents.map(event => [event.connectionMode, event.deadlineMs]), [
+    ['new', MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS],
+    ['reused', 40000],
+  ]);
+});
+
+test('processing timeout preserves a healthy reused IMAP client after releasing its mailbox lock', async () => {
+  let released = false;
+  let closed = false;
+  const client = new EventEmitter();
+  client.usable = true;
+  client.isClosed = false;
+  client.socket = { destroyed: false };
+  client.getMailboxLock = async () => ({ release() { released = true; } });
+  client.status = async () => ({ unseen: 1 });
+  client.fetch = async function* () {
+    yield { uid: 1, source: Buffer.from('To: client@heysmart.lv\r\n\r\nHello') };
+  };
+  client.close = () => { closed = true; client.isClosed = true; client.socket.destroyed = true; client.emit('close'); };
+  client.logout = async () => {};
+  const manager = createPersistentImapConnectionManager({ env: {}, createClient: () => client });
+  await manager.getClient({ enabled: false, log() {} });
+  const db = {
+    collection: () => ({
+      findOne: async () => {
+        assert.strictEqual(released, true);
+        return new Promise(resolve => setTimeout(() => resolve(null), 30));
+      },
+    }),
+  };
+  await assert.rejects(
+    () => pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, {
+      connectionManager: manager,
+      timeoutMs: 10,
+    }),
+    err => err.code === 'MAIL_SYNC_TIMEOUT'
+  );
+  assert.strictEqual(released, true);
+  assert.strictEqual(closed, false);
+  assert.strictEqual((await manager.getClient({ enabled: false, log() {} })).reused, true);
+});
+
+test('IMAP operation failure invalidates the persistent client', async () => {
+  let closed = false;
+  let created = 0;
+  const client = new EventEmitter();
+  client.usable = true;
+  client.isClosed = false;
+  client.socket = { destroyed: false };
+  client.getMailboxLock = async () => {
+    const err = new Error('socket reset');
+    err.code = 'ECONNRESET';
+    throw err;
+  };
+  client.close = () => { closed = true; client.isClosed = true; client.socket.destroyed = true; client.emit('close'); };
+  client.logout = async () => {};
+  const replacement = new EventEmitter();
+  replacement.usable = true;
+  replacement.isClosed = false;
+  replacement.socket = { destroyed: false };
+  replacement.close = () => {};
+  replacement.logout = async () => {};
+  const manager = createPersistentImapConnectionManager({
+    env: {},
+    createClient: () => (++created === 1 ? client : replacement),
+  });
+  await manager.getClient({ enabled: false, log() {} });
+  await assert.rejects(
+    () => pollInboxOnce({}, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: manager }),
+    /socket reset/
+  );
+  assert.strictEqual(closed, true);
+  assert.strictEqual((await manager.getClient({ enabled: false, log() {} })).reused, false);
 });
 
 test('mail sync coordinator prevents overlapping manual sync while background sync runs', async () => {
