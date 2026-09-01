@@ -38,6 +38,84 @@ function test(name, fn) {
     });
 }
 
+function checkpointTestDb({ checkpoint = null, accounts = [{ _id: 'account-1', email: 'client@heysmart.lv', active: true }], checkpointUpdateError = null, messageUpdateError = null } = {}) {
+  const state = { checkpoint, messages: [], calls: [] };
+  return {
+    state,
+    collection(name) {
+      if (name === 'mail_sync_checkpoints') return {
+        findOne: async () => state.checkpoint,
+        insertOne: async doc => { state.checkpoint = { ...doc }; },
+        updateOne: async (filter, patch) => {
+          if (checkpointUpdateError) throw checkpointUpdateError;
+          state.calls.push({ name, filter, patch });
+          if (!state.checkpoint) return { matchedCount: 0 };
+          Object.assign(state.checkpoint, patch.$set || {});
+          for (const key of Object.keys(patch.$unset || {})) delete state.checkpoint[key];
+          return { matchedCount: 1 };
+        },
+        createIndex: async () => 'checkpoint-index',
+      };
+      if (name === 'mail_accounts') return {
+        findOne: async query => accounts.find(account => account.email === query.email && account.active === query.active) || null,
+      };
+      if (name === 'mail_messages') return {
+        updateOne: async (query, patch) => {
+          if (messageUpdateError) throw messageUpdateError;
+          const existing = state.messages.find(message => message.accountId === query.accountId && message.messageId === query.messageId);
+          if (existing) {
+            Object.assign(existing, patch.$set || {});
+            return { upsertedCount: 0 };
+          }
+          state.messages.push({ ...(patch.$setOnInsert || {}), ...(patch.$set || {}) });
+          return { upsertedCount: 1 };
+        },
+      };
+      return { createIndex: async () => 'index' };
+    },
+  };
+}
+
+function uidClient({ uidValidity = 1n, uidNext = 1, searchResults = [], fetched = [], fetchError = null } = {}) {
+  const calls = { status: 0, search: [], fetch: [] };
+  return {
+    calls,
+    usable: true,
+    mailbox: { uidValidity, uidNext },
+    getMailboxLock: async () => ({ release() {} }),
+    status: async () => { calls.status++; return { uidValidity, uidNext }; },
+    search: async query => { calls.search.push(query); return typeof searchResults === 'function' ? searchResults(query) : searchResults; },
+    fetch: async function* (uids) {
+      calls.fetch.push([...uids]);
+      if (fetchError) throw fetchError;
+      for (const message of fetched) yield message;
+    },
+  };
+}
+
+function reusedManager(client) {
+  return { getClient: async () => ({ client, reused: true }), usable: () => true, invalidate() {} };
+}
+
+function parsedClientMessage(uid, recipient = 'client@heysmart.lv', messageId = `<${uid}@mail>`) {
+  return {
+    uid,
+    source: Buffer.from(`To: ${recipient}\r\nMessage-ID: ${messageId}\r\n\r\nHello`),
+  };
+}
+
+async function parseTestMessage(source) {
+  const raw = String(source);
+  const uid = (raw.match(/<([^>]+)>/) || [])[1] || 'message@mail';
+  const recipient = (raw.match(/To:\s*([^\r\n]+)/i) || [])[1] || '';
+  return {
+    messageId: `<${uid}>`,
+    to: { text: recipient, value: [{ address: recipient }] },
+    from: { text: 'sender@example.com' },
+    subject: 'Test', text: 'Hello', html: '', date: new Date(), headers: headers([]),
+  };
+}
+
 test('normalizeMailEmail accepts only heysmart.lv mailbox addresses', () => {
   assert.strictEqual(normalizeMailEmail('  Alstrix1023@HeySmart.lv  '), 'alstrix1023@heysmart.lv');
   assert.strictEqual(normalizeMailEmail('bad@gmail.com'), '');
@@ -175,6 +253,101 @@ test('IMAP diagnostic markers never include command payloads or credentials', ()
   assert.deepStrictEqual(imapLogMarker({ src: 's', msg: '* 1 FETCH (UID 1)' }), { phase: 'imap-command-FETCH', direction: 'received', kind: 'untagged-response' });
 });
 
+test('first legacy migration creates a UIDNEXT-safe unread-only baseline', async () => {
+  const db = checkpointTestDb();
+  const client = uidClient({ uidNext: 101, searchResults: [99], fetched: [parsedClientMessage(99)] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage });
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 100);
+  assert.strictEqual(db.state.checkpoint.legacyBaselineUid, 100);
+  assert.strictEqual(db.state.messages.length, 1);
+  assert.deepStrictEqual(client.calls.search[0], { uid: '1:100', seen: false });
+});
+
+test('steady poll ingests Gmail-Seen messages above the baseline and avoids STATUS', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 100, mode: 'post-legacy-baseline' } });
+  const client = uidClient({ uidNext: 102, searchResults: [101], fetched: [parsedClientMessage(101)] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage });
+  assert.deepStrictEqual(client.calls.search[0], { uid: '101:*' });
+  assert.strictEqual(client.calls.status, 0);
+  assert.deepStrictEqual(client.calls.fetch[0], [101]);
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 101);
+  assert.strictEqual(db.state.messages[0].imapUid, 101);
+});
+
+test('steady UID polls skip FETCH for empty results and handle UID gaps in ascending order', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 100 } });
+  const emptyClient = uidClient({ searchResults: [] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(emptyClient), parser: parseTestMessage });
+  assert.strictEqual(emptyClient.calls.fetch.length, 0);
+
+  const client = uidClient({ searchResults: [101, 103], fetched: [parsedClientMessage(103), parsedClientMessage(101)] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage });
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 103);
+  assert.deepStrictEqual(db.state.messages.map(message => message.imapUid).sort((a, b) => a - b), [101, 103]);
+});
+
+test('duplicate, unknown recipient, and successful omitted UID are terminal checkpoint outcomes', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 100 } });
+  db.state.messages.push({ accountId: 'account-1', messageId: '<101@mail>' });
+  const client = uidClient({ searchResults: [101, 102, 103], fetched: [parsedClientMessage(101), parsedClientMessage(102, 'unknown@heysmart.lv')] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage });
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 103);
+  assert.strictEqual(db.state.messages[0].imapUid, 101);
+});
+
+test('parse failure stops advancement and checkpoint write failure safely retries', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 100 } });
+  const client = uidClient({ searchResults: [101, 102], fetched: [parsedClientMessage(101), parsedClientMessage(102)] });
+  await assert.rejects(
+    () => pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, {
+      connectionManager: reusedManager(client),
+      parser: async source => String(source).includes('102@mail>') ? Promise.reject(new Error('parse failed')) : parseTestMessage(source),
+    }),
+    /parse failed/
+  );
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 101);
+});
+
+test('Mongo and checkpoint write failures do not advance the UID checkpoint', async () => {
+  const checkpoint = { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 100 };
+  const messageFailureDb = checkpointTestDb({ checkpoint: { ...checkpoint }, messageUpdateError: new Error('mongo failed') });
+  const client = uidClient({ searchResults: [101], fetched: [parsedClientMessage(101)] });
+  await assert.rejects(
+    () => pollInboxOnce(messageFailureDb, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage }),
+    /mongo failed/
+  );
+  assert.strictEqual(messageFailureDb.state.checkpoint.lastProcessedUid, 100);
+
+  const checkpointFailureDb = checkpointTestDb({ checkpoint: { ...checkpoint }, checkpointUpdateError: new Error('checkpoint failed') });
+  await assert.rejects(
+    () => pollInboxOnce(checkpointFailureDb, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage }),
+    /checkpoint failed/
+  );
+  assert.strictEqual(checkpointFailureDb.state.checkpoint.lastProcessedUid, 100);
+});
+
+test('failed UID FETCH does not classify missing messages as expunged', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 100 } });
+  const client = uidClient({ searchResults: [101], fetchError: new Error('fetch failed') });
+  await assert.rejects(
+    () => pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage }),
+    /fetch failed/
+  );
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 100);
+});
+
+test('UIDVALIDITY recovery searches all UIDs and never uses Seen-only filtering', async () => {
+  const db = checkpointTestDb({ checkpoint: { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 80 } });
+  const client = uidClient({ uidValidity: 2n, uidNext: 4, searchResults: query => query.uid === '1:3' ? [1, 2, 3] : [], fetched: [parsedClientMessage(1), parsedClientMessage(2), parsedClientMessage(3)] });
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage });
+  assert.deepStrictEqual(client.calls.search[0], { uid: '1:3' });
+  assert.strictEqual(client.calls.status, 1);
+  assert.strictEqual(db.state.checkpoint.recoveryUidValidity, '2');
+  await pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, { connectionManager: reusedManager(client), parser: parseTestMessage });
+  assert.strictEqual(db.state.checkpoint.uidValidity, '2');
+  assert.strictEqual(db.state.checkpoint.lastProcessedUid, 3);
+});
+
 test('persistent IMAP manager reuses a usable client and reconnects after close or unusable state', async () => {
   let created = 0;
   const clients = [];
@@ -243,9 +416,11 @@ test('successful bootstrap client survives and is reused by the second poll', as
   client.usable = true;
   client.isClosed = false;
   client.socket = { destroyed: false };
+  client.mailbox = { uidValidity: 1n, uidNext: 1 };
   client.connect = async () => { connected++; };
   client.getMailboxLock = async () => ({ release() {} });
-  client.status = async () => ({ unseen: 0 });
+  client.status = async () => ({ uidValidity: 1n, uidNext: 1 });
+  client.search = async () => [];
   client.fetch = async function* () {};
   client.close = () => { client.isClosed = true; client.socket.destroyed = true; client.emit('close'); };
   client.logout = async () => {};
@@ -253,7 +428,17 @@ test('successful bootstrap client survives and is reused by the second poll', as
     env: {},
     createClient: () => { created++; return client; },
   });
-  const db = { collection: () => ({}) };
+  let checkpoint = null;
+  const db = {
+    collection(name) {
+      if (name === 'mail_sync_checkpoints') return {
+        findOne: async () => checkpoint,
+        insertOne: async doc => { checkpoint = doc; },
+        updateOne: async () => ({ matchedCount: 1 }),
+      };
+      return {};
+    },
+  };
   const env = { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' };
   await pollInboxOnce(db, env, {
     connectionManager: manager,
@@ -278,8 +463,9 @@ test('processing timeout preserves a healthy reused IMAP client after releasing 
   client.usable = true;
   client.isClosed = false;
   client.socket = { destroyed: false };
+  client.mailbox = { uidValidity: 1n, uidNext: 2 };
   client.getMailboxLock = async () => ({ release() { released = true; } });
-  client.status = async () => ({ unseen: 1 });
+  client.search = async () => [1];
   client.fetch = async function* () {
     yield { uid: 1, source: Buffer.from('To: client@heysmart.lv\r\n\r\nHello') };
   };
@@ -287,13 +473,21 @@ test('processing timeout preserves a healthy reused IMAP client after releasing 
   client.logout = async () => {};
   const manager = createPersistentImapConnectionManager({ env: {}, createClient: () => client });
   await manager.getClient({ enabled: false, log() {} });
+  const checkpoint = { source: 'gmail-primary', mailbox: 'INBOX', uidValidity: '1', lastProcessedUid: 0 };
   const db = {
-    collection: () => ({
-      findOne: async () => {
-        assert.strictEqual(released, true);
-        return new Promise(resolve => setTimeout(() => resolve(null), 30));
-      },
-    }),
+    collection(name) {
+      if (name === 'mail_sync_checkpoints') return {
+        findOne: async () => checkpoint,
+        updateOne: async () => ({ matchedCount: 1 }),
+      };
+      if (name === 'mail_accounts') return {
+        findOne: async () => {
+          assert.strictEqual(released, true);
+          return new Promise(resolve => setTimeout(() => resolve(null), 30));
+        },
+      };
+      return {};
+    },
   };
   await assert.rejects(
     () => pollInboxOnce(db, { IMAP_USER: 'user', IMAP_PASSWORD: 'pass' }, {

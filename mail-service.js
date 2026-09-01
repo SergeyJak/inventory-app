@@ -18,6 +18,9 @@ const MAIL_LOGOUT_TIMEOUT_MS = 5000;
 const MAIL_SYNC_OPERATION_TIMEOUT_MS = MAIL_SYNC_TIMEOUT_MS - MAIL_LOGOUT_TIMEOUT_MS;
 const MAIL_SYNC_BOOTSTRAP_TIMEOUT_MS = 90000;
 const DEFAULT_MAIL_TTL_SECONDS = 30 * 24 * 60 * 60;
+const MAIL_SYNC_SOURCE = 'gmail-primary';
+const MAIL_SYNC_MAILBOX = 'INBOX';
+const UIDVALIDITY_RECOVERY_BATCH_SIZE = 100;
 const loginAttempts = new Map();
 
 function normalizeMailEmail(value) {
@@ -154,6 +157,11 @@ function mapParsedMessage(parsed, options) {
     receivedAt,
     isRead: false,
     createdAt: new Date(),
+    ...(options.imapMailbox ? {
+      imapMailbox: options.imapMailbox,
+      imapUidValidity: String(options.imapUidValidity || ''),
+      imapUid: Number(options.imapUid),
+    } : {}),
   };
 }
 
@@ -451,6 +459,96 @@ function isApplicationProcessingPhase(phase) {
   return phase === 'parse' || phase === 'account' || phase === 'write';
 }
 
+function uidValidityValue(value) {
+  const normalized = String(value || '').trim();
+  if (!/^\d+$/.test(normalized)) throw new Error('IMAP UIDVALIDITY is unavailable');
+  return normalized;
+}
+
+function checkpointFilter() {
+  return { source: MAIL_SYNC_SOURCE, mailbox: MAIL_SYNC_MAILBOX };
+}
+
+async function fetchUidMessages(client, uids, diagnostics) {
+  if (!uids.length) return [];
+  const startedAt = Date.now();
+  const messages = [];
+  for await (const message of client.fetch(
+    uids,
+    { uid: true, source: true, envelope: true },
+    { uid: true }
+  )) {
+    messages.push(message);
+  }
+  diagnostics.log('uid-fetch', { durationMs: Date.now() - startedAt, fetchedCount: messages.length });
+  return messages;
+}
+
+async function processUidMessages(db, messages, requestedUids, uidValidity, options = {}) {
+  const byUid = new Map(messages.map(message => [Number(message.uid), message]));
+  const requested = [...requestedUids].sort((a, b) => a - b);
+  const parser = options.parser || simpleParser;
+  const result = { saved: 0, skipped: 0, matched: 0, terminalCount: 0, lastTerminalUid: null, failure: null };
+
+  for (const uid of requested) {
+    try {
+      const message = byUid.get(uid);
+      if (!message) {
+        // SEARCH succeeded and FETCH completed without this UID: it was expunged.
+        result.skipped++;
+      } else {
+        const parsed = await parser(message.source);
+        const email = findOriginalRecipient(parsed);
+        if (!email) {
+          result.skipped++;
+        } else {
+          const account = await db.collection('mail_accounts').findOne({ email, active: true });
+          if (!account) {
+            result.skipped++;
+          } else {
+            result.matched++;
+            const doc = mapParsedMessage(parsed, {
+              accountId: account._id,
+              email,
+              fallbackMessageId: `imap:${uid}`,
+            });
+            const audit = {
+              imapMailbox: MAIL_SYNC_MAILBOX,
+              imapUidValidity: uidValidity,
+              imapUid: uid,
+            };
+            const write = await db.collection('mail_messages').updateOne(
+              { accountId: account._id, messageId: doc.messageId },
+              { $setOnInsert: doc, $set: audit },
+              { upsert: true }
+            );
+            if (write.upsertedCount) result.saved++;
+            else result.skipped++;
+          }
+        }
+      }
+      result.terminalCount++;
+      result.lastTerminalUid = uid;
+    } catch (err) {
+      result.failure = err;
+      break;
+    }
+  }
+  return result;
+}
+
+async function advanceCheckpoint(db, checkpoint, checkpointAfter, extra = {}) {
+  const result = await db.collection('mail_sync_checkpoints').updateOne(
+    {
+      ...checkpointFilter(),
+      uidValidity: checkpoint.uidValidity,
+      lastProcessedUid: checkpoint.lastProcessedUid,
+    },
+    { $set: { lastProcessedUid: checkpointAfter, updatedAt: new Date(), lastSuccessAt: new Date(), ...extra } }
+  );
+  if (!result.matchedCount) throw new Error('Mail checkpoint update did not match the current generation');
+}
+
 async function ensureMailIndexes(db, options = {}) {
   const ttlSeconds = Number(
     options.ttlSeconds ||
@@ -480,6 +578,10 @@ async function ensureMailIndexes(db, options = {}) {
         { createdAt: 1 },
         { expireAfterSeconds: ttlSeconds }
       ),
+
+    db
+      .collection('mail_sync_checkpoints')
+      .createIndex({ source: 1, mailbox: 1 }, { unique: true }),
   ]);
 }
 
@@ -822,86 +924,117 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
 
       phase = 'inbox';
       const lockStartedAt = Date.now();
-      const lock = await client.getMailboxLock('INBOX');
+      const lock = await client.getMailboxLock(MAIL_SYNC_MAILBOX);
       diagnostics.log('mailbox-lock', { durationMs: Date.now() - lockStartedAt });
-      const fetchedMessages = [];
+      let checkpoint;
+      let mode;
+      let boundaryUid = null;
+      let requestedUids = [];
+      let uidValidity;
+      let fetchedMessages = [];
 
       try {
-        const statusStartedAt = Date.now();
-        const status = await client.status('INBOX', { unseen: true });
-        diagnostics.log('status', { durationMs: Date.now() - statusStartedAt });
-        progress('inbox', { unread: status.unseen || 0 });
-
-        phase = 'fetch';
-        for await (
-          const message of client.fetch(
-            { seen: false },
-            {
-              uid: true,
-              source: true,
-              envelope: true,
-            }
-          )
-        ) {
-          fetched++;
-          fetchedMessages.push(message);
+        uidValidity = uidValidityValue(client.mailbox?.uidValidity);
+        checkpoint = await db.collection('mail_sync_checkpoints').findOne(checkpointFilter());
+        if (checkpoint) {
+          progress('checkpoint-loaded', {
+            uidValidity: checkpoint.uidValidity,
+            checkpointBefore: checkpoint.lastProcessedUid,
+            recoveryMode: checkpoint.mode || 'post-legacy-baseline',
+          });
         }
+
+        if (!checkpoint) {
+          mode = 'legacy-baseline';
+          progress('checkpoint-initializing', { uidValidity, recoveryMode: mode });
+          const statusStartedAt = Date.now();
+          const status = await client.status(MAIL_SYNC_MAILBOX, { uidValidity: true, uidNext: true });
+          diagnostics.log('status', { durationMs: Date.now() - statusStartedAt });
+          uidValidity = uidValidityValue(status.uidValidity || client.mailbox?.uidValidity);
+          boundaryUid = Math.max(1, Number(status.uidNext || client.mailbox?.uidNext || 1));
+          const legacyRange = boundaryUid > 1 ? `1:${boundaryUid - 1}` : '';
+          requestedUids = legacyRange
+            ? await client.search({ uid: legacyRange, seen: false }, { uid: true })
+            : [];
+        } else if (checkpoint.uidValidity !== uidValidity) {
+          mode = 'uidvalidity-recovery';
+          progress('uidvalidity-changed', { checkpointBefore: checkpoint.lastProcessedUid, uidValidity, recoveryMode: mode });
+          if (checkpoint.recoveryUidValidity !== uidValidity) {
+            const statusStartedAt = Date.now();
+            const status = await client.status(MAIL_SYNC_MAILBOX, { uidValidity: true, uidNext: true });
+            diagnostics.log('status', { durationMs: Date.now() - statusStartedAt });
+            uidValidity = uidValidityValue(status.uidValidity || uidValidity);
+            boundaryUid = Math.max(1, Number(status.uidNext || client.mailbox?.uidNext || 1));
+            await db.collection('mail_sync_checkpoints').updateOne(checkpointFilter(), {
+              $set: {
+                mode,
+                recoveryUidValidity: uidValidity,
+                recoveryBoundaryUid: boundaryUid,
+                recoveryNextUid: 1,
+                updatedAt: new Date(),
+              },
+            });
+            checkpoint = { ...checkpoint, recoveryUidValidity: uidValidity, recoveryBoundaryUid: boundaryUid, recoveryNextUid: 1 };
+            progress('uidvalidity-recovery-start', { uidValidity, toUid: boundaryUid - 1, recoveryMode: mode });
+          }
+          boundaryUid = Number(checkpoint.recoveryBoundaryUid);
+          const fromUid = Number(checkpoint.recoveryNextUid || 1);
+          requestedUids = fromUid < boundaryUid
+            ? (await client.search({ uid: `${fromUid}:${boundaryUid - 1}` }, { uid: true })).slice(0, UIDVALIDITY_RECOVERY_BATCH_SIZE)
+            : [];
+        } else {
+          mode = 'steady';
+          const fromUid = Number(checkpoint.lastProcessedUid) + 1;
+          requestedUids = await client.search({ uid: `${fromUid}:*` }, { uid: true });
+        }
+
+        requestedUids = [...new Set((requestedUids || []).map(Number))].sort((a, b) => a - b);
+        const fromUid = requestedUids[0] || (mode === 'steady' ? Number(checkpoint.lastProcessedUid) + 1 : 1);
+        progress('uid-search', { uidValidity, fromUid, toUid: requestedUids.at(-1) || null, foundCount: requestedUids.length, recoveryMode: mode });
+        phase = 'fetch';
+        fetchedMessages = await fetchUidMessages(client, requestedUids, diagnostics);
+        fetched = fetchedMessages.length;
+        progress('uid-fetch', { uidValidity, foundCount: requestedUids.length, fetchedCount: fetched, recoveryMode: mode });
       } finally {
         lock.release();
       }
 
-      for (const message of fetchedMessages) {
-        phase = 'parse';
-        const parsed = await simpleParser(message.source);
+      phase = 'parse';
+      const processed = await processUidMessages(db, fetchedMessages, requestedUids, uidValidity, options);
+      saved += processed.saved;
+      skipped += processed.skipped;
+      matched += processed.matched;
 
-        const email = findOriginalRecipient(parsed);
-
-        if (!email) {
-          skipped++;
-          continue;
+      if (mode === 'legacy-baseline') {
+        if (processed.failure) throw processed.failure;
+        const checkpointDoc = {
+          ...checkpointFilter(), uidValidity, lastProcessedUid: boundaryUid - 1,
+          legacyBaselineUid: boundaryUid - 1, mode: 'post-legacy-baseline',
+          initializedAt: new Date(), updatedAt: new Date(), lastSuccessAt: new Date(),
+        };
+        await db.collection('mail_sync_checkpoints').insertOne(checkpointDoc);
+        progress('checkpoint-initialized', { uidValidity, checkpointAfter: checkpointDoc.lastProcessedUid, recoveryMode: mode });
+      } else if (mode === 'uidvalidity-recovery') {
+        const nextUid = processed.lastTerminalUid ? processed.lastTerminalUid + 1 : Number(checkpoint.recoveryNextUid || 1);
+        if (processed.lastTerminalUid) {
+          await db.collection('mail_sync_checkpoints').updateOne(checkpointFilter(), { $set: { recoveryNextUid: nextUid, updatedAt: new Date() } });
         }
-
-        phase = 'account';
-        const account = await db
-          .collection('mail_accounts')
-          .findOne({
-            email,
-            active: true,
+        if (processed.failure) throw processed.failure;
+        if (!requestedUids.length) {
+          await db.collection('mail_sync_checkpoints').updateOne(checkpointFilter(), {
+            $set: { uidValidity, lastProcessedUid: boundaryUid - 1, mode: 'post-legacy-baseline', updatedAt: new Date(), lastSuccessAt: new Date() },
+            $unset: { recoveryUidValidity: '', recoveryBoundaryUid: '', recoveryNextUid: '' },
           });
-
-        if (!account) {
-          skipped++;
-          continue;
-        }
-
-        matched++;
-        const doc = mapParsedMessage(parsed, {
-          accountId: account._id,
-          email,
-          fallbackMessageId: `imap:${message.uid}`,
-        });
-
-        phase = 'write';
-        const result = await db
-          .collection('mail_messages')
-          .updateOne(
-            {
-              accountId: account._id,
-              messageId: doc.messageId,
-            },
-            {
-              $setOnInsert: doc,
-            },
-            {
-              upsert: true,
-            }
-          );
-
-        if (result.upsertedCount) {
-          saved++;
+          progress('uidvalidity-recovery-complete', { uidValidity, checkpointAfter: boundaryUid - 1, recoveryMode: mode });
         } else {
-          skipped++;
+          progress('uidvalidity-recovery-progress', { uidValidity, checkpointAfter: nextUid - 1, terminalCount: processed.terminalCount, recoveryMode: mode });
         }
+      } else if (processed.lastTerminalUid) {
+        await advanceCheckpoint(db, checkpoint, processed.lastTerminalUid);
+        progress('checkpoint-advanced', { uidValidity, checkpointBefore: checkpoint.lastProcessedUid, checkpointAfter: processed.lastTerminalUid, terminalCount: processed.terminalCount });
+        if (processed.failure) throw processed.failure;
+      } else if (processed.failure) {
+        throw processed.failure;
       }
 
       return { ok: true, saved, skipped, fetched, matched };
