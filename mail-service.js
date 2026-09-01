@@ -272,13 +272,17 @@ function createImapDiagnostics(env = process.env, context = {}) {
 
 function imapLogMarker(entry) {
   if (entry?.src === 'connection' && /Established .*TCP connection/.test(entry.msg || '')) {
-    return 'secure-tcp-established';
+    return { phase: 'secure-tcp-established', direction: 'received', kind: 'lifecycle' };
   }
   if (entry?.src === 'auth' && entry.msg === 'User authenticated') {
-    return 'authentication-completed';
+    return { phase: 'authentication-completed', direction: 'received', kind: 'lifecycle' };
   }
-  const command = String(entry?.msg || '').match(/^\S+\s+(CAPABILITY|ID|AUTHENTICATE|LOGIN|NAMESPACE|COMPRESS|ENABLE|SELECT|STATUS)\b/i);
-  return command ? `imap-command-${command[1].toUpperCase()}` : '';
+  const commands = 'LIST|SELECT|STATUS|SEARCH|FETCH|NAMESPACE|CAPABILITY|AUTHENTICATE';
+  const sent = entry?.src === 'c' && String(entry.msg || '').match(new RegExp(`^\\S+\\s+(${commands})\\b`, 'i'));
+  if (sent) return { phase: `imap-command-${sent[1].toUpperCase()}`, direction: 'sent', kind: 'command' };
+  const untagged = entry?.src === 's' && String(entry.msg || '').match(new RegExp(`^\\*\\s+(?:\\d+\\s+)?(${commands})\\b`, 'i'));
+  if (untagged) return { phase: `imap-command-${untagged[1].toUpperCase()}`, direction: 'received', kind: 'untagged-response' };
+  return null;
 }
 
 function attachSocketDiagnostics(socket, diagnostics) {
@@ -332,7 +336,7 @@ function imapClientOptions(env = process.env, diagnostics = false) {
   };
 }
 
-function createImapClient(env = process.env, label = 'IMAP', diagnostics = null) {
+function createImapClient(env = process.env, label = 'IMAP', diagnostics = null, diagnosticsRef = null) {
   const client = new ImapFlow(imapClientOptions(env, Boolean(diagnostics?.enabled)));
 
   /*
@@ -348,6 +352,23 @@ function createImapClient(env = process.env, label = 'IMAP', diagnostics = null)
       err?.message || err
     );
   });
+
+  if (diagnostics?.enabled) {
+    client.on('log', entry => {
+      const marker = imapLogMarker(entry);
+      const activeDiagnostics = diagnosticsRef?.current || diagnostics;
+      if (marker) activeDiagnostics.log(marker.phase, { direction: marker.direction, kind: marker.kind });
+    });
+    client.on('response', response => {
+      const activeDiagnostics = diagnosticsRef?.current || diagnostics;
+      activeDiagnostics.log('imap-tagged-completion', {
+        direction: 'received',
+        kind: 'tagged-completion',
+        completionStatus: response.response || null,
+        completionCode: response.code || null,
+      });
+    });
+  }
 
   return client;
 }
@@ -682,6 +703,50 @@ function imapReady(env = process.env) {
   );
 }
 
+function createPersistentImapConnectionManager({ env = process.env, createClient = createImapClient } = {}) {
+  let client = null;
+  const diagnosticsRef = { current: null };
+
+  function usable() {
+    return Boolean(client && client.usable && !client.isClosed && !client.socket?.destroyed);
+  }
+
+  function invalidate(reason = 'invalidated') {
+    if (!client) return;
+    const staleClient = client;
+    client = null;
+    diagnosticsRef.current?.log('persistent-connection-invalidated', { reason });
+    closeImapClient(staleClient);
+  }
+
+  async function getClient(diagnostics) {
+    diagnosticsRef.current = diagnostics;
+    if (usable()) {
+      diagnostics.log('persistent-connection-reused');
+      return { client, reused: true };
+    }
+
+    invalidate('unusable');
+    const newClient = createClient(env, 'poll', diagnostics, diagnosticsRef);
+    client = newClient;
+    newClient.on('close', () => {
+      if (client === newClient) client = null;
+    });
+    diagnostics.log('persistent-connection-created');
+    return { client, reused: false };
+  }
+
+  async function shutdown() {
+    if (!client) return;
+    const activeClient = client;
+    client = null;
+    await safeImapLogout(activeClient, 'persistent poll');
+    closeImapClient(activeClient);
+  }
+
+  return { getClient, invalidate, shutdown, usable };
+}
+
 async function pollInboxOnce(db, env = process.env, options = {}) {
   if (!imapReady(env)) {
     return {
@@ -696,7 +761,11 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
     pollId: options.pollId,
     trigger: options.trigger,
   });
-  const client = (options.createClient || createImapClient)(env, 'poll', diagnostics);
+  const connectionManager = options.connectionManager || null;
+  const clientInfo = connectionManager
+    ? await connectionManager.getClient(diagnostics)
+    : { client: (options.createClient || createImapClient)(env, 'poll', diagnostics), reused: false };
+  const client = clientInfo.client;
 
   let saved = 0;
   let skipped = 0;
@@ -711,20 +780,15 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
     ...data,
   });
 
-  if (diagnostics?.enabled) {
-    client.on('log', entry => {
-      const marker = imapLogMarker(entry);
-      if (marker) diagnostics.log(marker);
-    });
-  }
-
   try {
     return await withMailSyncDeadline((async () => {
-      const connectStartedAt = Date.now();
-      const connectPromise = client.connect();
-      attachSocketDiagnostics(client.socket, diagnostics);
-      await connectPromise;
-      diagnostics.log('connect', { durationMs: Date.now() - connectStartedAt });
+      if (!clientInfo.reused) {
+        const connectStartedAt = Date.now();
+        const connectPromise = client.connect();
+        attachSocketDiagnostics(client.socket, diagnostics);
+        await connectPromise;
+        diagnostics.log('connect', { durationMs: Date.now() - connectStartedAt });
+      }
       progress('connected', { connectDurationMs: Date.now() - startedAt });
 
       phase = 'inbox';
@@ -807,13 +871,19 @@ async function pollInboxOnce(db, env = process.env, options = {}) {
       } finally {
         lock.release();
       }
-    })(), () => closeImapClient(client), options.timeoutMs || MAIL_SYNC_OPERATION_TIMEOUT_MS);
+    })(), () => {
+      if (connectionManager) connectionManager.invalidate('sync-timeout');
+      else closeImapClient(client);
+    }, options.timeoutMs || MAIL_SYNC_OPERATION_TIMEOUT_MS);
   } catch (err) {
     err.mailSyncPhase = phase;
+    if (connectionManager) connectionManager.invalidate(err.code || 'sync-error');
     throw err;
   } finally {
-    await safeImapLogout(client, 'poll');
-    closeImapClient(client);
+    if (!connectionManager) {
+      await safeImapLogout(client, 'poll');
+      closeImapClient(client);
+    }
   }
 }
 
@@ -908,25 +978,42 @@ function createMailService({
 }) {
   const router = express.Router();
   let syncCoordinator = null;
+  let imapConnectionManager = null;
+
+  function connectionManager(env = process.env) {
+    if (!imapConnectionManager) {
+      imapConnectionManager = createPersistentImapConnectionManager({ env });
+    }
+    return imapConnectionManager;
+  }
+
+  function createPersistentCoordinator(database, env) {
+    const manager = connectionManager(env);
+    return createMailSyncCoordinator({
+      db: database,
+      env,
+      intervalMs: mailPollIntervalMs(env),
+      sync: (pollDb, pollEnv, options) => pollInboxOnce(pollDb, pollEnv, {
+        ...options,
+        connectionManager: manager,
+      }),
+    });
+  }
 
   function coordinator() {
     if (!syncCoordinator) {
-      syncCoordinator = createMailSyncCoordinator({
-        db: db(),
-        env: process.env,
-        intervalMs: mailPollIntervalMs(process.env),
-      });
+      syncCoordinator = createPersistentCoordinator(db(), process.env);
     }
     return syncCoordinator;
   }
 
   function startServiceMailPoller(database, env = process.env) {
-    syncCoordinator = createMailSyncCoordinator({
-      db: database,
-      env,
-      intervalMs: mailPollIntervalMs(env),
-    });
+    syncCoordinator = createPersistentCoordinator(database, env);
     return startMailPoller(database, env, syncCoordinator);
+  }
+
+  async function shutdownMailPoller() {
+    await imapConnectionManager?.shutdown();
   }
 
   function db() {
@@ -1556,12 +1643,14 @@ function createMailService({
     router,
     ensureMailIndexes,
     startMailPoller: startServiceMailPoller,
+    shutdownMailPoller,
   };
 }
 
 module.exports = {
   changeMailPassword,
   createMailSyncCoordinator,
+  createPersistentImapConnectionManager,
   createMailAccount,
   createMailService,
   ensureMailIndexes,

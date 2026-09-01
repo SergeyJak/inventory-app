@@ -873,6 +873,18 @@ mail = createMailService({
   requireAdmin,
 });
 
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Received ${signal}; closing HeySmart Mail IMAP connection`);
+  await mail.shutdownMailPoller();
+  process.exit(0);
+}
+
+process.once('SIGTERM', () => { shutdown('SIGTERM').catch(() => process.exit(1)); });
+process.once('SIGINT', () => { shutdown('SIGINT').catch(() => process.exit(1)); });
+
 // ── LOGIN ────────────────────────────────────────────────────
 app.post('/api/login', requireInventoryHost, async (req, res) => {
   const { username, password } = req.body || {};

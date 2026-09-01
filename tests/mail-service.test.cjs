@@ -1,8 +1,10 @@
 const assert = require('assert');
+const { EventEmitter } = require('events');
 
 const {
   changeMailPassword,
   createMailSyncCoordinator,
+  createPersistentImapConnectionManager,
   createMailAccount,
   extractVerificationCode,
   findOriginalRecipient,
@@ -164,9 +166,65 @@ test('IMAP diagnostics are disabled unless explicitly enabled', () => {
 
 test('IMAP diagnostic markers never include command payloads or credentials', () => {
   const secret = 'never-log-this-password';
-  assert.strictEqual(imapLogMarker({ src: 'auth', msg: 'User authenticated' }), 'authentication-completed');
-  assert.strictEqual(imapLogMarker({ src: 'c', msg: `A1 LOGIN user@example.com ${secret}` }), 'imap-command-LOGIN');
-  assert.strictEqual(imapLogMarker({ src: 'c', msg: `A1 FETCH 1 BODY[] ${secret}` }), '');
+  assert.deepStrictEqual(imapLogMarker({ src: 'auth', msg: 'User authenticated' }), { phase: 'authentication-completed', direction: 'received', kind: 'lifecycle' });
+  assert.deepStrictEqual(imapLogMarker({ src: 'c', msg: `A1 AUTHENTICATE user@example.com ${secret}` }), { phase: 'imap-command-AUTHENTICATE', direction: 'sent', kind: 'command' });
+  assert.deepStrictEqual(imapLogMarker({ src: 's', msg: '* NAMESPACE (("" "/")) NIL NIL' }), { phase: 'imap-command-NAMESPACE', direction: 'received', kind: 'untagged-response' });
+  assert.deepStrictEqual(imapLogMarker({ src: 'c', msg: `A1 FETCH 1 BODY[] ${secret}` }), { phase: 'imap-command-FETCH', direction: 'sent', kind: 'command' });
+  assert.deepStrictEqual(imapLogMarker({ src: 's', msg: '* 1 FETCH (UID 1)' }), { phase: 'imap-command-FETCH', direction: 'received', kind: 'untagged-response' });
+});
+
+test('persistent IMAP manager reuses a usable client and reconnects after close or unusable state', async () => {
+  let created = 0;
+  const clients = [];
+  const manager = createPersistentImapConnectionManager({
+    env: {},
+    createClient: () => {
+      created++;
+      const client = new EventEmitter();
+      client.usable = true;
+      client.isClosed = false;
+      client.socket = { destroyed: false };
+      client.close = () => { client.isClosed = true; client.socket.destroyed = true; client.emit('close'); };
+      client.logout = async () => {};
+      clients.push(client);
+      return client;
+    },
+  });
+  const diagnostics = { enabled: false, log() {} };
+  const first = await manager.getClient(diagnostics);
+  const second = await manager.getClient(diagnostics);
+  assert.strictEqual(created, 1);
+  assert.strictEqual(first.reused, false);
+  assert.strictEqual(second.reused, true);
+  clients[0].emit('close');
+  const third = await manager.getClient(diagnostics);
+  assert.strictEqual(created, 2);
+  assert.strictEqual(third.reused, false);
+  clients[1].usable = false;
+  const fourth = await manager.getClient(diagnostics);
+  assert.strictEqual(created, 3);
+  assert.strictEqual(fourth.reused, false);
+});
+
+test('persistent IMAP manager logs out and closes its client during graceful shutdown', async () => {
+  let loggedOut = false;
+  let closed = false;
+  const manager = createPersistentImapConnectionManager({
+    env: {},
+    createClient: () => {
+      const client = new EventEmitter();
+      client.usable = true;
+      client.isClosed = false;
+      client.socket = { destroyed: false };
+      client.logout = async () => { loggedOut = true; };
+      client.close = () => { closed = true; client.emit('close'); };
+      return client;
+    },
+  });
+  await manager.getClient({ enabled: false, log() {} });
+  await manager.shutdown();
+  assert.strictEqual(loggedOut, true);
+  assert.strictEqual(closed, true);
 });
 
 test('mail sync coordinator prevents overlapping manual sync while background sync runs', async () => {
