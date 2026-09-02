@@ -608,7 +608,7 @@ function catalogLanguageSwitcher(locale) {
   return ['ru', 'en'].map(lang => lang === locale
     ? `<span class="lang-btn active" aria-current="true">${lang.toUpperCase()}</span>`
     : `<a class="lang-btn" href="/${lang}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
-  ).join('');
+  ).join('') + '<button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV</button>';
 }
 
 function renderCatalogSsrLocale(template, page, initial) {

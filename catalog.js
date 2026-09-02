@@ -861,15 +861,15 @@ function applyStaticTranslations() {
   colorGallery.setAttribute('aria-label', dict('common.colors'));
   detailsGrid.setAttribute('aria-label', dict('common.aboutModel'));
   languageSwitcher.setAttribute('aria-label', dict('nav.lang'));
-  if (helpLink) helpLink.href = `/${forcedPageLocale || currentLang}/help`;
+  if (helpLink) helpLink.href = `/${currentLang === 'lv' ? 'lv' : forcedPageLocale || currentLang}/help`;
 }
 
 function renderLanguageSwitcher() {
   if (forcedPageLocale) {
-    languageSwitcher.innerHTML = ['ru', 'en'].map(lang => lang === forcedPageLocale
+    languageSwitcher.innerHTML = ['ru', 'en'].map(lang => lang === currentLang
       ? `<span class="lang-btn active" aria-current="true">${lang.toUpperCase()}</span>`
       : `<a class="lang-btn" href="/${lang}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
-    ).join('');
+    ).join('') + `<button class="lang-btn ${currentLang === 'lv' ? 'active' : ''}" type="button" data-lang="lv" aria-pressed="${currentLang === 'lv'}">LV</button>`;
     return;
   }
   languageSwitcher.innerHTML = LANGUAGES.map(lang => `
@@ -1196,9 +1196,10 @@ assistantResult.addEventListener('click', event => {
 });
 
 languageSwitcher.addEventListener('click', event => {
-  if (forcedPageLocale || event.target.closest('a[href]')) return;
+  if (event.target.closest('a[href]')) return;
   const btn = event.target.closest('[data-lang]');
   if (!btn) return;
+  if (forcedPageLocale && btn.dataset.lang !== 'lv') return;
   const previousLang = currentLang;
   currentLang = btn.dataset.lang;
   localStorage.setItem('catalogLanguage', currentLang);
