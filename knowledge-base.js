@@ -1144,6 +1144,7 @@ function sitemapUrls(origin = 'https://heysmart.lv') {
   const urls = [
     { loc: `${origin}/`, lastmod: '2026-06-23' },
     { loc: `${origin}/ru`, lastmod: '2026-09-02' },
+    { loc: `${origin}/en`, lastmod: '2026-09-02' },
     ...localesWithArticles.map(locale => ({ loc: `${origin}${helpPath(locale)}`, lastmod: '2026-08-09' })),
     ...categoryUrls,
     ...ARTICLES

@@ -91,6 +91,9 @@ button {
 }
 
 .lang-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 34px;
   min-height: 34px;
   border-radius: 999px;
@@ -99,6 +102,7 @@ button {
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
+  text-decoration: none;
   transition: color .2s ease, background .2s ease, transform .2s ease;
 }
 

@@ -138,6 +138,50 @@ function readTextFile(fileName, fallback = '') {
   return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : fallback;
 }
 
+const CATALOG_SSR_TEXT = {
+  ru: {
+    meta: {
+      title: 'Умные колонки с Алисой в Риге и Латвии | HeySmart',
+      description: 'Умные колонки с Алисой в наличии в Риге. Самовывоз по предварительной договорённости, помощь с выбором и настройкой. Курьерская доставка по Латвии.',
+    },
+    nav: { lang: 'Язык', help: 'База знаний' },
+  },
+  en: {
+    meta: {
+      title: 'Smart speakers with Alice in Riga and Latvia | HeySmart',
+      description: 'Smart speakers with Alice available in Riga. Pickup by prior arrangement, help with choosing and setup. Courier delivery across Latvia.',
+    },
+    nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language' },
+    common: { selectedModel: 'Selected model', aboutModel: 'About the model', contact: 'Contact' },
+    contact: { kicker: 'Contact', title: 'How would you like to contact us?' },
+    assistant: { fab: 'Alice will help you choose', kicker: 'Assistant', title: 'I can help you choose a Station.', intro: 'Choose a scenario and I’ll suggest a suitable model from the current selection.' },
+    faq: { kicker: 'Questions', inputLabel: 'Your question', placeholder: 'Your question...', send: 'Ask' },
+    sections: {
+      quickChoose: {
+        kicker: 'Quick choice', title: 'Which smart speaker should you choose?',
+        lite: { recommend: 'For a first speaker', lead: 'Best as a first smart speaker for a bedroom, children\'s room, or small desk where simple setup and compact size matter most.', point1: 'Easy way to start with Alice.', point2: 'Fits comfortably in small spaces.', point3: 'Good gift for everyday tasks.', final: 'Choose it for the simplest start.' },
+        mini: { recommend: 'Best balance', lead: 'The safest choice for most buyers: a compact speaker with stronger sound for music, the kitchen, or a living room.', point1: 'Better sound for daily listening.', point2: 'Still compact and minimal.', point3: 'Works well in most rooms.', final: 'Choose it if you want one universal pick.' },
+        pro: { recommend: 'For smart home', lead: 'Best when the speaker should become a smart-home hub and control compatible devices through Zigbee automation.', point1: 'Stronger smart-home role.', point2: 'Zigbee for compatible devices.', point3: 'More capable for future setup.', final: 'Choose it when automation matters.' },
+        street: { recommend: 'For outdoors and trips', lead: 'A portable speaker for people who want to take Alice outside, on trips, to the balcony, or anywhere away from home.', point1: 'Portable format for movement.', point2: 'Useful away from the desk.', point3: 'Good for trips and relaxed use.', final: 'Choose it if the speaker should move with you.' },
+      },
+      localInfo: {
+        kicker: 'Riga and Latvia', title: 'Buying in Riga', intro: 'We will help you choose a suitable smart speaker, explain availability, and answer questions before purchase.',
+        pickup: { title: 'Pickup in Riga', text: 'The meeting and handover are arranged in advance at a convenient time. Current models and colors are best confirmed before arranging pickup.' },
+        help: { title: 'Help choosing', text: 'We will suggest which model fits a room, music, a gift, or a basic smart home setup without overpromising or pressure.' },
+        shipping: { title: 'Shipping across Europe', text: 'If needed, shipping across Europe by courier is possible. Cost and delivery time are calculated individually.' },
+      },
+    },
+    colors: { blue: 'Blue', violet: 'Violet', green: 'Green', pink: 'Pink', coral: 'Coral', black: 'Black', gray: 'Gray', graphite: 'Graphite' },
+    models: {
+      light2: { title: 'Station Lite 2', line: 'A compact smart speaker with Alice, an LED display and voice control.' },
+      mini3: { title: 'Station Mini 3', line: 'A compact Station with Alice, an LED display and a more balanced sound.' },
+      miniPro: { title: 'Station Mini 3 Pro', line: 'A compact Station with stronger sound, Zigbee and smart home hub features.' },
+      midi: { title: 'Station Midi', line: 'A Station for a larger room, movies, music and family scenarios.' },
+      street: { title: 'Station Street', line: 'A portable Station with a battery, moisture protection and Bluetooth.' },
+    },
+  },
+};
+
 function writeTextFile(fileName, value) {
   fs.writeFileSync(path.join(__dirname, fileName), String(value), 'utf8');
 }
@@ -467,38 +511,61 @@ function escapeJsonForHtml(value) {
     .replace(/\u2029/g, '\\u2029');
 }
 
-function russianCatalogStructuredData(canonicalUrl) {
+function catalogTranslation(locale, path) {
+  return path.split('.').reduce((value, key) => value?.[key], CATALOG_SSR_TEXT[locale]) || '';
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function localizedCatalogStructuredData(locale, canonicalUrl) {
+  const isEnglish = locale === 'en';
+  const copy = isEnglish
+    ? {
+      city: 'Riga', country: 'Latvia', catalog: 'Catalog',
+      organization: 'HeySmart offers smart speakers with Alice in Riga and Latvia, with help choosing, pickup by arrangement and delivery.',
+    }
+    : {
+      city: 'Рига', country: 'Латвия', catalog: 'Каталог',
+      organization: 'HeySmart — Яндекс Станции с Алисой в Риге и Латвии: помощь с выбором, самовывоз по договорённости и доставка.',
+    };
   return {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': ['Organization', 'LocalBusiness'],
-        '@id': 'https://heysmart.lv/#organization',
+        '@id': `${canonicalUrl}#organization`,
         name: 'HeySmart',
-        url: 'https://heysmart.lv/',
+        url: canonicalUrl,
         logo: 'https://heysmart.lv/icons/icon-512.png',
-        description: 'HeySmart — Яндекс Станции с Алисой в Риге и Латвии: помощь с выбором, самовывоз по договорённости и доставка.',
+        description: copy.organization,
         areaServed: [
-          { '@type': 'City', name: 'Рига' },
-          { '@type': 'Country', name: 'Латвия' },
+          { '@type': 'City', name: copy.city },
+          { '@type': 'Country', name: copy.country },
         ],
       },
       {
         '@type': 'WebSite',
-        '@id': 'https://heysmart.lv/#website',
+        '@id': `${canonicalUrl}#website`,
         name: 'HeySmart',
-        url: 'https://heysmart.lv/',
-        inLanguage: 'ru',
-        publisher: { '@id': 'https://heysmart.lv/#organization' },
+        url: canonicalUrl,
+        inLanguage: locale,
+        publisher: { '@id': `${canonicalUrl}#organization` },
       },
       {
         '@type': 'WebPage',
         '@id': `${canonicalUrl}#webpage`,
         url: canonicalUrl,
-        name: 'Яндекс Станции с Алисой в Риге и Латвии | HeySmart',
-        description: 'Яндекс Станции с Алисой в наличии в Риге: помощь с выбором, самовывоз по договорённости и доставка по Латвии.',
-        inLanguage: 'ru',
-        isPartOf: { '@id': 'https://heysmart.lv/#website' },
+        name: catalogTranslation(locale, 'meta.title'),
+        description: catalogTranslation(locale, 'meta.description'),
+        inLanguage: locale,
+        isPartOf: { '@id': `${canonicalUrl}#website` },
       },
       {
         '@type': 'BreadcrumbList',
@@ -506,7 +573,7 @@ function russianCatalogStructuredData(canonicalUrl) {
         itemListElement: [{
           '@type': 'ListItem',
           position: 1,
-          name: 'Каталог',
+          name: copy.catalog,
           item: canonicalUrl,
         }],
       },
@@ -515,16 +582,66 @@ function russianCatalogStructuredData(canonicalUrl) {
 }
 
 function catalogPageOptions(req) {
-  const isRussianCatalogRoute = req.path === '/ru';
-  const canonicalUrl = isRussianCatalogRoute ? 'https://heysmart.lv/ru' : 'https://heysmart.lv/';
+  const forcedLocale = req.path === '/ru' ? 'ru' : req.path === '/en' ? 'en' : '';
+  const locale = forcedLocale || 'ru';
+  const canonicalUrl = forcedLocale ? `https://heysmart.lv/${forcedLocale}` : 'https://heysmart.lv/';
+  const hreflang = forcedLocale
+    ? [
+      '<link rel="alternate" hreflang="ru" href="https://heysmart.lv/ru">',
+      '<link rel="alternate" hreflang="en" href="https://heysmart.lv/en">',
+      '<link rel="alternate" hreflang="x-default" href="https://heysmart.lv/">',
+    ].join('\n  ')
+    : '';
   return {
     canonicalUrl,
-    forcedLocale: isRussianCatalogRoute ? 'ru' : '',
-    hreflang: isRussianCatalogRoute
-      ? '<link rel="alternate" hreflang="ru" href="https://heysmart.lv/ru">\n  <link rel="alternate" hreflang="x-default" href="https://heysmart.lv/ru">'
-      : '',
-    structuredData: isRussianCatalogRoute ? russianCatalogStructuredData(canonicalUrl) : null,
+    forcedLocale,
+    locale,
+    hreflang,
+    structuredData: forcedLocale ? localizedCatalogStructuredData(locale, canonicalUrl) : null,
   };
+}
+
+function catalogLanguageSwitcher(locale) {
+  if (!locale) {
+    return '<button class="lang-btn active" type="button" data-lang="ru" aria-pressed="true">RU</button>\n            <button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV</button>\n            <button class="lang-btn" type="button" data-lang="en" aria-pressed="false">EN</button>';
+  }
+  return ['ru', 'en'].map(lang => lang === locale
+    ? `<span class="lang-btn active" aria-current="true">${lang.toUpperCase()}</span>`
+    : `<a class="lang-btn" href="/${lang}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
+  ).join('');
+}
+
+function renderCatalogSsrLocale(template, page, initial) {
+  const locale = page.locale;
+  const text = path => catalogTranslation(locale, path);
+  const initialTitle = initial ? text(`models.${initial.model.id}.title`) || initial.model.title : text('meta.title');
+  const initialLine = initial ? text(`models.${initial.model.id}.line`) || initial.model.line : '';
+  const initialColor = initial ? text(`colors.${initial.color.key}`) || initial.color.label : '';
+  const heading = locale === 'en' ? 'Smart speakers with Alice in Riga and Latvia' : 'Яндекс Станции с Алисой в Латвии';
+  const helpLink = locale === 'ru'
+    ? `<a class="help-link" id="help-link" href="/ru/help">${escapeHtml(text('nav.help'))}</a>`
+    : '';
+  return template
+    .replace('<html lang="ru">', `<html lang="${locale}">`)
+    .replace(/__CATALOG_TITLE__/g, escapeHtml(text('meta.title')))
+    .replace(/__CATALOG_DESCRIPTION__/g, escapeHtml(text('meta.description')))
+    .replace(/__CATALOG_OG_LOCALE__/g, locale === 'en' ? 'en_LV' : 'ru_LV')
+    .replace(/__CATALOG_H1__/g, escapeHtml(heading))
+    .replace('__CATALOG_LANGUAGE_LABEL__', escapeHtml(text('nav.lang')))
+    .replace('__CATALOG_LANGUAGE_SWITCHER__', catalogLanguageSwitcher(page.forcedLocale))
+    .replace('__CATALOG_HELP_LINK__', helpLink)
+    .replace(/__CATALOG_INITIAL_TITLE__/g, escapeHtml(initialTitle))
+    .replace(/__CATALOG_INITIAL_LINE__/g, escapeHtml(initialLine))
+    .replace(/__CATALOG_INITIAL_PRICE__/g, initial?.price ? `${initial.price.toLocaleString(locale === 'en' ? 'en-US' : 'ru')} €` : '')
+    .replace(/__CATALOG_INITIAL_ALT__/g, escapeHtml(initial ? `${initialTitle}, ${initialColor}` : heading))
+    .replace(/<([a-z][\w-]*)([^>]*\bdata-i18n="([^"]+)"[^>]*)>[^<]*<\/\1>/gi, (_, tag, attributes, path) => {
+      const value = text(path);
+      return value ? `<${tag}${attributes}>${escapeHtml(value)}</${tag}>` : _;
+    })
+    .replace(/(<[^>]*\bdata-i18n-placeholder="([^"]+)"[^>]*\bplaceholder=")[^"]*(")/gi, (_, start, path, end) => {
+      const value = text(path);
+      return value ? `${start}${escapeHtml(value)}${end}` : _;
+    });
 }
 
 async function sendCatalogPage(req, res, next) {
@@ -534,7 +651,7 @@ async function sendCatalogPage(req, res, next) {
     data = await catalogInitialData(req.query);
   } catch (err) {
     console.error('Catalog page inventory error:', err.message);
-    const fallbackProduct = { id: 'fallback-light2-blue', productType: 'Light 2', color: 'blue', label: 'Light 2 / blue', sellPrice: 90, inStock: true };
+    const fallbackProduct = { id: 'fallback-light2-blue', productType: 'Light 2', color: 'голубой', label: 'Light 2 / голубой', sellPrice: 90, inStock: true };
     data = {
       products: [fallbackProduct],
       initial: requestedCatalogProduct([fallbackProduct], req.query) || firstCatalogProduct([fallbackProduct]),
@@ -543,7 +660,7 @@ async function sendCatalogPage(req, res, next) {
 
   try {
     const initial = data.initial;
-    let template = readTextFile('catalog.html');
+    let template = renderCatalogSsrLocale(readTextFile('catalog.html'), page, initial);
     if (page.structuredData) {
       template = template.replace(
         /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
@@ -557,11 +674,7 @@ async function sendCatalogPage(req, res, next) {
       .replace('__CATALOG_HREFLANG__', page.hreflang)
       .replace('__CATALOG_PAGE_LOCALE__', JSON.stringify(page.forcedLocale))
       .replace(/__CATALOG_PRELOAD_HREF__/g, initial?.color?.image || '')
-      .replace(/__CATALOG_INITIAL_TITLE__/g, initial?.model?.title || 'Умные колонки с Алисой')
-      .replace(/__CATALOG_INITIAL_LINE__/g, initial?.model?.line || 'Умные колонки с Алисой в наличии в Риге.')
-      .replace(/__CATALOG_INITIAL_PRICE__/g, initial?.price ? `${initial.price.toLocaleString('ru')} €` : '')
       .replace(/__CATALOG_INITIAL_IMAGE__/g, initial?.color?.image || '')
-      .replace(/__CATALOG_INITIAL_ALT__/g, initial ? `${initial.model.title}, ${initial.color.label}` : 'Умная колонка с Алисой')
       .replace('__CATALOG_INITIAL_DATA__', escapeJsonForHtml(data)));
   } catch (err) {
     console.error('Catalog page render error:', err.message);
@@ -786,6 +899,13 @@ app.get('/', (req, res, next) => {
 });
 
 app.get('/ru', (req, res, next) => {
+  if (isCatalogHost(req) || isLocalHost(req)) {
+    return sendCatalogPage(req, res, next);
+  }
+  return next();
+});
+
+app.get('/en', (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
     return sendCatalogPage(req, res, next);
   }

@@ -44,9 +44,10 @@ async function main() {
     catalogScript.indexOf('if (forcedPageLocale) return forcedPageLocale;') < catalogScript.indexOf("localStorage.getItem('catalogLanguage')"),
     'URL-forced locale takes precedence over saved catalog language'
   );
-  assert.match(catalogScript, /const availableLanguages = forcedPageLocale \? \[forcedPageLocale\] : LANGUAGES;/, 'forced catalog locale exposes no alternate language controls');
+  assert.match(catalogScript, /href="\/\$\{lang\}" hreflang="\$\{lang\}"/, 'forced catalog locale switcher navigates to locale URLs');
 
   ['products.json', 'transactions.json', 'andrey-returns.json', 'sub-accounts.json', 'host-subscriptions.json', 'assistant-questions.json', 'assistant-improvement-reports.json', 'visitor-analytics-events.json'].forEach(file => writeJson(file, []));
+  writeJson('products.json', [{ id: 'test-light2', productType: 'Light 2', color: 'голубой', sellPrice: 100, lots: [{ qty: 1 }] }]);
 
   const child = spawn(process.execPath, ['server.js'], {
     cwd: path.join(__dirname, '..'),
@@ -78,11 +79,32 @@ async function main() {
     assert.match(russianCatalog.text, /<h1[^>]*>Яндекс Станции с Алисой в Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
     assert.match(russianCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog self-canonicalizes');
     assert.match(russianCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes RU hreflang');
-    assert.match(russianCatalog.text, /hreflang="x-default" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes x-default hreflang');
+    assert.match(russianCatalog.text, /hreflang="en" href="https:\/\/heysmart\.lv\/en"/, 'Russian catalog exposes EN hreflang');
+    assert.match(russianCatalog.text, /hreflang="x-default" href="https:\/\/heysmart\.lv\/"/, 'Russian catalog exposes root x-default hreflang');
     assert.match(russianCatalog.text, /window\.catalogPageLocale = "ru"/, 'Russian catalog forces RU before catalog JavaScript loads');
+    assert.match(russianCatalog.text, /<a class="lang-btn" href="\/en" hreflang="en" lang="en">EN<\/a>/, 'Russian catalog links to English catalog URL');
     const ruSchemas = extractJsonLd(russianCatalog.text);
     assert.strictEqual(ruSchemas.length, 1, 'Russian catalog has one structured data block');
     assert.strictEqual(ruSchemas[0]['@graph'].some(item => item['@type'] === 'ItemList' || item['@type'] === 'Product'), false, 'Russian catalog does not claim query URLs are product pages');
+    assert.ok(ruSchemas[0]['@graph'].every(item => !item.url || item.url === 'https://heysmart.lv/ru'), 'Russian structured data URLs match the Russian canonical');
+
+    const englishCatalog = await request('/en', catalogRequest);
+    assert.strictEqual(englishCatalog.res.status, 200, 'English catalog returns 200');
+    assert.match(englishCatalog.text, /<html lang="en">/, 'English catalog has an English document language');
+    assert.match(englishCatalog.text, /<title>Smart speakers with Alice in Riga and Latvia \| HeySmart<\/title>/, 'English catalog has an English title');
+    assert.match(englishCatalog.text, /<h1[^>]*>Smart speakers with Alice in Riga and Latvia<\/h1>/, 'English catalog has an English SSR H1');
+    assert.match(englishCatalog.text, /Buying in Riga/, 'English catalog SSR includes English commercial copy');
+    assert.match(englishCatalog.text, /Station Lite 2/, 'English catalog SSR includes English product content');
+    assert.match(englishCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/en"/, 'English catalog self-canonicalizes');
+    assert.match(englishCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'English catalog exposes RU hreflang');
+    assert.match(englishCatalog.text, /hreflang="en" href="https:\/\/heysmart\.lv\/en"/, 'English catalog exposes EN hreflang');
+    assert.match(englishCatalog.text, /hreflang="x-default" href="https:\/\/heysmart\.lv\/"/, 'English catalog exposes root x-default hreflang');
+    assert.match(englishCatalog.text, /window\.catalogPageLocale = "en"/, 'English catalog forces EN before catalog JavaScript loads');
+    assert.match(englishCatalog.text, /<a class="lang-btn" href="\/ru" hreflang="ru" lang="ru">RU<\/a>/, 'English catalog links to Russian catalog URL');
+    assert.doesNotMatch(englishCatalog.text, /href="\/en\/help"/, 'English catalog does not link to a nonexistent English knowledge base');
+    const enSchemas = extractJsonLd(englishCatalog.text);
+    assert.strictEqual(enSchemas.length, 1, 'English catalog has one structured data block');
+    assert.ok(enSchemas[0]['@graph'].every(item => !item.url || item.url === 'https://heysmart.lv/en'), 'English structured data URLs match the English canonical');
 
     const help = await request('/ru/help');
     assert.strictEqual(help.res.status, 200, 'help index returns 200');
@@ -134,6 +156,7 @@ async function main() {
     assert.strictEqual(sitemap.res.status, 200, 'sitemap returns 200');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/rabotaet-li-alisa-v-latvii/, 'sitemap includes published KB article');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru<\/loc>/, 'sitemap includes the Russian catalog URL');
+    assert.match(sitemap.text, /https:\/\/heysmart\.lv\/en<\/loc>/, 'sitemap includes the English catalog URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/category\/gid-pokupatelya/, 'sitemap includes KB category');
     assert.doesNotMatch(sitemap.text, /unpublished-kb-test/, 'sitemap excludes unpublished article');
 

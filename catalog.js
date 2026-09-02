@@ -865,8 +865,14 @@ function applyStaticTranslations() {
 }
 
 function renderLanguageSwitcher() {
-  const availableLanguages = forcedPageLocale ? [forcedPageLocale] : LANGUAGES;
-  languageSwitcher.innerHTML = availableLanguages.map(lang => `
+  if (forcedPageLocale) {
+    languageSwitcher.innerHTML = ['ru', 'en'].map(lang => lang === forcedPageLocale
+      ? `<span class="lang-btn active" aria-current="true">${lang.toUpperCase()}</span>`
+      : `<a class="lang-btn" href="/${lang}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
+    ).join('');
+    return;
+  }
+  languageSwitcher.innerHTML = LANGUAGES.map(lang => `
     <button class="lang-btn ${lang === currentLang ? 'active' : ''}" type="button" data-lang="${lang}" aria-pressed="${lang === currentLang}">
       ${lang.toUpperCase()}
     </button>
@@ -1190,7 +1196,7 @@ assistantResult.addEventListener('click', event => {
 });
 
 languageSwitcher.addEventListener('click', event => {
-  if (forcedPageLocale) return;
+  if (forcedPageLocale || event.target.closest('a[href]')) return;
   const btn = event.target.closest('[data-lang]');
   if (!btn) return;
   const previousLang = currentLang;
