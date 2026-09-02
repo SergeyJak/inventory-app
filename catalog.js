@@ -36,9 +36,11 @@ const CONTACT_CONFIG = {
 
 const LANGUAGES = ['ru', 'lv', 'en'];
 const translations = window.catalogTranslations || {};
+const forcedPageLocale = LANGUAGES.includes(window.catalogPageLocale) ? window.catalogPageLocale : '';
 let currentLang = resolveInitialLanguage();
 
 function resolveInitialLanguage() {
+  if (forcedPageLocale) return forcedPageLocale;
   const saved = localStorage.getItem('catalogLanguage');
   if (LANGUAGES.includes(saved)) return saved;
   const browserLang = String(navigator.language || '').slice(0, 2).toLowerCase();
@@ -859,11 +861,12 @@ function applyStaticTranslations() {
   colorGallery.setAttribute('aria-label', dict('common.colors'));
   detailsGrid.setAttribute('aria-label', dict('common.aboutModel'));
   languageSwitcher.setAttribute('aria-label', dict('nav.lang'));
-  if (helpLink) helpLink.href = `/${currentLang}/help`;
+  if (helpLink) helpLink.href = `/${forcedPageLocale || currentLang}/help`;
 }
 
 function renderLanguageSwitcher() {
-  languageSwitcher.innerHTML = LANGUAGES.map(lang => `
+  const availableLanguages = forcedPageLocale ? [forcedPageLocale] : LANGUAGES;
+  languageSwitcher.innerHTML = availableLanguages.map(lang => `
     <button class="lang-btn ${lang === currentLang ? 'active' : ''}" type="button" data-lang="${lang}" aria-pressed="${lang === currentLang}">
       ${lang.toUpperCase()}
     </button>
@@ -1187,6 +1190,7 @@ assistantResult.addEventListener('click', event => {
 });
 
 languageSwitcher.addEventListener('click', event => {
+  if (forcedPageLocale) return;
   const btn = event.target.closest('[data-lang]');
   if (!btn) return;
   const previousLang = currentLang;

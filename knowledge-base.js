@@ -715,8 +715,13 @@ function ui(locale) {
   return UI_LABELS[locale] || UI_LABELS[DEFAULT_LOCALE];
 }
 
+function catalogPath(locale) {
+  return locale === 'ru' ? '/ru' : '/';
+}
+
 function pageShell({ locale = DEFAULT_LOCALE, title, description, canonical, hreflang = [], robots = 'index,follow', structuredData = [], body }) {
   const labels = ui(locale);
+  const catalogUrl = catalogPath(locale);
   const hreflangTags = hreflang.map(link =>
     `<link rel="alternate" hreflang="${escapeAttr(link.hreflang)}" href="${escapeAttr(link.href)}">`
   ).join('\n');
@@ -812,11 +817,11 @@ function pageShell({ locale = DEFAULT_LOCALE, title, description, canonical, hre
 <body>
   <div class="kb-shell">
     <header class="kb-header">
-      <a class="kb-brand" href="/">${escapeHtml(labels.brand)}</a>
+      <a class="kb-brand" href="${catalogUrl}">${escapeHtml(labels.brand)}</a>
       <nav class="kb-nav" aria-label="${escapeAttr(labels.navLabel)}">
-        <a href="/" >${escapeHtml(labels.catalog)}</a>
+        <a href="${catalogUrl}" >${escapeHtml(labels.catalog)}</a>
         <a href="/${escapeAttr(locale)}/help" aria-current="page">${escapeHtml(labels.help)}</a>
-        <a href="/#assistant">${escapeHtml(labels.askAssistant)}</a>
+        <a href="${catalogUrl}#assistant">${escapeHtml(labels.askAssistant)}</a>
       </nav>
     </header>
     <main>${body}</main>
@@ -1030,8 +1035,8 @@ function renderArticlePage(req, article) {
       ${renderRelatedProducts(article.locale, article)}
       ${renderRelatedArticles(article.locale, article)}
       <div class="kb-cta" aria-label="${escapeAttr(labels.articleActions)}">
-        <a class="kb-button primary" href="/">${escapeHtml(labels.backToCatalog)}</a>
-        <a class="kb-button" href="/#assistant">${escapeHtml(labels.askAssistant)}</a>
+        <a class="kb-button primary" href="${catalogPath(article.locale)}">${escapeHtml(labels.backToCatalog)}</a>
+        <a class="kb-button" href="${catalogPath(article.locale)}#assistant">${escapeHtml(labels.askAssistant)}</a>
       </div>
     </article>
     </div>`;
@@ -1138,6 +1143,7 @@ function sitemapUrls(origin = 'https://heysmart.lv') {
     })));
   const urls = [
     { loc: `${origin}/`, lastmod: '2026-06-23' },
+    { loc: `${origin}/ru`, lastmod: '2026-09-02' },
     ...localesWithArticles.map(locale => ({ loc: `${origin}${helpPath(locale)}`, lastmod: '2026-08-09' })),
     ...categoryUrls,
     ...ARTICLES

@@ -39,6 +39,13 @@ function extractJsonLd(html) {
 }
 
 async function main() {
+  const catalogScript = fs.readFileSync(path.join(__dirname, '..', 'catalog.js'), 'utf8');
+  assert.ok(
+    catalogScript.indexOf('if (forcedPageLocale) return forcedPageLocale;') < catalogScript.indexOf("localStorage.getItem('catalogLanguage')"),
+    'URL-forced locale takes precedence over saved catalog language'
+  );
+  assert.match(catalogScript, /const availableLanguages = forcedPageLocale \? \[forcedPageLocale\] : LANGUAGES;/, 'forced catalog locale exposes no alternate language controls');
+
   ['products.json', 'transactions.json', 'andrey-returns.json', 'sub-accounts.json', 'host-subscriptions.json', 'assistant-questions.json', 'assistant-improvement-reports.json', 'visitor-analytics-events.json'].forEach(file => writeJson(file, []));
 
   const child = spawn(process.execPath, ['server.js'], {
@@ -58,6 +65,24 @@ async function main() {
 
   try {
     await waitForServer(child);
+
+    const catalogRequest = { headers: { 'x-forwarded-host': 'heysmart.lv' } };
+    const rootCatalog = await request('/', catalogRequest);
+    assert.strictEqual(rootCatalog.res.status, 200, 'root catalog returns 200');
+    assert.match(rootCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/"/, 'root keeps its existing canonical');
+
+    const russianCatalog = await request('/ru', catalogRequest);
+    assert.strictEqual(russianCatalog.res.status, 200, 'Russian catalog returns 200');
+    assert.match(russianCatalog.text, /<html lang="ru">/, 'Russian catalog has a Russian document language');
+    assert.match(russianCatalog.text, /<title>Умные колонки с Алисой в Риге и Латвии \| HeySmart<\/title>/, 'Russian catalog has a Russian title');
+    assert.match(russianCatalog.text, /<h1[^>]*>Яндекс Станции с Алисой в Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
+    assert.match(russianCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog self-canonicalizes');
+    assert.match(russianCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes RU hreflang');
+    assert.match(russianCatalog.text, /hreflang="x-default" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes x-default hreflang');
+    assert.match(russianCatalog.text, /window\.catalogPageLocale = "ru"/, 'Russian catalog forces RU before catalog JavaScript loads');
+    const ruSchemas = extractJsonLd(russianCatalog.text);
+    assert.strictEqual(ruSchemas.length, 1, 'Russian catalog has one structured data block');
+    assert.strictEqual(ruSchemas[0]['@graph'].some(item => item['@type'] === 'ItemList' || item['@type'] === 'Product'), false, 'Russian catalog does not claim query URLs are product pages');
 
     const help = await request('/ru/help');
     assert.strictEqual(help.res.status, 200, 'help index returns 200');
@@ -108,6 +133,7 @@ async function main() {
     const sitemap = await request('/sitemap.xml');
     assert.strictEqual(sitemap.res.status, 200, 'sitemap returns 200');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/rabotaet-li-alisa-v-latvii/, 'sitemap includes published KB article');
+    assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru<\/loc>/, 'sitemap includes the Russian catalog URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/category\/gid-pokupatelya/, 'sitemap includes KB category');
     assert.doesNotMatch(sitemap.text, /unpublished-kb-test/, 'sitemap excludes unpublished article');
 

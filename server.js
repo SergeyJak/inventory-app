@@ -467,7 +467,68 @@ function escapeJsonForHtml(value) {
     .replace(/\u2029/g, '\\u2029');
 }
 
+function russianCatalogStructuredData(canonicalUrl) {
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': ['Organization', 'LocalBusiness'],
+        '@id': 'https://heysmart.lv/#organization',
+        name: 'HeySmart',
+        url: 'https://heysmart.lv/',
+        logo: 'https://heysmart.lv/icons/icon-512.png',
+        description: 'HeySmart — Яндекс Станции с Алисой в Риге и Латвии: помощь с выбором, самовывоз по договорённости и доставка.',
+        areaServed: [
+          { '@type': 'City', name: 'Рига' },
+          { '@type': 'Country', name: 'Латвия' },
+        ],
+      },
+      {
+        '@type': 'WebSite',
+        '@id': 'https://heysmart.lv/#website',
+        name: 'HeySmart',
+        url: 'https://heysmart.lv/',
+        inLanguage: 'ru',
+        publisher: { '@id': 'https://heysmart.lv/#organization' },
+      },
+      {
+        '@type': 'WebPage',
+        '@id': `${canonicalUrl}#webpage`,
+        url: canonicalUrl,
+        name: 'Яндекс Станции с Алисой в Риге и Латвии | HeySmart',
+        description: 'Яндекс Станции с Алисой в наличии в Риге: помощь с выбором, самовывоз по договорённости и доставка по Латвии.',
+        inLanguage: 'ru',
+        isPartOf: { '@id': 'https://heysmart.lv/#website' },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${canonicalUrl}#breadcrumb`,
+        itemListElement: [{
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Каталог',
+          item: canonicalUrl,
+        }],
+      },
+    ],
+  };
+}
+
+function catalogPageOptions(req) {
+  const isRussianCatalogRoute = req.path === '/ru';
+  const canonicalUrl = isRussianCatalogRoute ? 'https://heysmart.lv/ru' : 'https://heysmart.lv/';
+  return {
+    canonicalUrl,
+    forcedLocale: isRussianCatalogRoute ? 'ru' : '',
+    hreflang: isRussianCatalogRoute
+      ? '<link rel="alternate" hreflang="ru" href="https://heysmart.lv/ru">\n  <link rel="alternate" hreflang="x-default" href="https://heysmart.lv/ru">'
+      : '',
+    structuredData: isRussianCatalogRoute ? russianCatalogStructuredData(canonicalUrl) : null,
+  };
+}
+
 async function sendCatalogPage(req, res, next) {
+  const page = catalogPageOptions(req);
   let data;
   try {
     data = await catalogInitialData(req.query);
@@ -482,10 +543,19 @@ async function sendCatalogPage(req, res, next) {
 
   try {
     const initial = data.initial;
-    const template = readTextFile('catalog.html');
+    let template = readTextFile('catalog.html');
+    if (page.structuredData) {
+      template = template.replace(
+        /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
+        `<script type="application/ld+json">${escapeJsonForHtml(page.structuredData)}</script>`
+      );
+    }
     res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate');
     res.set('Surrogate-Control', 'no-store');
     res.type('html').send(template
+      .replace(/__CATALOG_CANONICAL_URL__/g, page.canonicalUrl)
+      .replace('__CATALOG_HREFLANG__', page.hreflang)
+      .replace('__CATALOG_PAGE_LOCALE__', JSON.stringify(page.forcedLocale))
       .replace(/__CATALOG_PRELOAD_HREF__/g, initial?.color?.image || '')
       .replace(/__CATALOG_INITIAL_TITLE__/g, initial?.model?.title || 'Умные колонки с Алисой')
       .replace(/__CATALOG_INITIAL_LINE__/g, initial?.model?.line || 'Умные колонки с Алисой в наличии в Риге.')
@@ -710,6 +780,13 @@ app.use(redirectWwwCatalogHost);
 
 app.get('/', (req, res, next) => {
   if (isCatalogHost(req)) {
+    return sendCatalogPage(req, res, next);
+  }
+  return next();
+});
+
+app.get('/ru', (req, res, next) => {
+  if (isCatalogHost(req) || isLocalHost(req)) {
     return sendCatalogPage(req, res, next);
   }
   return next();
