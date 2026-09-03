@@ -512,10 +512,10 @@ const PRODUCT_LABELS = {
 };
 
 const PRODUCT_URLS = {
-  light2: '/?model=light2&color=0',
-  mini3: '/?model=mini3&color=0',
-  miniPro: '/?model=miniPro&color=0',
-  midi: '/?model=midi&color=0',
+  light2: '/ru/yandex-station-lite-2',
+  mini3: '/ru/yandex-station-mini-3',
+  miniPro: '/ru/yandex-station-mini-3-pro',
+  midi: '/ru',
 };
 
 const UI_LABELS = {

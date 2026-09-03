@@ -8,6 +8,7 @@ const crypto    = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 const { createMailService } = require('./mail-service');
 const knowledgeBase = require('./knowledge-base');
+const productPages = require('./product-pages');
 
 const app      = express();
 app.set('trust proxy', 1);
@@ -630,6 +631,10 @@ function renderCatalogSsrLocale(template, page, initial) {
     .replace('__CATALOG_LANGUAGE_LABEL__', escapeHtml(text('nav.lang')))
     .replace('__CATALOG_LANGUAGE_SWITCHER__', catalogLanguageSwitcher(page.forcedLocale))
     .replace('__CATALOG_HELP_LINK__', helpLink)
+    .replace(/__PRODUCT_LIGHT2_URL__/g, `/${locale}/yandex-station-lite-2`)
+    .replace(/__PRODUCT_MINI3_URL__/g, `/${locale}/yandex-station-mini-3`)
+    .replace(/__PRODUCT_MINIPRO_URL__/g, `/${locale}/yandex-station-mini-3-pro`)
+    .replace(/__PRODUCT_STREET_URL__/g, `/${locale}/yandex-station-street`)
     .replace(/__CATALOG_INITIAL_TITLE__/g, escapeHtml(initialTitle))
     .replace(/__CATALOG_INITIAL_LINE__/g, escapeHtml(initialLine))
     .replace(/__CATALOG_INITIAL_PRICE__/g, initial?.price ? `${initial.price.toLocaleString(locale === 'en' ? 'en-US' : 'ru')} €` : '')
@@ -661,12 +666,11 @@ async function sendCatalogPage(req, res, next) {
   try {
     const initial = data.initial;
     let template = renderCatalogSsrLocale(readTextFile('catalog.html'), page, initial);
-    if (page.structuredData) {
-      template = template.replace(
-        /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
-        `<script type="application/ld+json">${escapeJsonForHtml(page.structuredData)}</script>`
-      );
-    }
+    const structuredData = page.structuredData || productPages.catalogItemList(page.locale, page.canonicalUrl);
+    template = template.replace(
+      /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
+      `<script type="application/ld+json">${escapeJsonForHtml(structuredData)}</script>`
+    );
     res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate');
     res.set('Surrogate-Control', 'no-store');
     res.type('html').send(template
@@ -891,8 +895,17 @@ function requireInventoryHost(req, res, next) {
 // - mysmart.up.railway.app is kept as a catalog alias.
 app.use(redirectWwwCatalogHost);
 
+function legacyProductRedirect(req, res) {
+  const model = productPages.findById(String(req.query.model || ''));
+  if (!model) return false;
+  const locale = req.path === '/en' ? 'en' : 'ru';
+  res.redirect(301, `/${locale}/${model.slug}`);
+  return true;
+}
+
 app.get('/', (req, res, next) => {
   if (isCatalogHost(req)) {
+    if (legacyProductRedirect(req, res)) return;
     return sendCatalogPage(req, res, next);
   }
   return next();
@@ -900,6 +913,7 @@ app.get('/', (req, res, next) => {
 
 app.get('/ru', (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
+    if (legacyProductRedirect(req, res)) return;
     return sendCatalogPage(req, res, next);
   }
   return next();
@@ -907,6 +921,7 @@ app.get('/ru', (req, res, next) => {
 
 app.get('/en', (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
+    if (legacyProductRedirect(req, res)) return;
     return sendCatalogPage(req, res, next);
   }
   return next();
@@ -925,10 +940,26 @@ app.get('/catalog.html', (req, res, next) => {
 
 app.get('/sitemap.xml', (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
-    res.type('application/xml').send(knowledgeBase.renderSitemapXml('https://heysmart.lv'));
+    const sitemap = knowledgeBase.sitemapUrls('https://heysmart.lv').concat(productPages.sitemapUrls());
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemap.map(url => `  <url>\n    <loc>${url.loc}</loc>\n    <lastmod>${url.lastmod}</lastmod>\n  </url>`).join('\n')}\n</urlset>\n`;
+    res.type('application/xml').send(xml);
     return;
   }
   return next();
+});
+
+app.get('/:locale/yandex-station-:productSlug', async (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  const { locale, productSlug } = req.params;
+  if (!['ru', 'en'].includes(locale)) return res.status(404).type('html').send('<meta name="robots" content="noindex">Not found');
+  const model = productPages.findBySlug(`yandex-station-${productSlug}`);
+  if (!model) return res.status(404).type('html').send('<meta name="robots" content="noindex">Not found');
+  try {
+    const { products } = await dbGetAll();
+    return res.type('html').send(productPages.render(model, locale, products));
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.get('/:locale/help', (req, res, next) => {
