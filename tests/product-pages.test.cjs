@@ -50,6 +50,17 @@ async function main() {
     assert.match(sitemap.text, /yandex-station-street/); assert.doesNotMatch(sitemap.text, /\?model=/);
     const catalog = await request('/ru');
     assert.match(catalog.text, /<h3><a href="\/ru\/yandex-station-lite-2">Lite 2<\/a><\/h3>/); assert.doesNotMatch(catalog.text, /catalog-product-links|"@type":"Product"/);
+    const liteRu = await request('/ru/yandex-station-lite-2');
+    const liteEn = await request('/en/yandex-station-lite-2');
+    assert.match(liteRu.text, /class="product-image-link" href="\/ru#model=light2&color=blue"/);
+    assert.match(liteEn.text, /class="product-image-link" href="\/en#model=light2&color=blue"/);
+    assert.doesNotMatch(sitemap.text, /#model=/);
+    assert.doesNotMatch(liteRu.text.match(/<link[^>]+rel="canonical"[^>]*>/)?.[0] || '', /#model=/);
+    const catalogScript = fs.readFileSync(path.join(__dirname, '..', 'catalog.js'), 'utf8');
+    assert.match(catalogScript, /window\.location\.hash/);
+    assert.match(catalogScript, /hasAppliedInitialUrlSelection/);
+    assert.match(catalogScript, /if \(!hasAppliedInitialUrlSelection\)/);
+    assert.match(catalogScript, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
     console.log('product pages regression passed');
   } finally { child.kill(); fs.rmSync(temp, { recursive: true, force: true }); }
 }

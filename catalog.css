@@ -2254,4 +2254,11 @@ p {
 .product-page .product-stock { color: #27764a; font-weight: 600; }
 .product-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 28px 0; }
 .product-gallery img { width: 100%; height: auto; border-radius: 18px; background: #f4f6f8; }
+.product-image-link { display: block; border-radius: 18px; overflow: hidden; }
+.product-image-link img { display: block; transition: transform 200ms ease, box-shadow 200ms ease; }
+.product-image-link:focus-visible { outline: 3px solid rgba(17, 17, 20, .55); outline-offset: 4px; }
+@media (hover: hover) and (pointer: fine) {
+  .product-image-link { cursor: pointer; }
+  .product-image-link:hover img { transform: scale(1.02); box-shadow: 0 12px 26px rgba(10, 18, 28, .12); }
+}
 .product-variants { color: #5e6770; font-size: .95rem; }

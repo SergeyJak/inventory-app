@@ -122,6 +122,8 @@ let activeAngle = 0;
 let faqItems = [];
 let assistantEngine = null;
 let keyboardMeasureTimer = null;
+let hasScrolledToHashSelection = false;
+let hasAppliedInitialUrlSelection = false;
 let assistantKeyboardModeTimer = null;
 
 const FALLBACK_PRODUCTS = [
@@ -998,10 +1000,25 @@ function applyUrlSelection() {
     activeModel = modelIndex;
     activeColor = colorIndex;
   }
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const hashModelId = hash.get('model');
+  const hashModelIndex = models.findIndex(model => model.id === hashModelId);
+  if (hashModelIndex >= 0) {
+    activeModel = hashModelIndex;
+    const hashColor = String(hash.get('color') || '').toLowerCase();
+    const hashColorIndex = models[hashModelIndex].photos.findIndex(photo => String(photo.colorKey || '').toLowerCase() === hashColor);
+    activeColor = hashColorIndex >= 0 ? hashColorIndex : 0;
+    if (!hasScrolledToHashSelection) {
+      hasScrolledToHashSelection = true;
+      window.requestAnimationFrame(() => showroom.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+  }
   activeAngle = 0;
 }
 
 function showCatalog(nextModels) {
+  const previousModelId = models[activeModel]?.id;
+  const previousColorKey = models[activeModel]?.photos[activeColor]?.colorKey;
   models = nextModels;
 
   if (!models.length) {
@@ -1016,7 +1033,17 @@ function showCatalog(nextModels) {
   activeModel = 0;
   activeColor = 0;
   activeAngle = 0;
-  applyUrlSelection();
+  if (!hasAppliedInitialUrlSelection) {
+    hasAppliedInitialUrlSelection = true;
+    applyUrlSelection();
+  } else {
+    const previousModelIndex = models.findIndex(model => model.id === previousModelId);
+    if (previousModelIndex >= 0) {
+      activeModel = previousModelIndex;
+      const previousColorIndex = models[previousModelIndex].photos.findIndex(photo => photo.colorKey === previousColorKey);
+      activeColor = previousColorIndex >= 0 ? previousColorIndex : 0;
+    }
+  }
   content.hidden = false;
   modelDetails.hidden = false;
   setState('');
