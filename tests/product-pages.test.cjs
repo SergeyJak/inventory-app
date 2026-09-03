@@ -61,6 +61,9 @@ async function main() {
     assert.match(catalogScript, /window\.location\.hash/);
     assert.match(catalogScript, /hasAppliedInitialUrlSelection/);
     assert.match(catalogScript, /if \(!hasAppliedInitialUrlSelection\)/);
+    assert.match(catalogScript, /function catalogLocaleHref\(locale\)/);
+    assert.match(catalogScript, /#model=\$\{encodeURIComponent\(model\.id\)\}&color=\$\{encodeURIComponent\(photo\.colorKey\)\}/);
+    assert.match(catalogScript, /href="\$\{catalogLocaleHref\(lang\)\}" hreflang="\$\{lang\}"/);
     assert.match(catalogScript, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
     console.log('product pages regression passed');
   } finally { child.kill(); fs.rmSync(temp, { recursive: true, force: true }); }

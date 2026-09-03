@@ -44,7 +44,7 @@ async function main() {
     catalogScript.indexOf('if (forcedPageLocale) return forcedPageLocale;') < catalogScript.indexOf("localStorage.getItem('catalogLanguage')"),
     'URL-forced locale takes precedence over saved catalog language'
   );
-  assert.match(catalogScript, /href="\/\$\{lang\}" hreflang="\$\{lang\}"/, 'forced catalog locale switcher navigates to locale URLs');
+  assert.match(catalogScript, /href="\$\{catalogLocaleHref\(lang\)\}" hreflang="\$\{lang\}"/, 'forced catalog locale switcher preserves selection in locale URLs');
   assert.match(catalogScript, /forcedPageLocale && btn\.dataset\.lang !== 'lv'/, 'forced routes allow only an explicit Latvian client-side switch');
 
   ['products.json', 'transactions.json', 'andrey-returns.json', 'sub-accounts.json', 'host-subscriptions.json', 'assistant-questions.json', 'assistant-improvement-reports.json', 'visitor-analytics-events.json'].forEach(file => writeJson(file, []));

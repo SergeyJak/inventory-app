@@ -870,7 +870,7 @@ function renderLanguageSwitcher() {
   if (forcedPageLocale) {
     languageSwitcher.innerHTML = ['ru', 'en'].map(lang => lang === currentLang
       ? `<span class="lang-btn active" aria-current="true">${lang.toUpperCase()}</span>`
-      : `<a class="lang-btn" href="/${lang}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
+      : `<a class="lang-btn" href="${catalogLocaleHref(lang)}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
     ).join('') + `<button class="lang-btn ${currentLang === 'lv' ? 'active' : ''}" type="button" data-lang="lv" aria-pressed="${currentLang === 'lv'}">LV</button>`;
     return;
   }
@@ -879,6 +879,12 @@ function renderLanguageSwitcher() {
       ${lang.toUpperCase()}
     </button>
   `).join('');
+}
+
+function catalogLocaleHref(locale) {
+  const { model, photo } = currentSelection();
+  if (!model?.id || !photo?.colorKey) return `/${locale}`;
+  return `/${locale}#model=${encodeURIComponent(model.id)}&color=${encodeURIComponent(photo.colorKey)}`;
 }
 
 function syncQuickChooseCards() {
@@ -908,6 +914,7 @@ function render() {
   setAngleControls(photo);
   setContactLinks(model);
   syncQuickChooseCards();
+  renderLanguageSwitcher();
 
   modelSwitcher.innerHTML = models.map((item, index) => `
     <button class="model-btn ${index === activeModel ? 'active' : ''}" data-model="${index}" type="button" aria-pressed="${index === activeModel}">
