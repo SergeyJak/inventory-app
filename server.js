@@ -426,7 +426,7 @@ const CATALOG_INITIAL_PRODUCTS = [
   { id: 'mini3', aliases: ['мини 3', 'mini 3', 'mini3'], title: 'Станция Мини 3', line: 'Компактная колонка с более уверенным звуком для кухни, спальни или гостиной.', colors: [
     { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/mini-3/gray/01.webp', label: 'серый' },
   ] },
-  { id: 'miniPro', aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini pro', 'minipro'], title: 'Станция Мини 3 Про', line: 'Колонка для умного дома с насыщенным звуком и управлением совместимыми устройствами.', colors: [
+  { id: 'miniPro', aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini3 pro', 'mini pro', 'minipro'], title: 'Станция Мини 3 Про', line: 'Колонка для умного дома с насыщенным звуком и управлением совместимыми устройствами.', colors: [
     { key: 'green', aliases: ['зелен', 'зелён'], image: 'images/catalog/mini-pro/green/01.webp', label: 'зелёный' },
     { key: 'blue', aliases: ['голуб', 'син'], image: 'images/catalog/mini-pro/blue/01.webp', label: 'голубой' },
     { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/mini-pro/gray/01.webp', label: 'серый' },
@@ -467,6 +467,7 @@ function firstCatalogProduct(publicProducts) {
 function productsForCatalogModel(publicProducts, model) {
   return publicProducts.filter(product => {
     const haystack = normalizeCatalogText([product.productType, product.label, product.color].join(' '));
+    if (model.id === 'mini3' && productPages.findById('miniPro').aliases.some(alias => haystack.includes(normalizeCatalogText(alias)))) return false;
     return model.aliases.some(alias => haystack.includes(normalizeCatalogText(alias)));
   });
 }
@@ -474,7 +475,7 @@ function productsForCatalogModel(publicProducts, model) {
 function productForCatalogColor(products, color) {
   return products.find(product => {
     const haystack = normalizeCatalogText([product.color, product.label, product.productType].join(' '));
-    return color.aliases.some(alias => haystack.includes(normalizeCatalogText(alias)));
+    return [color.key, ...color.aliases].some(alias => haystack.includes(normalizeCatalogText(alias)));
   }) || null;
 }
 
@@ -602,21 +603,21 @@ function catalogPageOptions(req) {
   };
 }
 
-function catalogLanguageSwitcher(locale) {
+function catalogLanguageSwitcher(locale, slug = '') {
   if (!locale) {
     return '<button class="lang-btn active" type="button" data-lang="ru" aria-pressed="true">RU</button>\n            <button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV</button>\n            <button class="lang-btn" type="button" data-lang="en" aria-pressed="false">EN</button>';
   }
   return ['ru', 'en'].map(lang => lang === locale
     ? `<span class="lang-btn active" aria-current="true">${lang.toUpperCase()}</span>`
-    : `<a class="lang-btn" href="/${lang}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
+    : `<a class="lang-btn" href="/${lang}${slug ? `/${slug}` : ''}" hreflang="${lang}" lang="${lang}">${lang.toUpperCase()}</a>`
   ).join('') + '<button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV</button>';
 }
 
 function renderCatalogSsrLocale(template, page, initial) {
   const locale = page.locale;
   const text = path => catalogTranslation(locale, path);
-  const initialTitle = initial ? text(`models.${initial.model.id}.title`) || initial.model.title : text('meta.title');
-  const initialLine = initial ? text(`models.${initial.model.id}.line`) || initial.model.line : '';
+  const initialTitle = page.copy?.name || (initial ? text(`models.${initial.model.id}.title`) || initial.model.title : text('meta.title'));
+  const initialLine = page.copy?.intro || (initial ? text(`models.${initial.model.id}.line`) || initial.model.line : '');
   const initialColor = initial ? text(`colors.${initial.color.key}`) || initial.color.label : '';
   const heading = locale === 'en' ? 'Smart speakers with Alice in Riga and Latvia' : 'Яндекс Станции с Алисой в Латвии';
   const helpLink = locale === 'ru'
@@ -624,17 +625,19 @@ function renderCatalogSsrLocale(template, page, initial) {
     : '';
   return template
     .replace('<html lang="ru">', `<html lang="${locale}">`)
-    .replace(/__CATALOG_TITLE__/g, escapeHtml(text('meta.title')))
-    .replace(/__CATALOG_DESCRIPTION__/g, escapeHtml(text('meta.description')))
+    .replace(/__CATALOG_TITLE__/g, escapeHtml(page.copy?.title || text('meta.title')))
+    .replace(/__CATALOG_DESCRIPTION__/g, escapeHtml(page.copy?.description || text('meta.description')))
     .replace(/__CATALOG_OG_LOCALE__/g, locale === 'en' ? 'en_LV' : 'ru_LV')
-    .replace(/__CATALOG_H1__/g, escapeHtml(heading))
+    .replace(/__CATALOG_H1__/g, escapeHtml(page.copy?.name || heading))
     .replace('__CATALOG_LANGUAGE_LABEL__', escapeHtml(text('nav.lang')))
-    .replace('__CATALOG_LANGUAGE_SWITCHER__', catalogLanguageSwitcher(page.forcedLocale))
+    .replace('__CATALOG_LANGUAGE_SWITCHER__', catalogLanguageSwitcher(page.forcedLocale, page.model?.slug))
     .replace('__CATALOG_HELP_LINK__', helpLink)
     .replace(/__PRODUCT_LIGHT2_URL__/g, `/${locale}/yandex-station-lite-2`)
     .replace(/__PRODUCT_MINI3_URL__/g, `/${locale}/yandex-station-mini-3`)
     .replace(/__PRODUCT_MINIPRO_URL__/g, `/${locale}/yandex-station-mini-3-pro`)
     .replace(/__PRODUCT_STREET_URL__/g, `/${locale}/yandex-station-street`)
+    .replace('__CATALOG_INITIAL_STOCK__', escapeHtml(page.stockText || ''))
+    .replace('__CATALOG_STOCK_HIDDEN__', page.stockText ? '' : 'hidden')
     .replace(/__CATALOG_INITIAL_TITLE__/g, escapeHtml(initialTitle))
     .replace(/__CATALOG_INITIAL_LINE__/g, escapeHtml(initialLine))
     .replace(/__CATALOG_INITIAL_PRICE__/g, initial?.price ? `${initial.price.toLocaleString(locale === 'en' ? 'en-US' : 'ru')} €` : '')
@@ -649,13 +652,19 @@ function renderCatalogSsrLocale(template, page, initial) {
     });
 }
 
-async function sendCatalogPage(req, res, next) {
-  const page = catalogPageOptions(req);
+async function sendCatalogPage(req, res, next, productModel = null) {
+  let page = catalogPageOptions(req);
   let data;
   try {
-    data = await catalogInitialData(req.query);
+    data = await catalogInitialData(productModel ? {} : req.query);
+    if (productModel) {
+      page = productPages.pageOptions(productModel, req.params.locale, data.products);
+      data.initial = page.initial;
+      data.route = { modelId: productModel.id, slug: productModel.slug };
+    }
   } catch (err) {
     console.error('Catalog page inventory error:', err.message);
+    if (productModel) return next(err);
     const fallbackProduct = { id: 'fallback-light2-blue', productType: 'Light 2', color: 'голубой', label: 'Light 2 / голубой', sellPrice: 90, inStock: true };
     data = {
       products: [fallbackProduct],
@@ -677,8 +686,8 @@ async function sendCatalogPage(req, res, next) {
       .replace(/__CATALOG_CANONICAL_URL__/g, page.canonicalUrl)
       .replace('__CATALOG_HREFLANG__', page.hreflang)
       .replace('__CATALOG_PAGE_LOCALE__', JSON.stringify(page.forcedLocale))
-      .replace(/__CATALOG_PRELOAD_HREF__/g, initial?.color?.image || '')
-      .replace(/__CATALOG_INITIAL_IMAGE__/g, initial?.color?.image || '')
+      .replace(/__CATALOG_PRELOAD_HREF__/g, initial?.color?.image ? `/${initial.color.image}` : '')
+      .replace(/__CATALOG_INITIAL_IMAGE__/g, initial?.color?.image ? `/${initial.color.image}` : '')
       .replace('__CATALOG_INITIAL_DATA__', escapeJsonForHtml(data)));
   } catch (err) {
     console.error('Catalog page render error:', err.message);
@@ -954,12 +963,7 @@ app.get('/:locale/yandex-station-:productSlug', async (req, res, next) => {
   if (!['ru', 'en'].includes(locale)) return res.status(404).type('html').send('<meta name="robots" content="noindex">Not found');
   const model = productPages.findBySlug(`yandex-station-${productSlug}`);
   if (!model) return res.status(404).type('html').send('<meta name="robots" content="noindex">Not found');
-  try {
-    const { products } = await dbGetAll();
-    return res.type('html').send(productPages.render(model, locale, products));
-  } catch (err) {
-    next(err);
-  }
+  return sendCatalogPage(req, res, next, model);
 });
 
 app.get('/:locale/help', (req, res, next) => {

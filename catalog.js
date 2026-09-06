@@ -63,12 +63,12 @@ const PHOTO_MODELS = [
     glow: 'rgba(65, 178, 255, .18)',
     wash: '#f2f7fb',
     photos: [
-      { colorKey: 'blue', photos: ['images/catalog/light-2/blue/01.webp'], aliases: ['голуб'], transparent: true },
-      { colorKey: 'violet', photos: ['images/catalog/light-2/violet/01.webp'], aliases: ['фиолет'], transparent: true },
-      { colorKey: 'green', photos: ['images/catalog/light-2/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
-      { colorKey: 'pink', photos: ['images/catalog/light-2/pink/01.webp'], aliases: ['розов'], transparent: true },
-      { colorKey: 'coral', photos: ['images/catalog/light-2/coral/01.webp'], aliases: ['корал'], transparent: true },
-      { colorKey: 'black', photos: ['images/catalog/light-2/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
+      { colorKey: 'blue', photos: ['/images/catalog/light-2/blue/01.webp'], aliases: ['голуб'], transparent: true },
+      { colorKey: 'violet', photos: ['/images/catalog/light-2/violet/01.webp'], aliases: ['фиолет'], transparent: true },
+      { colorKey: 'green', photos: ['/images/catalog/light-2/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
+      { colorKey: 'pink', photos: ['/images/catalog/light-2/pink/01.webp'], aliases: ['розов'], transparent: true },
+      { colorKey: 'coral', photos: ['/images/catalog/light-2/coral/01.webp'], aliases: ['корал'], transparent: true },
+      { colorKey: 'black', photos: ['/images/catalog/light-2/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
     ],
   },
   {
@@ -77,19 +77,19 @@ const PHOTO_MODELS = [
     glow: 'rgba(120, 160, 150, .18)',
     wash: '#f3f6f4',
     photos: [
-      { colorKey: 'gray', photos: ['images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
+      { colorKey: 'gray', photos: ['/images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
     ],
   },
   {
     id: 'miniPro',
-    aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini pro', 'minipro'],
+    aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini3 pro', 'mini pro', 'minipro'],
     glow: 'rgba(84, 139, 255, .16)',
     wash: '#f1f4f8',
     photos: [
-      { colorKey: 'green', photos: ['images/catalog/mini-pro/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
-      { colorKey: 'blue', photos: ['images/catalog/mini-pro/blue/01.webp'], aliases: ['голуб', 'син'], transparent: true },
-      { colorKey: 'gray', photos: ['images/catalog/mini-pro/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
-      { colorKey: 'graphite', photos: ['images/catalog/mini-pro/graphite/01.png'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
+      { colorKey: 'green', photos: ['/images/catalog/mini-pro/green/01.webp'], aliases: ['зелен', 'зелён'], transparent: true },
+      { colorKey: 'blue', photos: ['/images/catalog/mini-pro/blue/01.webp'], aliases: ['голуб', 'син'], transparent: true },
+      { colorKey: 'gray', photos: ['/images/catalog/mini-pro/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
+      { colorKey: 'graphite', photos: ['/images/catalog/mini-pro/graphite/01.png'], aliases: ['черн', 'чёрн', 'графит'], transparent: true },
     ],
   },
   {
@@ -98,7 +98,7 @@ const PHOTO_MODELS = [
     glow: 'rgba(120, 120, 160, .16)',
     wash: '#f3f4f7',
     photos: [
-      { colorKey: 'black', photos: ['images/catalog/midi/black/01.png'], aliases: ['черн', 'чёрн', 'графит', 'black', 'graphite'] },
+      { colorKey: 'black', photos: ['/images/catalog/midi/black/01.png'], aliases: ['черн', 'чёрн', 'графит', 'black', 'graphite'] },
     ],
   },
   {
@@ -107,10 +107,10 @@ const PHOTO_MODELS = [
     glow: 'rgba(190, 185, 130, .2)',
     wash: '#f4f1e8',
     photos: [
-      { colorKey: 'gray', photos: ['images/catalog/street/gray/01.webp'], aliases: ['сер', 'сереб'] },
-      { colorKey: 'violet', photos: ['images/catalog/street/violet/01.webp'], aliases: ['фиолет'] },
-      { colorKey: 'green', photos: ['images/catalog/street/green/01.webp', 'images/catalog/street/green/02.webp', 'images/catalog/street/green/03.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
-      { colorKey: 'black', photos: ['images/catalog/street/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
+      { colorKey: 'gray', photos: ['/images/catalog/street/gray/01.webp'], aliases: ['сер', 'сереб'] },
+      { colorKey: 'violet', photos: ['/images/catalog/street/violet/01.webp'], aliases: ['фиолет'] },
+      { colorKey: 'green', photos: ['/images/catalog/street/green/01.webp', '/images/catalog/street/green/02.webp', '/images/catalog/street/green/03.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
+      { colorKey: 'black', photos: ['/images/catalog/street/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
     ],
   },
 ];
@@ -239,7 +239,12 @@ function currentSelection() {
   return { model, photo, price: photo?.price || model?.price || 0 };
 }
 
+function unavailableText() {
+  return currentLang === 'en' ? 'Currently unavailable' : currentLang === 'lv' ? 'Pašlaik nav pieejams' : 'Сейчас нет в наличии';
+}
+
 function selectedStockText(photo) {
+  if (models[activeModel]?.unavailable) return unavailableText();
   return photo?.product?.inStock ? dict('common.inStock') : dict('common.stockUnknown');
 }
 
@@ -299,12 +304,13 @@ function setContactLinks(model) {
 
 function matchesModel(product, model) {
   const haystack = normalize([product.productType, product.label, product.color].join(' '));
+  if (model.id === 'mini3' && PHOTO_MODELS.find(item => item.id === 'miniPro').aliases.some(alias => haystack.includes(normalize(alias)))) return false;
   return model.aliases.some(alias => haystack.includes(normalize(alias)));
 }
 
 function matchesPhoto(product, photo) {
   const haystack = normalize([product.color, product.label, product.productType].join(' '));
-  return photo.aliases.some(alias => haystack.includes(normalize(alias)));
+  return [photo.colorKey, ...photo.aliases].some(alias => haystack.includes(normalize(alias)));
 }
 
 function primaryPhoto(photo) {
@@ -432,13 +438,14 @@ function renderContactPanel(topicId = 'availability') {
 }
 
 function pickModel(preferredIds) {
-  return preferredIds.map(id => models.find(model => model.id === id)).find(Boolean) || models[0];
+  const available = models.filter(model => !model.unavailable);
+  return preferredIds.map(id => available.find(model => model.id === id)).find(Boolean) || available[0] || models[0];
 }
 
 function createAssistantEngine() {
   if (!window.AssistantEngine?.createAssistantEngine) return null;
   return window.AssistantEngine.createAssistantEngine({
-    models: () => models,
+    models: () => models.filter(model => !model.unavailable),
     knownModels: () => PHOTO_MODELS,
     t: path => dict(path),
     modelText,
@@ -766,7 +773,7 @@ function handleAssistantAction(action) {
 function showAssistantResult(scenarioId) {
   const scenario = assistantScenarios().find(item => item.id === scenarioId) || assistantScenarios()[0];
   const model = scenario.id === 'budget'
-    ? [...models].sort((a, b) => (a.price || 0) - (b.price || 0))[0]
+    ? models.filter(item => !item.unavailable).sort((a, b) => (a.price || 0) - (b.price || 0))[0] || models[0]
     : pickModel(scenario.modelIds);
   const modelIndex = models.findIndex(item => item.id === model.id);
   assistantResult.hidden = false;
@@ -785,6 +792,10 @@ function showAssistantResult(scenarioId) {
 function buildModels(publicProducts) {
   return PHOTO_MODELS.map(model => {
     const products = publicProducts.filter(product => matchesModel(product, model));
+    if (!products.length && model.id === window.catalogInitialData?.route?.modelId) {
+      const colorKey = window.catalogInitialData.initial?.color?.key;
+      return { ...model, photos: [{ ...(model.photos.find(photo => photo.colorKey === colorKey) || model.photos[0]), price: 0 }], price: 0, products: [], unavailable: true };
+    }
     if (!products.length) return null;
 
     const photos = model.photos
@@ -850,7 +861,7 @@ function setActiveAngle(nextAngle) {
 
 function applyStaticTranslations() {
   document.documentElement.lang = currentLang;
-  document.title = dict('meta.title');
+  if (!window.catalogInitialData?.route) document.title = dict('meta.title');
   document.querySelectorAll('[data-i18n]').forEach(node => {
     const text = dict(node.dataset.i18n);
     if (text != null) node.textContent = text;
@@ -882,6 +893,8 @@ function renderLanguageSwitcher() {
 }
 
 function catalogLocaleHref(locale) {
+  const route = window.catalogInitialData?.route;
+  if (route) return `/${locale}/${route.slug}`;
   const { model, photo } = currentSelection();
   if (!model?.id || !photo?.colorKey) return `/${locale}`;
   return `/${locale}#model=${encodeURIComponent(model.id)}&color=${encodeURIComponent(photo.colorKey)}`;
@@ -907,7 +920,9 @@ function render() {
   title.dataset.fullTitle = modelText(model, 'title');
   title.classList.toggle('split-title', currentLang !== 'ru');
   document.getElementById('model-line').textContent = modelText(model, 'line');
-  document.getElementById('model-price').textContent = money(price);
+  document.getElementById('model-price').textContent = model.unavailable ? '' : money(price);
+  document.getElementById('model-stock').textContent = model.unavailable ? unavailableText() : (window.catalogInitialData?.route ? selectedStockText(photo) : '');
+  document.getElementById('model-stock').hidden = !window.catalogInitialData?.route;
   document.getElementById('details-title').textContent = modelText(model, 'title');
   document.getElementById('details-summary').textContent = modelText(model, 'description');
   renderHeroPhoto(photo, model);
@@ -925,7 +940,7 @@ function render() {
   colorGallery.innerHTML = model.photos.map((photoItem, index) => `
     <button class="thumb ${index === activeColor ? 'active' : ''}" data-color="${index}" type="button" aria-pressed="${index === activeColor}">
       <img src="${photoAt(photoItem, 0)}" alt="" width="76" height="86" loading="lazy" decoding="async" />
-      <span><strong>${colorName(photoItem)}</strong><span>${dict('common.inStock')}</span></span>
+      <span><strong>${colorName(photoItem)}</strong><span>${model.unavailable ? unavailableText() : dict('common.inStock')}</span></span>
     </button>
   `).join('');
 
@@ -959,7 +974,7 @@ function render() {
             <span class="compare-badge">${modelText(item, 'badge') || dict('common.model')}</span>
             <strong>${modelText(item, 'short')}</strong>
             ${(modelText(item, 'compare') || []).map(text => `<span>${text}</span>`).join('')}
-            <em>${money(item.price)}</em>
+            <em>${item.unavailable ? unavailableText() : money(item.price)}</em>
           </button>
         `).join('')}
       </div>
@@ -996,6 +1011,17 @@ function render() {
 }
 
 function applyUrlSelection() {
+  const route = window.catalogInitialData?.route;
+  if (route) {
+    const index = models.findIndex(model => model.id === route.modelId);
+    if (index >= 0) {
+      activeModel = index;
+      const color = models[index].photos.findIndex(photo => photo.colorKey === window.catalogInitialData.initial?.color?.key);
+      activeColor = color >= 0 ? color : 0;
+    }
+    activeAngle = 0;
+    return;
+  }
   const params = new URLSearchParams(window.location.search);
   const [selectedModel, selectedColor] = String(params.get('select') || '').split(':');
   const modelId = params.get('model') || selectedModel;
