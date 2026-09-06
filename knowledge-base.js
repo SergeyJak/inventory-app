@@ -9,6 +9,7 @@ if (!core.ARTICLES.some(article => article.id === ARTICLE_ID)) {
   const source = fs.readFileSync(sourcePath, 'utf8');
   const articleBody = source
     .split('\n---\n')[0]
+    .split('\n## FAQ\n')[0]
     .replace(/^# .+\n+/, '')
     .trim();
 
