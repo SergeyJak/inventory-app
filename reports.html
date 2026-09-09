@@ -169,7 +169,19 @@
         return INFRA_PATTERNS.some(pattern => pattern.test(text));
       }
 
+      function fixReturningLabel() {
+        document.querySelectorAll('.visitor-summary-card').forEach(card => {
+          const label = card.querySelector('span')?.textContent.trim();
+          if (label === 'Возвращались') {
+            const note = card.querySelector('small');
+            if (note) note.textContent = 'посетителей вернулись';
+          }
+        });
+      }
+
       function ensureControls() {
+        fixReturningLabel();
+
         const visitHeader = [...document.querySelectorAll('.visitor-table th')]
           .find(th => th.textContent.trim() === 'Визиты');
         if (visitHeader) visitHeader.textContent = 'Дней активности';
@@ -305,6 +317,36 @@
         return [...models];
       }
 
+      function renderDailyActive(details, range) {
+        const byDay = new Map();
+        const start = new Date(`${range.dateFrom}T00:00:00Z`);
+        const end = new Date(`${range.dateTo}T00:00:00Z`);
+        for (let date = new Date(start); date <= end; date.setUTCDate(date.getUTCDate() + 1)) {
+          byDay.set(isoDay(date), 0);
+        }
+
+        details.filter(Boolean).forEach(detail => {
+          const activeDays = new Set();
+          for (const session of detail.sessions || []) {
+            for (const event of session.events || []) {
+              const day = String(event.timestamp || '').slice(0, 10);
+              if (byDay.has(day)) activeDays.add(day);
+            }
+          }
+          activeDays.forEach(day => byDay.set(day, (byDay.get(day) || 0) + 1));
+        });
+
+        const canvas = document.getElementById('visitor-trend-chart');
+        const chart = canvas && typeof Chart !== 'undefined' ? Chart.getChart(canvas) : null;
+        if (!chart || !chart.data?.datasets?.[1]) return;
+        chart.data.datasets[1].label = 'Активные посетители';
+        chart.data.datasets[1].data = [...byDay.values()];
+        chart.update();
+
+        const subtitle = document.querySelector('.visitor-trend-panel .panel-head p');
+        if (subtitle) subtitle.textContent = 'Новые и все активные посетители по дням.';
+      }
+
       async function mapLimit(items, limit, worker) {
         const results = new Array(items.length);
         let cursor = 0;
@@ -353,9 +395,10 @@
           meaningfulByVisitor.clear();
           renderNetworkBreakdowns();
           annotateTable();
+          fixReturningLabel();
 
           const status = document.getElementById('visitor-status');
-          if (status) status.textContent = 'Модели…';
+          if (status) status.textContent = 'Уточняю…';
           const details = await mapLimit(rows, 8, row => {
             const params = new URLSearchParams({ ...range, limit: '500' });
             return api(`/api/admin/analytics/visitors/${encodeURIComponent(row.visitorId)}?${params}`);
@@ -366,8 +409,10 @@
             const row = rows[index];
             if (row && detail) meaningfulByVisitor.set(row.visitorId, meaningfulModels(detail));
           });
+          renderDailyActive(details, range);
           renderModelInterest();
           annotateTable();
+          fixReturningLabel();
           if (status) status.textContent = 'Обновлено';
         } catch {
           const status = document.getElementById('visitor-status');
@@ -389,6 +434,8 @@
 
         const tbody = document.getElementById('visitor-tbody');
         if (tbody) new MutationObserver(annotateTable).observe(tbody, { childList: true });
+        const summary = document.getElementById('visitor-summary');
+        if (summary) new MutationObserver(fixReturningLabel).observe(summary, { childList: true });
         setTimeout(() => refreshFixes(30), 120);
       });
     })();
