@@ -912,7 +912,7 @@ function renderAccounts() {
         <td><button class="account-toggle" onclick="toggleAccountHost('${hostId}')" title="Toggle linked accounts">+</button></td>
         <td><strong>${esc(host.hostMail || '-')}</strong></td>
         <td><span class="account-status">${esc(host.status || '-')}</span></td>
-        <td>${formatAccountDate(host.renewalDate)}</td>
+        <td>${formatAccountDate(host.renewalDate)} <button class="date-edit-btn" onclick="editHostRenewalDate('${hostId}')" title="Edit renewal date" aria-label="Edit renewal date">✏️</button></td>
         <td>${linkedSubs.length}</td>
         <td><code>${esc(host.password || '')}</code></td>
         <td><span class="accounts-actions"><button class="btn-edit" onclick="editHostSubscription('${hostId}')">Edit</button><button class="btn-delete" onclick="deleteHostSubscription('${hostId}')">Delete</button></span></td>
@@ -1049,6 +1049,21 @@ function clearHostForm() {
   document.getElementById('cancel-host-btn').style.display = 'none';
 }
 function cancelHostEdit() { clearHostForm(); }
+
+function editHostRenewalDate(id) {
+  const hosts = loadHostSubscriptions();
+  const host = hosts.find(h => h.id === id);
+  if (!host) return;
+  const current = normalizeStartDate(host.renewalDate) || '';
+  const value = prompt('Renewal date (dd.mm.yyyy):', current);
+  if (value === null) return;
+  const normalized = normalizeStartDate(value);
+  if (!normalized) return showToast('Use date format dd.mm.yyyy', 'error');
+  host.renewalDate = normalized;
+  saveHostSubscriptions(hosts);
+  renderAccounts();
+  showToast('Renewal date updated');
+}
 
 function deleteHostSubscription(id) {
   const host = loadHostSubscriptions().find(h => h.id === id);
