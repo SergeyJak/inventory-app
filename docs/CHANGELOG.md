@@ -31,6 +31,9 @@ This file records the current high-level state of the project. It is not a relea
 * `GET /api/reports/sales` aggregates sales by month, quarter, or year.
 * Sales dashboard supports metric switching, year comparison, summary cards, Chart.js chart, and compact table.
 * Visitor analytics supports 7/14/30-day ranges, visitor/session/page-view/contact summary cards, activity trend, country/city/device/language/model breakdowns, search, pagination, and a per-visitor event timeline.
+* The visitor table labels `visitCount` as active days and shows session count separately.
+* Model-interest reporting ignores the automatic initial model view when it is paired with the session page view; explicit model views and meaningful model interactions remain counted.
+* Likely hosting/cloud/social-infrastructure providers are marked heuristically with an `Infrastructure?` badge. Geography can switch between all traffic and ordinary networks without deleting any visitor data.
 * Visitor analytics remains read-only in the UI and does not expose delete actions.
 
 ### Public Catalog
