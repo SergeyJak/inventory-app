@@ -693,6 +693,7 @@ function deleteProduct(id) {
 // ========== ACCOUNTS ==========
 let accountsView = 'subs';
 let subAccountsStartSort = 'asc';
+let hostRenewalFilter = 'all';
 
 function getAccountHostKey(host) {
   return (host.hostMail || host.id || '').toLowerCase();
@@ -718,17 +719,31 @@ function formatAccountDate(value) {
   return esc(value);
 }
 
-function renewalClass(value) {
-  if (!value) return '';
+function hostRenewalDays(value) {
+  const time = startDateTime(value);
+  if (!time) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const renewal = new Date(String(value).slice(0, 10) + 'T00:00:00');
-  if (isNaN(renewal.getTime())) return '';
-  const days = Math.ceil((renewal - today) / 86400000);
+  return Math.round((time - today.getTime()) / 86400000);
+}
+
+function renewalClass(value) {
+  const days = hostRenewalDays(value);
+  if (days === null) return '';
   if (days < 0) return 'account-renewal-overdue';
   if (days <= 14) return 'account-renewal-soon';
   if (days <= 30) return 'account-renewal-watch';
   return '';
+}
+
+function hostFitsRenewalFilter(host) {
+  const days = hostRenewalDays(host.renewalDate);
+  if (hostRenewalFilter === 'overdue') return days !== null && days < 0;
+  if (hostRenewalFilter === 'next14') return days !== null && days >= 0 && days <= 14;
+  if (hostRenewalFilter === 'next30') return days !== null && days >= 0 && days <= 30;
+  if (hostRenewalFilter === 'later') return days !== null && days > 30;
+  if (hostRenewalFilter === 'nodate') return days === null;
+  return true;
 }
 
 function subPaymentClass(sub) {
@@ -810,6 +825,8 @@ function setAccountsView(view) {
   });
   document.getElementById('sub-accounts-table').style.display = accountsView === 'hosts' ? 'none' : '';
   document.getElementById('accounts-table').style.display = accountsView === 'hosts' ? '' : 'none';
+  const renewalFilter = document.getElementById('host-renewal-filter');
+  if (renewalFilter) renewalFilter.style.display = accountsView === 'hosts' ? '' : 'none';
   renderAccounts();
 }
 
@@ -877,6 +894,7 @@ function renderAccounts() {
   if (accountsView !== 'hosts') return;
   const rows = [];
   [...hosts]
+    .filter(hostFitsRenewalFilter)
     .sort((a, b) => {
       const aTime = startDateTime(a.renewalDate);
       const bTime = startDateTime(b.renewalDate);
@@ -2174,6 +2192,7 @@ document.getElementById('stock-show-all')?.addEventListener('change', e => {
   renderDashboard();
 });
 document.getElementById('accounts-search')?.addEventListener('input', renderAccounts);
+document.getElementById('host-renewal-filter')?.addEventListener('change', e => { hostRenewalFilter = e.target.value; renderAccounts(); });
 document.getElementById('mail-accounts-search')?.addEventListener('input', renderMailAccounts);
 document.getElementById('visitor-analytics-search')?.addEventListener('input', () => { visitorAnalyticsPage = 1; renderVisitorAnalytics(); });
 ['visitor-analytics-from','visitor-analytics-to','visitor-analytics-bots'].forEach(id => {

@@ -196,6 +196,14 @@
 
   <div class="accounts-toolbar">
     <input type="search" id="accounts-search" placeholder="Search by host, email, name, phone, status..." />
+    <select id="host-renewal-filter" style="display:none" aria-label="Renewal filter">
+      <option value="all">All renewals</option>
+      <option value="overdue">Overdue</option>
+      <option value="next14">Next 14 days</option>
+      <option value="next30">Next 30 days</option>
+      <option value="later">Later than 30 days</option>
+      <option value="nodate">No renewal date</option>
+    </select>
     <div class="accounts-summary" id="accounts-summary"></div>
   </div>
 
