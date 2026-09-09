@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="/reports.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="/reports.js" defer></script>
+  <style>
+    .network-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+    .network-filter button { min-height: 32px; padding: 0 10px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: .78rem; font-weight: 850; }
+    .network-filter button.active { background: #111827; color: #fff; }
+    .infra-badge { display: inline-flex; margin-top: 4px; padding: 2px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: .68rem; font-weight: 850; white-space: nowrap; }
+    @media (max-width: 820px) { .network-filter { width: 100%; margin-left: 0; } }
+  </style>
 </head>
 <body>
   <header class="reports-header">
@@ -72,5 +79,319 @@
       </div>
     </section>
   </main>
+
+  <script>
+    (() => {
+      if (location.pathname !== '/analytics') return;
+
+      const token = localStorage.getItem('inv_token');
+      if (!token) return;
+
+      const INFRA_PATTERNS = [
+        /datacamp/i,
+        /hetzner/i,
+        /amazon|aws/i,
+        /google cloud|google llc/i,
+        /microsoft|azure/i,
+        /digitalocean/i,
+        /ovh/i,
+        /cloudflare/i,
+        /facebook|meta platforms/i,
+        /linode|akamai/i,
+        /oracle cloud/i,
+      ];
+      const MODEL_LABELS = {
+        light2: 'Light 2',
+        mini3: 'Mini 3',
+        miniPro: 'Mini 3 Pro',
+        midi: 'Midi',
+        street: 'Street',
+      };
+
+      let currentDays = 30;
+      let latestRows = [];
+      let networkMode = 'all';
+      let runId = 0;
+      const meaningfulByVisitor = new Map();
+
+      function authHeaders() {
+        return { Authorization: `Bearer ${token}` };
+      }
+
+      function isoDay(date) {
+        return date.toISOString().slice(0, 10);
+      }
+
+      function rangeForDays(days) {
+        const to = new Date();
+        const from = new Date(to);
+        from.setUTCDate(from.getUTCDate() - days + 1);
+        return { dateFrom: isoDay(from), dateTo: isoDay(to) };
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function flag(code) {
+        const clean = String(code || '').toUpperCase();
+        if (!/^[A-Z]{2}$/.test(clean)) return '🌐';
+        return String.fromCodePoint(...[...clean].map(char => 127397 + char.charCodeAt(0)));
+      }
+
+      async function api(path) {
+        const res = await fetch(path, { headers: authHeaders() });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      }
+
+      async function loadRows(days) {
+        const range = rangeForDays(days);
+        const firstParams = new URLSearchParams({ ...range, page: '1', limit: '100' });
+        const first = await api(`/api/admin/analytics/visitors?${firstParams}`);
+        const rows = [...(first.items || [])];
+        const pages = Math.ceil((first.total || rows.length) / 100);
+        for (let page = 2; page <= pages; page += 1) {
+          const params = new URLSearchParams({ ...range, page: String(page), limit: '100' });
+          const next = await api(`/api/admin/analytics/visitors?${params}`);
+          rows.push(...(next.items || []));
+        }
+        return { rows, range };
+      }
+
+      function isInfrastructure(row) {
+        const text = `${row?.geo?.isp || ''} ${row?.geo?.asn || ''}`;
+        return INFRA_PATTERNS.some(pattern => pattern.test(text));
+      }
+
+      function ensureControls() {
+        const visitHeader = [...document.querySelectorAll('.visitor-table th')]
+          .find(th => th.textContent.trim() === 'Визиты');
+        if (visitHeader) visitHeader.textContent = 'Дней активности';
+
+        const countriesPanel = document.getElementById('visitor-countries')?.closest('.panel');
+        if (!countriesPanel || document.getElementById('network-filter')) return;
+        const controls = document.createElement('div');
+        controls.id = 'network-filter';
+        controls.className = 'network-filter';
+        controls.innerHTML = `
+          <button type="button" data-network-mode="all" class="active">Все</button>
+          <button type="button" data-network-mode="normal">Обычные сети</button>
+        `;
+        countriesPanel.querySelector('.panel-head')?.appendChild(controls);
+        controls.addEventListener('click', event => {
+          const button = event.target.closest('[data-network-mode]');
+          if (!button) return;
+          networkMode = button.dataset.networkMode || 'all';
+          controls.querySelectorAll('button').forEach(item => item.classList.toggle('active', item === button));
+          renderNetworkBreakdowns();
+        });
+      }
+
+      function countBy(values) {
+        const map = new Map();
+        values.filter(Boolean).forEach(value => map.set(value, (map.get(value) || 0) + 1));
+        return [...map.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+      }
+
+      function renderRankList(containerId, entries, total, formatter, limit) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const visible = entries.slice(0, limit);
+        container.innerHTML = visible.length ? visible.map(([value, count], index) => {
+          const pct = total ? Math.round(count / total * 100) : 0;
+          return `
+            <div class="rank-row">
+              <span class="rank-index">${index + 1}</span>
+              <span class="rank-name">${formatter(value)}</span>
+              <span class="rank-bar"><i style="width:${Math.max(4, pct)}%"></i></span>
+              <strong>${count}</strong>
+              <small>${pct}%</small>
+            </div>
+          `;
+        }).join('') : '<div class="visitor-empty">Пока нет данных.</div>';
+      }
+
+      function renderNetworkBreakdowns() {
+        const rows = networkMode === 'normal'
+          ? latestRows.filter(row => !isInfrastructure(row))
+          : latestRows;
+        const total = rows.length || 1;
+        const countries = countBy(rows.map(row => row.geo?.country || 'Unknown'));
+        const cities = countBy(rows
+          .map(row => row.geo?.city || (row.geo?.country === 'Unknown' ? 'Unknown' : ''))
+          .filter(Boolean));
+
+        renderRankList('visitor-countries', countries, total, value => {
+          const row = rows.find(item => (item.geo?.country || 'Unknown') === value);
+          return `${flag(row?.geo?.countryCode)} ${escapeHtml(value === 'Unknown' ? 'Не определено' : value)}`;
+        }, 6);
+        renderRankList('visitor-cities', cities, total, value => escapeHtml(value === 'Unknown' ? 'Не определено' : value), 8);
+
+        const canvas = document.getElementById('visitor-country-chart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        Chart.getChart(canvas)?.destroy();
+        new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: countries.slice(0, 6).map(([name]) => name === 'Unknown' ? 'Не определено' : name),
+            datasets: [{ data: countries.slice(0, 6).map(([, count]) => count), borderWidth: 0 }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: { legend: { display: false } },
+          },
+        });
+      }
+
+      function annotateTable() {
+        const rowById = new Map(latestRows.map(row => [row.visitorId, row]));
+        document.querySelectorAll('.visitor-table tbody tr[data-visitor-id]').forEach(tr => {
+          const visitorId = tr.dataset.visitorId;
+          const row = rowById.get(visitorId);
+          if (!row) return;
+
+          const whereCell = tr.children[1];
+          const infra = isInfrastructure(row);
+          if (infra && whereCell && !whereCell.querySelector('.infra-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'infra-badge';
+            badge.textContent = 'Инфраструктура?';
+            badge.title = 'Провайдер похож на дата-центр, облако или social infrastructure. Это эвристика, а не точное определение.';
+            whereCell.appendChild(document.createElement('br'));
+            whereCell.appendChild(badge);
+          }
+
+          if (meaningfulByVisitor.has(visitorId)) {
+            const cell = tr.querySelector('.models-cell');
+            const models = meaningfulByVisitor.get(visitorId) || [];
+            if (cell) cell.textContent = models.length ? models.map(model => MODEL_LABELS[model] || model).join(', ') : '—';
+          }
+        });
+      }
+
+      function meaningfulModels(detail) {
+        const models = new Set();
+        for (const session of detail.sessions || []) {
+          const events = [...(session.events || [])]
+            .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+          const firstPage = events.find(event => event.eventType === 'page_view');
+          const firstPageTime = firstPage ? new Date(firstPage.timestamp).getTime() : NaN;
+
+          for (const event of events) {
+            if (!event.modelId) continue;
+            if (event.eventType === 'model_view') {
+              const eventTime = new Date(event.timestamp).getTime();
+              const looksAutomatic = firstPage
+                && event.modelId === firstPage.modelId
+                && Number.isFinite(eventTime)
+                && Number.isFinite(firstPageTime)
+                && Math.abs(eventTime - firstPageTime) <= 2000;
+              if (!looksAutomatic) models.add(event.modelId);
+              continue;
+            }
+            if (['color_change', 'details_open', 'assistant_recommendation', 'contact_click', 'whatsapp_click', 'telegram_click'].includes(event.eventType)) {
+              models.add(event.modelId);
+            }
+          }
+        }
+        return [...models];
+      }
+
+      async function mapLimit(items, limit, worker) {
+        const results = new Array(items.length);
+        let cursor = 0;
+        async function next() {
+          while (cursor < items.length) {
+            const index = cursor++;
+            try { results[index] = await worker(items[index]); }
+            catch { results[index] = null; }
+          }
+        }
+        await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
+        return results;
+      }
+
+      function renderModelInterest() {
+        const container = document.getElementById('visitor-models');
+        if (!container) return;
+        const counts = new Map();
+        meaningfulByVisitor.forEach(models => {
+          [...new Set(models)].forEach(model => counts.set(model, (counts.get(model) || 0) + 1));
+        });
+        const entries = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        const total = latestRows.length || 1;
+        container.innerHTML = entries.length ? entries.slice(0, 6).map(([model, count], index) => {
+          const pct = Math.round(count / total * 100);
+          return `
+            <div class="rank-row">
+              <span class="rank-index">${index + 1}</span>
+              <span class="rank-name">${escapeHtml(MODEL_LABELS[model] || model)}</span>
+              <span class="rank-bar"><i style="width:${Math.max(4, pct)}%"></i></span>
+              <strong>${count}</strong>
+              <small>${pct}%</small>
+            </div>
+          `;
+        }).join('') : '<div class="visitor-empty">Пока нет осознанных взаимодействий с моделями.</div>';
+      }
+
+      async function refreshFixes(days = currentDays) {
+        currentDays = days;
+        const ownRun = ++runId;
+        ensureControls();
+        try {
+          const { rows, range } = await loadRows(days);
+          if (ownRun !== runId) return;
+          latestRows = rows;
+          meaningfulByVisitor.clear();
+          renderNetworkBreakdowns();
+          annotateTable();
+
+          const status = document.getElementById('visitor-status');
+          if (status) status.textContent = 'Модели…';
+          const details = await mapLimit(rows, 8, row => {
+            const params = new URLSearchParams({ ...range, limit: '500' });
+            return api(`/api/admin/analytics/visitors/${encodeURIComponent(row.visitorId)}?${params}`);
+          });
+          if (ownRun !== runId) return;
+
+          details.forEach((detail, index) => {
+            const row = rows[index];
+            if (row && detail) meaningfulByVisitor.set(row.visitorId, meaningfulModels(detail));
+          });
+          renderModelInterest();
+          annotateTable();
+          if (status) status.textContent = 'Обновлено';
+        } catch {
+          const status = document.getElementById('visitor-status');
+          if (status) status.textContent = 'Частичные данные';
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        ensureControls();
+        document.querySelectorAll('#range-buttons button').forEach(button => {
+          button.addEventListener('click', () => {
+            const days = Number(button.dataset.days) || 30;
+            setTimeout(() => refreshFixes(days), 80);
+          });
+        });
+        document.getElementById('visitor-refresh')?.addEventListener('click', () => {
+          setTimeout(() => refreshFixes(currentDays), 80);
+        });
+
+        const tbody = document.getElementById('visitor-tbody');
+        if (tbody) new MutationObserver(annotateTable).observe(tbody, { childList: true });
+        setTimeout(() => refreshFixes(30), 120);
+      });
+    })();
+  </script>
 </body>
 </html>
