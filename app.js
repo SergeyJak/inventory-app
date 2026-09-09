@@ -877,7 +877,14 @@ function renderAccounts() {
   if (accountsView !== 'hosts') return;
   const rows = [];
   [...hosts]
-    .sort((a, b) => String(a.renewalDate || '').localeCompare(String(b.renewalDate || '')) || String(a.hostMail || '').localeCompare(String(b.hostMail || '')))
+    .sort((a, b) => {
+      const aTime = startDateTime(a.renewalDate);
+      const bTime = startDateTime(b.renewalDate);
+      if (!aTime && !bTime) return String(a.hostMail || '').localeCompare(String(b.hostMail || ''));
+      if (!aTime) return 1;
+      if (!bTime) return -1;
+      return aTime - bTime || String(a.hostMail || '').localeCompare(String(b.hostMail || ''));
+    })
     .forEach(host => {
       const linkedSubs = subs.filter(sub => subMatchesHost(sub, host));
       if (q && !accountSearchBlob(host, linkedSubs).includes(q)) return;
