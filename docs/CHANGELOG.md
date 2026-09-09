@@ -26,10 +26,12 @@ This file records the current high-level state of the project. It is not a relea
 
 ### Reports / Analytics
 
-* `/reports` and `/analytics` serve a read-only sales analytics dashboard.
+* `/reports` serves the read-only sales analytics dashboard for admin and viewer roles.
+* `/analytics` serves a separate admin-only HeySmart visitor analytics dashboard using the existing visitor analytics API.
 * `GET /api/reports/sales` aggregates sales by month, quarter, or year.
-* Dashboard supports metric switching, year comparison, summary cards, Chart.js chart, and compact table.
-* Reports are available to both `admin` and `viewer`.
+* Sales dashboard supports metric switching, year comparison, summary cards, Chart.js chart, and compact table.
+* Visitor analytics supports 7/14/30-day ranges, visitor/session/page-view/contact summary cards, activity trend, country/city/device/language/model breakdowns, search, pagination, and a per-visitor event timeline.
+* Visitor analytics remains read-only in the UI and does not expose delete actions.
 
 ### Public Catalog
 
