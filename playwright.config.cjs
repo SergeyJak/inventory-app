@@ -32,7 +32,7 @@ module.exports = defineConfig({
     },
   ],
   webServer: {
-    command: 'node scripts/enable-yandex-plus-storefront.js && node scripts/replace-yandex-plus-image.js && node tests/e2e/static-server.cjs',
+    command: 'node scripts/enable-yandex-plus-storefront.js && node tests/e2e/static-server.cjs',
     url: 'http://127.0.0.1:4173/health',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
