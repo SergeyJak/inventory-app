@@ -7,7 +7,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "prestart": "node scripts/bootstrap-geolite2.js && node scripts/ensure-yandex-plus-category.js",
+    "prestart": "node scripts/bootstrap-geolite2.js && node scripts/ensure-yandex-plus-category.js && node scripts/enable-yandex-plus-storefront.js",
     "start": "node server.js",
     "test": "node tests/assistant-engine-v2.test.cjs",
     "test:assistant": "node tests/assistant-engine-v2.test.cjs",
