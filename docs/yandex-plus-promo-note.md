@@ -1,0 +1,1 @@
+Temporary implementation note for Yandex Plus storefront-only promo offer.
