@@ -62,6 +62,7 @@ test.describe('HeySmart storefront safety net', () => {
 
   test('promo image is the expected decoded asset', async ({ page }) => {
     const image = page.locator('#yandex-plus-offer .yp-media img');
+    await image.scrollIntoViewIfNeeded();
     await expect(image).toBeVisible();
 
     await expect.poll(async () => image.evaluate(img => ({
