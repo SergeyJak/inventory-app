@@ -72,7 +72,6 @@ async function run() {
   server.stderr.on('data', chunk => process.stderr.write(`[api-test server] ${chunk}`));
   await waitForServer(server);
 
-  // Authentication and authorization are enforced on inventory APIs.
   let response = await request('/api/data');
   assert.equal(response.status, 401, 'anonymous inventory read must be rejected');
 
@@ -121,20 +120,27 @@ async function run() {
   assert.equal(response.status, 200, 'admin product save should succeed');
   assert.deepEqual(await json(response), { ok: true });
 
-  // Internal product metadata survives the authenticated round trip.
   response = await request('/api/data', { token: adminToken });
   assert.equal(response.status, 200);
-  let data = await json(response);
+  const data = await json(response);
   const savedLight = data.products.find(product => product.id === 'light2-blue');
   assert.equal(savedLight.renewalDate, '2026-10-15', 'renewal date must survive save/read');
   assert.equal(savedLight.purchasePrice, 71, 'purchase price must survive save/read');
   assert.equal(savedLight.lots[0].qty, 2, 'stock lot must survive save/read');
 
-  // Public projection exposes only safe storefront fields and hides zero stock.
   response = await request('/api/public/products');
   assert.equal(response.status, 200);
   let publicData = await json(response);
-  assert.deepEqual(publicData.products.map(product => product.id), ['light2-blue', 'yandex-plus-12m']);
+  assert.deepEqual(
+    new Set(publicData.products.map(product => product.id)),
+    new Set(['light2-blue', 'yandex-plus-12m']),
+    'public API should expose only in-stock seeded products',
+  );
+  assert.equal(
+    publicData.products.some(product => product.id === 'light2-black-empty'),
+    false,
+    'zero-stock product must stay hidden from public API',
+  );
   const publicLight = publicData.products.find(product => product.id === 'light2-blue');
   assert.equal(publicLight.sellPrice, 100);
   assert.equal(publicLight.inStock, true);
@@ -142,7 +148,6 @@ async function run() {
   assert.equal('renewalDate' in publicLight, false, 'renewal date must never leak publicly');
   assert.equal('lots' in publicLight, false, 'stock lots must never leak publicly');
 
-  // Editing sellPrice in admin storage is reflected immediately by the public API.
   const updatedProducts = products.map(product => product.id === 'yandex-plus-12m'
     ? { ...product, sellPrice: 49 }
     : product);
@@ -161,7 +166,6 @@ async function run() {
     'storefront price must follow admin sellPrice without deploy',
   );
 
-  // Sales persistence and reporting stay consistent.
   const transactions = [
     {
       id: 'sale-1',
@@ -199,7 +203,6 @@ async function run() {
   assert.equal(report.totals.cost, 102.5);
   assert.equal(report.totals.profit, 46.5);
 
-  // Unknown storage keys are rejected instead of creating arbitrary files/collections.
   response = await request('/api/save', {
     method: 'POST',
     token: adminToken,
