@@ -41,6 +41,7 @@ jobs:
           node --check knowledge-base-core.js
           node --check scripts/enable-yandex-plus-storefront.js
           node --check scripts/replace-yandex-plus-image.js
+          node --check tests/api-integration.test.cjs
           node --check tests/e2e/static-server.cjs
           node --check tests/e2e/catalog.spec.cjs
 
@@ -55,6 +56,9 @@ jobs:
 
       - name: Mini 3 comparison tests
         run: node tests/mini3-comparison.test.cjs
+
+      - name: Inventory API integration tests
+        run: npm run test:api
 
       - name: Install Playwright test runner
         run: npm install --no-save --no-package-lock @playwright/test@1.55.0
