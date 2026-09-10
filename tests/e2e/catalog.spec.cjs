@@ -6,7 +6,8 @@ test.describe('HeySmart storefront safety net', () => {
   test.beforeEach(async ({ page }) => {
     pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#model-switcher .model-btn').first()).toBeVisible();
   });
 
   test.afterEach(async () => {
