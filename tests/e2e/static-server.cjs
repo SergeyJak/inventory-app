@@ -43,6 +43,13 @@ function safeFile(urlPath) {
   return resolved;
 }
 
+function renderCatalogHtml() {
+  const file = path.join(root, 'catalog.html');
+  return fs.readFileSync(file, 'utf8')
+    .replace('__CATALOG_PAGE_LOCALE__', JSON.stringify('ru'))
+    .replace('__CATALOG_INITIAL_DATA__', 'null');
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
 
@@ -63,10 +70,11 @@ const server = http.createServer((req, res) => {
     return send(res, 200, JSON.stringify({ id: 'e2e-question' }), 'application/json; charset=utf-8');
   }
 
-  let pathname = url.pathname;
-  if (pathname === '/' || pathname === '/ru' || pathname === '/lv' || pathname === '/en') pathname = '/catalog.html';
+  if (url.pathname === '/' || url.pathname === '/ru' || url.pathname === '/lv' || url.pathname === '/en' || url.pathname === '/catalog.html') {
+    return send(res, 200, renderCatalogHtml(), 'text/html; charset=utf-8');
+  }
 
-  const file = safeFile(pathname);
+  const file = safeFile(url.pathname);
   if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     return send(res, 404, 'not found');
   }
