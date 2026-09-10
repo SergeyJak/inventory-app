@@ -31,9 +31,7 @@ test.describe('HeySmart storefront safety net', () => {
 
     await colors.nth(1).click();
     await expect(colors.nth(1)).toHaveClass(/active/);
-
-    const src = await page.locator('#hero-image').getAttribute('src');
-    expect(src || '').toContain('/images/catalog/light-2/pink/');
+    await expect(page.locator('#hero-image')).toHaveAttribute('src', /\/images\/catalog\/light-2\/pink\//);
   });
 
   test('Yandex Plus renders as a separate API-driven offer', async ({ page }) => {
@@ -62,7 +60,7 @@ test.describe('HeySmart storefront safety net', () => {
     expect(order).toEqual({ showroomBeforeOffer: true, offerBeforeQuickChoose: true });
   });
 
-  test('promo image is a real decoded image, not alt text or a broken asset', async ({ page }) => {
+  test('promo image is the expected decoded asset', async ({ page }) => {
     const image = page.locator('#yandex-plus-offer .yp-media img');
     await expect(image).toBeVisible();
 
