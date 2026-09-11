@@ -14,6 +14,15 @@ test.describe('HeySmart storefront safety net', () => {
     expect(pageErrors, `Unexpected browser errors:\n${pageErrors.join('\n')}`).toEqual([]);
   });
 
+  test('catalog root keeps Russian SEO locale even with saved English preference', async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('catalogLanguage', 'en'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    await expect(page).toHaveTitle('Умные колонки с Алисой в Риге и Латвии | HeySmart');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
+    await expect(page.locator('#language-switcher a[href="/en"]')).toBeVisible();
+  });
+
   test('catalog still renders known speaker models', async ({ page }) => {
     const modelButtons = page.locator('#model-switcher .model-btn');
     await expect(modelButtons).toHaveCount(3);
