@@ -20,7 +20,7 @@ test.describe('HeySmart storefront safety net', () => {
 
     await expect(page).toHaveTitle('Умные колонки с Алисой в Риге и Латвии | HeySmart');
     await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
-    await expect(page.locator('#language-switcher a[href="/en"]')).toBeVisible();
+    await expect(page.locator('#language-switcher a[hreflang="en"]')).toBeVisible();
   });
 
   test('catalog still renders known speaker models', async ({ page }) => {
