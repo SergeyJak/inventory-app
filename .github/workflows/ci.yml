@@ -40,8 +40,10 @@ jobs:
           node --check knowledge-base.js
           node --check knowledge-base-core.js
           node --check scripts/enable-yandex-plus-storefront.js
+          node --check scripts/restore-yandex-plus-hq-image.js
           node --check scripts/replace-yandex-plus-image.js
           node --check tests/api-integration.test.cjs
+          node --check tests/yandex-plus-image.test.cjs
           node --check tests/e2e/static-server.cjs
           node --check tests/e2e/catalog.spec.cjs
 
@@ -56,6 +58,9 @@ jobs:
 
       - name: Mini 3 comparison tests
         run: node tests/mini3-comparison.test.cjs
+
+      - name: Yandex Plus image integrity
+        run: node tests/yandex-plus-image.test.cjs
 
       - name: Inventory API integration tests
         run: npm run test:api
