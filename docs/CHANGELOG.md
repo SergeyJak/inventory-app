@@ -42,6 +42,7 @@ This file records the current high-level state of the project. It is not a relea
 
 * Public HeySmart catalog is served by `catalog.html`, `catalog.css`, `catalog.js`, `i18n.js`, and `assistant-engine.js`.
 * The eight RU/EN canonical product routes reuse the full catalog with an explicit initial model, product-specific SSR metadata and Yandex Product schema. Product language links retain the slug; unavailable products remain indexable with OutOfStock schema. Existing catalog hash links retain their selection and smooth scrolling.
+* The catalog root `/` initializes with the Russian locale so browser or saved-language detection cannot rewrite its SEO title to English; `/en` remains the explicit English landing page.
 * Catalog language is stored in `localStorage.catalogLanguage`.
 * Catalog has a mail icon link to `/mail`.
 * Catalog routes are separated from inventory/admin routes by host/path guards in `server.js`.
