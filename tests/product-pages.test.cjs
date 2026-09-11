@@ -61,7 +61,7 @@ async function main() {
       assert.ok(text.includes(`id="model-line">${copy.intro}</p>`));
       for (const id of ['catalog-content', 'model-switcher', 'color-gallery', 'model-details', 'assistant-panel', 'contact-panel']) assert.ok(text.includes(`id="${id}"`));
       assert.doesNotMatch(text, /class="product-page"|product-image-link|product-gallery|__CATALOG_/);
-      const boot = JSON.parse(text.match(/window.catalogInitialData = (.*?);<\/script>/)[1]);
+      const boot = JSON.parse(text.match(/window\.catalogInitialData = ([\s\S]*?);\s*<\/script>/)[1]);
       assert.strictEqual(boot.route.modelId, model.id);
       assert.strictEqual(boot.initial.model.id, model.id);
       assert.strictEqual(boot.route.slug, slug);
