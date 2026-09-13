@@ -1,0 +1,417 @@
+(() => {
+  const token = localStorage.getItem('inv_token');
+  const role = localStorage.getItem('inv_role');
+  const username = localStorage.getItem('inv_username');
+
+  if (!token) {
+    location.href = '/login.html';
+    return;
+  }
+  if (role !== 'admin') {
+    location.href = '/';
+    return;
+  }
+
+  const state = {
+    products: [],
+    transactions: [],
+    subAccounts: [],
+    hostSubscriptions: [],
+    hardwareYear: new Date().getFullYear(),
+    servicesYear: new Date().getFullYear(),
+  };
+
+  const MONTHS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+  const TYPE_LABELS = {
+    subscription: 'Subscription',
+    setup: 'Setup',
+    other: 'Other income',
+    subscription_purchase: 'Subscription purchase',
+    other_expense: 'Other expense',
+  };
+
+  const byId = id => document.getElementById(id);
+  const money = value => `${(Number(value) || 0).toFixed(2)} €`;
+  const today = () => new Date().toISOString().slice(0, 10);
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const esc = value => String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+  function authHeaders() {
+    return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  }
+
+  function toast(message, error = false) {
+    const box = byId('finance-toast');
+    box.textContent = message;
+    box.className = `toast${error ? ' error' : ''}`;
+    box.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { box.hidden = true; }, 2600);
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  async function saveKey(key, data) {
+    await api('/api/save', { method: 'POST', body: JSON.stringify({ key, data }) });
+  }
+
+  function validDate(value) {
+    const date = new Date(`${String(value || '').slice(0,10)}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function dateYear(value) {
+    return validDate(value)?.getFullYear() || 0;
+  }
+
+  function dateMonth(value) {
+    return validDate(value)?.getMonth() ?? -1;
+  }
+
+  function clientLabel(sub) {
+    return sub.name || sub.email || sub.tel || sub.id || 'Client';
+  }
+
+  function hostLabel(host) {
+    return host.hostMail || host.email || host.id || 'Host';
+  }
+
+  function isCancelled(sub) {
+    return ['cancelled','canceled','annulled','off'].includes(String(sub.status || '').toLowerCase());
+  }
+
+  function allIncomeRows() {
+    return state.subAccounts.flatMap(sub => (Array.isArray(sub.financePayments) ? sub.financePayments : []).map(payment => ({
+      ...payment,
+      kind: 'income',
+      ownerId: sub.id,
+      ownerLabel: clientLabel(sub),
+    })));
+  }
+
+  function allExpenseRows() {
+    return state.hostSubscriptions.flatMap(host => (Array.isArray(host.financeExpenses) ? host.financeExpenses : []).map(expense => ({
+      ...expense,
+      kind: 'expense',
+      ownerId: host.id,
+      ownerLabel: hostLabel(host),
+    })));
+  }
+
+  function serviceRows(year = state.servicesYear) {
+    return [...allIncomeRows(), ...allExpenseRows()]
+      .filter(row => dateYear(row.date) === Number(year))
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+
+  function availableYears() {
+    const years = new Set([new Date().getFullYear()]);
+    state.transactions.forEach(tx => { const y = dateYear(tx.date); if (y) years.add(y); });
+    [...allIncomeRows(), ...allExpenseRows()].forEach(row => { const y = dateYear(row.date); if (y) years.add(y); });
+    return [...years].sort((a,b) => b-a);
+  }
+
+  function renderYearSelects() {
+    const years = availableYears();
+    for (const [id, selected] of [['hardware-year', state.hardwareYear], ['services-year', state.servicesYear]]) {
+      const select = byId(id);
+      select.innerHTML = years.map(year => `<option value="${year}">${year}</option>`).join('');
+      select.value = String(years.includes(Number(selected)) ? selected : years[0]);
+    }
+  }
+
+  function summaryCard(label, value, note = '', cls = '') {
+    return `<article class="summary-card ${cls}"><span>${esc(label)}</span><strong>${esc(value)}</strong>${note ? `<small>${esc(note)}</small>` : ''}</article>`;
+  }
+
+  function renderHardware() {
+    const year = Number(state.hardwareYear);
+    const sales = state.transactions.filter(tx => tx.type === 'sale' && dateYear(tx.date) === year);
+    const totals = sales.reduce((sum, tx) => {
+      sum.qty += Number(tx.qty) || 0;
+      sum.revenue += Number(tx.total) || 0;
+      sum.cost += Number(tx.costTotal) || 0;
+      sum.profit += Number(tx.profit) || 0;
+      return sum;
+    }, { qty: 0, revenue: 0, cost: 0, profit: 0 });
+    const margin = totals.revenue ? totals.profit / totals.revenue * 100 : 0;
+    byId('hardware-summary').innerHTML = [
+      summaryCard('Выручка', money(totals.revenue)),
+      summaryCard('Себестоимость', money(totals.cost)),
+      summaryCard('Прибыль', money(totals.profit), `${margin.toFixed(1)}% margin`, totals.profit >= 0 ? 'positive' : 'negative'),
+      summaryCard('Продано', String(totals.qty), 'шт.'),
+      summaryCard('Бухгалтерия', 'Колонки', 'Отдельно от services'),
+    ].join('');
+
+    const months = Array.from({ length: 12 }, () => ({ qty: 0, revenue: 0, cost: 0, profit: 0 }));
+    sales.forEach(tx => {
+      const month = dateMonth(tx.date);
+      if (month < 0) return;
+      months[month].qty += Number(tx.qty) || 0;
+      months[month].revenue += Number(tx.total) || 0;
+      months[month].cost += Number(tx.costTotal) || 0;
+      months[month].profit += Number(tx.profit) || 0;
+    });
+    byId('hardware-tbody').innerHTML = months.map((m, index) => `<tr><td>${MONTHS[index]}</td><td>${m.qty}</td><td>${money(m.revenue)}</td><td>${money(m.cost)}</td><td class="${m.profit >= 0 ? 'money-in' : 'money-out'}">${money(m.profit)}</td></tr>`).join('');
+  }
+
+  function serviceTotals(year) {
+    const rows = serviceRows(year);
+    const incomes = rows.filter(row => row.kind === 'income');
+    const expenses = rows.filter(row => row.kind === 'expense');
+    const subscription = incomes.filter(row => row.type === 'subscription').reduce((s,row) => s + (Number(row.amount) || 0), 0);
+    const setup = incomes.filter(row => row.type === 'setup').reduce((s,row) => s + (Number(row.amount) || 0), 0);
+    const otherIncome = incomes.filter(row => !['subscription','setup'].includes(row.type)).reduce((s,row) => s + (Number(row.amount) || 0), 0);
+    const revenue = subscription + setup + otherIncome;
+    const expense = expenses.reduce((s,row) => s + (Number(row.amount) || 0), 0);
+    const profit = revenue - expense;
+    const monthlyProfit = Array.from({ length: 12 }, (_, month) => {
+      const monthRows = rows.filter(row => dateMonth(row.date) === month);
+      return monthRows.reduce((sum, row) => sum + (row.kind === 'income' ? Number(row.amount) || 0 : -(Number(row.amount) || 0)), 0);
+    });
+    const underThreshold = monthlyProfit.every(value => value < 780);
+    const pensionEstimate = underThreshold ? monthlyProfit.reduce((sum, value) => sum + Math.max(0, value) * 0.10, 0) : null;
+    return { rows, incomes, expenses, subscription, setup, revenue, expense, profit, pensionEstimate, underThreshold };
+  }
+
+  function renderServices() {
+    const totals = serviceTotals(state.servicesYear);
+    const activeClients = state.subAccounts.filter(sub => !isCancelled(sub)).length;
+    byId('services-summary').innerHTML = [
+      summaryCard('Subscription income', money(totals.subscription), `${totals.incomes.filter(r => r.type === 'subscription').length} оплат`),
+      summaryCard('Setup income', money(totals.setup), `${totals.incomes.filter(r => r.type === 'setup').length} настроек`),
+      summaryCard('Расходы', money(totals.expense), `${totals.expenses.length} операций`, 'negative'),
+      summaryCard('Прибыль', money(totals.profit), `${activeClients} клиентов в Accounts`, totals.profit >= 0 ? 'positive' : 'negative'),
+      totals.underThreshold
+        ? summaryCard('VSAOI 10% estimate', money(totals.pensionEstimate), 'если каждый месяц прибыль < 780 €')
+        : summaryCard('VSAOI', 'Нужен расчёт', 'есть месяц с прибылью ≥ 780 €'),
+    ].join('');
+    renderLedger();
+  }
+
+  function renderClientOptions() {
+    const clients = [...state.subAccounts].sort((a,b) => clientLabel(a).localeCompare(clientLabel(b), 'ru'));
+    byId('income-client').innerHTML = clients.length
+      ? clients.map(sub => `<option value="${esc(sub.id)}">${esc(clientLabel(sub))}${isCancelled(sub) ? ' [cancelled]' : ''}</option>`).join('')
+      : '<option value="">Нет клиентов</option>';
+    const hosts = [...state.hostSubscriptions].sort((a,b) => hostLabel(a).localeCompare(hostLabel(b), 'ru'));
+    byId('expense-host').innerHTML = '<option value="">Без привязки</option>' + hosts.map(host => `<option value="${esc(host.id)}">${esc(hostLabel(host))}</option>`).join('');
+  }
+
+  function nextInvoiceNumber(year) {
+    const pattern = new RegExp(`^HS-${year}-(\\d+)$`, 'i');
+    const max = allIncomeRows().reduce((current, row) => {
+      const match = String(row.invoiceNo || '').match(pattern);
+      return match ? Math.max(current, Number(match[1]) || 0) : current;
+    }, 0);
+    return `HS-${year}-${String(max + 1).padStart(3, '0')}`;
+  }
+
+  function refreshSuggestedInvoice() {
+    const date = byId('income-date').value || today();
+    const year = dateYear(date) || new Date().getFullYear();
+    byId('income-invoice').placeholder = nextInvoiceNumber(year);
+  }
+
+  async function addIncome(event) {
+    event.preventDefault();
+    const clientId = byId('income-client').value;
+    const sub = state.subAccounts.find(item => String(item.id) === String(clientId));
+    if (!sub) return toast('Выбери клиента', true);
+    const amount = Number(byId('income-amount').value);
+    const date = byId('income-date').value;
+    if (!(amount > 0) || !validDate(date)) return toast('Проверь сумму и дату', true);
+    const payment = {
+      id: uid(),
+      type: byId('income-type').value,
+      date,
+      amount,
+      invoiceNo: byId('income-invoice').value.trim() || nextInvoiceNumber(dateYear(date)),
+      note: byId('income-note').value.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    sub.financePayments = Array.isArray(sub.financePayments) ? sub.financePayments : [];
+    sub.financePayments.push(payment);
+    try {
+      await saveKey('subAccounts', state.subAccounts);
+      byId('income-invoice').value = '';
+      byId('income-note').value = '';
+      refreshSuggestedInvoice();
+      renderYearSelects();
+      renderServices();
+      toast(`Доход ${money(amount)} добавлен`);
+    } catch (error) {
+      sub.financePayments = sub.financePayments.filter(item => item.id !== payment.id);
+      toast(error.message, true);
+    }
+  }
+
+  async function addExpense(event) {
+    event.preventDefault();
+    const hostId = byId('expense-host').value;
+    let host = state.hostSubscriptions.find(item => String(item.id) === String(hostId));
+    if (!host) {
+      host = state.hostSubscriptions[0];
+      if (!host) return toast('Сначала нужен хотя бы один Host в Accounts', true);
+    }
+    const amount = Number(byId('expense-amount').value);
+    const date = byId('expense-date').value;
+    if (!(amount > 0) || !validDate(date)) return toast('Проверь сумму и дату', true);
+    const expense = {
+      id: uid(),
+      type: byId('expense-type').value === 'other' ? 'other_expense' : 'subscription_purchase',
+      date,
+      amount,
+      documentNo: byId('expense-document').value.trim(),
+      note: byId('expense-note').value.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    host.financeExpenses = Array.isArray(host.financeExpenses) ? host.financeExpenses : [];
+    host.financeExpenses.push(expense);
+    try {
+      await saveKey('hostSubscriptions', state.hostSubscriptions);
+      byId('expense-document').value = '';
+      byId('expense-note').value = '';
+      renderYearSelects();
+      renderServices();
+      toast(`Расход ${money(amount)} добавлен`);
+    } catch (error) {
+      host.financeExpenses = host.financeExpenses.filter(item => item.id !== expense.id);
+      toast(error.message, true);
+    }
+  }
+
+  function rowSearchText(row) {
+    return [row.date,row.invoiceNo,row.documentNo,row.type,row.ownerLabel,row.note].join(' ').toLowerCase();
+  }
+
+  function renderLedger() {
+    const kind = byId('ledger-kind').value;
+    const query = byId('ledger-search').value.trim().toLowerCase();
+    const rows = serviceRows().filter(row => (kind === 'all' || row.kind === kind) && (!query || rowSearchText(row).includes(query)));
+    byId('ledger-caption').textContent = `${rows.length} операций за ${state.servicesYear}`;
+    byId('ledger-tbody').innerHTML = rows.length ? rows.map(row => {
+      const number = row.kind === 'income' ? row.invoiceNo : row.documentNo;
+      return `<tr>
+        <td>${esc(row.date || '')}</td>
+        <td>${esc(number || '—')}</td>
+        <td>${esc(TYPE_LABELS[row.type] || row.type || '—')}</td>
+        <td>${esc(row.ownerLabel)}</td>
+        <td class="money-in">${row.kind === 'income' ? money(row.amount) : ''}</td>
+        <td class="money-out">${row.kind === 'expense' ? money(row.amount) : ''}</td>
+        <td>${esc(row.note || '')}</td>
+        <td><button type="button" class="row-delete" data-delete-id="${esc(row.id)}" data-delete-kind="${row.kind}" data-owner-id="${esc(row.ownerId)}">Удалить</button></td>
+      </tr>`;
+    }).join('') : '<tr class="empty-row"><td colspan="8">Операций пока нет.</td></tr>';
+  }
+
+  async function deleteRow(button) {
+    const { deleteId: id, deleteKind: kind, ownerId } = button.dataset;
+    if (!confirm('Удалить эту финансовую операцию?')) return;
+    try {
+      if (kind === 'income') {
+        const sub = state.subAccounts.find(item => String(item.id) === String(ownerId));
+        if (!sub) throw new Error('Client not found');
+        sub.financePayments = (sub.financePayments || []).filter(item => item.id !== id);
+        await saveKey('subAccounts', state.subAccounts);
+      } else {
+        const host = state.hostSubscriptions.find(item => String(item.id) === String(ownerId));
+        if (!host) throw new Error('Host not found');
+        host.financeExpenses = (host.financeExpenses || []).filter(item => item.id !== id);
+        await saveKey('hostSubscriptions', state.hostSubscriptions);
+      }
+      renderServices();
+      toast('Операция удалена');
+    } catch (error) {
+      toast(error.message, true);
+      await loadData();
+    }
+  }
+
+  function csvCell(value) {
+    return `"${String(value ?? '').replace(/"/g,'""')}"`;
+  }
+
+  function exportCsv() {
+    const rows = serviceRows();
+    const lines = [['Date','Number','Kind','Type','Client/Host','Income','Expense','Note'].map(csvCell).join(',')];
+    rows.forEach(row => lines.push([
+      row.date,
+      row.invoiceNo || row.documentNo || '',
+      row.kind,
+      TYPE_LABELS[row.type] || row.type || '',
+      row.ownerLabel,
+      row.kind === 'income' ? Number(row.amount).toFixed(2) : '',
+      row.kind === 'expense' ? Number(row.amount).toFixed(2) : '',
+      row.note || '',
+    ].map(csvCell).join(',')));
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `heysmart-services-${state.servicesYear}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function bind() {
+    byId('finance-user').textContent = username ? `${username} · admin` : 'admin';
+    byId('finance-logout').addEventListener('click', () => {
+      localStorage.removeItem('inv_token');
+      localStorage.removeItem('inv_role');
+      localStorage.removeItem('inv_username');
+      location.href = '/login.html';
+    });
+    document.querySelectorAll('.finance-tab').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('.finance-tab').forEach(item => item.classList.toggle('active', item === button));
+      document.querySelectorAll('.finance-view').forEach(view => view.classList.toggle('active', view.id === `finance-${button.dataset.view}`));
+    }));
+    byId('hardware-year').addEventListener('change', event => { state.hardwareYear = Number(event.target.value); renderHardware(); });
+    byId('services-year').addEventListener('change', event => { state.servicesYear = Number(event.target.value); renderServices(); });
+    byId('income-type').addEventListener('change', event => {
+      if (event.target.value === 'subscription') byId('income-amount').value = '35';
+      if (event.target.value === 'setup') byId('income-amount').value = '25';
+    });
+    byId('income-date').addEventListener('change', refreshSuggestedInvoice);
+    byId('income-form').addEventListener('submit', addIncome);
+    byId('expense-form').addEventListener('submit', addExpense);
+    byId('ledger-kind').addEventListener('change', renderLedger);
+    byId('ledger-search').addEventListener('input', renderLedger);
+    byId('ledger-tbody').addEventListener('click', event => {
+      const button = event.target.closest('[data-delete-id]');
+      if (button) deleteRow(button);
+    });
+    byId('export-csv').addEventListener('click', exportCsv);
+  }
+
+  async function loadData() {
+    try {
+      const data = await api('/api/data');
+      state.products = data.products || [];
+      state.transactions = data.transactions || [];
+      state.subAccounts = data.subAccounts || [];
+      state.hostSubscriptions = data.hostSubscriptions || [];
+      renderClientOptions();
+      renderYearSelects();
+      state.hardwareYear = Number(byId('hardware-year').value);
+      state.servicesYear = Number(byId('services-year').value);
+      renderHardware();
+      renderServices();
+      refreshSuggestedInvoice();
+    } catch (error) {
+      toast(`Не удалось загрузить Finance: ${error.message}`, true);
+    }
+  }
+
+  byId('income-date').value = today();
+  byId('expense-date').value = today();
+  bind();
+  loadData();
+})();
