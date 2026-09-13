@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HeySmart Finance</title>
+  <link rel="stylesheet" href="/finance.css" />
+  <script src="/finance.js" defer></script>
+</head>
+<body>
+  <header class="finance-header">
+    <div>
+      <a class="back-link" href="/">Inventory</a>
+      <h1>HeySmart Finance</h1>
+      <p>Колонки и подписки считаются раздельно.</p>
+    </div>
+    <div class="header-actions">
+      <span id="finance-user"></span>
+      <a href="/reports">Sales Analytics</a>
+      <button type="button" id="finance-logout">Выйти</button>
+    </div>
+  </header>
+
+  <main class="finance-shell">
+    <nav class="finance-tabs" aria-label="Finance sections">
+      <button type="button" class="finance-tab active" data-view="hardware">Колонки</button>
+      <button type="button" class="finance-tab" data-view="services">Subscriptions & Setup</button>
+    </nav>
+
+    <section id="finance-hardware" class="finance-view active">
+      <div class="section-head">
+        <div>
+          <h2>Колонки</h2>
+          <p>Только существующие продажи склада. Эта бухгалтерия остаётся отдельной.</p>
+        </div>
+        <select id="hardware-year" aria-label="Год"></select>
+      </div>
+      <div class="summary-grid" id="hardware-summary"></div>
+      <section class="panel">
+        <div class="panel-head"><div><h3>Продажи по месяцам</h3><p>Данные из текущей истории продаж.</p></div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Месяц</th><th>Продано</th><th>Выручка</th><th>Себестоимость</th><th>Прибыль</th></tr></thead>
+          <tbody id="hardware-tbody"></tbody>
+        </table></div>
+      </section>
+    </section>
+
+    <section id="finance-services" class="finance-view">
+      <div class="section-head">
+        <div>
+          <h2>Subscriptions & Setup</h2>
+          <p>Личная сервисная бухгалтерия. В расчёты Андрея эти операции не входят.</p>
+        </div>
+        <div class="year-actions">
+          <select id="services-year" aria-label="Год"></select>
+          <button type="button" class="btn-secondary" id="export-csv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="summary-grid" id="services-summary"></div>
+
+      <div class="forms-grid">
+        <section class="panel form-panel">
+          <div class="panel-head"><div><h3>Добавить доход</h3><p>Подписка, настройка или другой сервис.</p></div></div>
+          <form id="income-form">
+            <label>Клиент<select id="income-client" required></select></label>
+            <label>Тип<select id="income-type"><option value="subscription">Subscription</option><option value="setup">Setup</option><option value="other">Other</option></select></label>
+            <label>Дата<input id="income-date" type="date" required /></label>
+            <label>Сумма, €<input id="income-amount" type="number" min="0.01" step="0.01" value="35" required /></label>
+            <label>№ счёта<input id="income-invoice" type="text" placeholder="HS-2026-001" /></label>
+            <label class="wide">Комментарий<input id="income-note" type="text" maxlength="160" placeholder="Например: продление на год" /></label>
+            <button type="submit" class="btn-primary wide">Добавить доход</button>
+          </form>
+        </section>
+
+        <section class="panel form-panel">
+          <div class="panel-head"><div><h3>Добавить расход</h3><p>Например, покупка общей подписки за 35 €.</p></div></div>
+          <form id="expense-form">
+            <label>Host<select id="expense-host"></select></label>
+            <label>Тип<select id="expense-type"><option value="subscription_purchase">Subscription purchase</option><option value="other">Other</option></select></label>
+            <label>Дата<input id="expense-date" type="date" required /></label>
+            <label>Сумма, €<input id="expense-amount" type="number" min="0.01" step="0.01" value="35" required /></label>
+            <label>Документ<input id="expense-document" type="text" maxlength="80" placeholder="Receipt / order" /></label>
+            <label class="wide">Комментарий<input id="expense-note" type="text" maxlength="160" /></label>
+            <button type="submit" class="btn-primary wide">Добавить расход</button>
+          </form>
+        </section>
+      </div>
+
+      <section class="panel">
+        <div class="panel-head ledger-head">
+          <div><h3>Операции</h3><p id="ledger-caption">Доходы и расходы за выбранный год.</p></div>
+          <div class="ledger-filters">
+            <select id="ledger-kind"><option value="all">Все</option><option value="income">Доходы</option><option value="expense">Расходы</option></select>
+            <input id="ledger-search" type="search" placeholder="Клиент, счёт, комментарий…" />
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Дата</th><th>№</th><th>Тип</th><th>Клиент / Host</th><th>Доход</th><th>Расход</th><th>Комментарий</th><th></th></tr></thead>
+          <tbody id="ledger-tbody"></tbody>
+        </table></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="finance-toast" class="toast" hidden></div>
+</body>
+</html>
