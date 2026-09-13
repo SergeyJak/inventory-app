@@ -16,6 +16,19 @@
     toast.timer = setTimeout(() => { box.hidden = true; }, 2600);
   }
 
+  function ensureCustomerFields() {
+    const form = byId('income-form');
+    const client = byId('income-client');
+    if (!form || !client || byId('invoice-customer-first-name')) return;
+    const clientLabel = client.closest('label');
+    if (!clientLabel) return;
+    clientLabel.insertAdjacentHTML('afterend', `
+      <label>Имя клиента, опционально<input id="invoice-customer-first-name" type="text" maxlength="80" autocomplete="off" /></label>
+      <label>Фамилия клиента, опционально<input id="invoice-customer-last-name" type="text" maxlength="80" autocomplete="off" /></label>
+      <label>Personas kods, опционально<input id="invoice-customer-personal-code" type="text" maxlength="30" autocomplete="off" placeholder="000000-00000" /></label>
+    `);
+  }
+
   function localSettings() {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); }
     catch { return {}; }
@@ -126,6 +139,51 @@
     return 'Service';
   }
 
+  function drawHeySmartLogo(doc) {
+    const x = 20;
+    const y = 14;
+
+    doc.setLineWidth(1.2);
+    doc.setDrawColor(28, 94, 235);
+    doc.line(x + 1, y + 7, x + 9, y + 1);
+    doc.line(x + 9, y + 1, x + 17, y + 7);
+    doc.line(x + 1, y + 7, x + 1, y + 17);
+    doc.line(x + 17, y + 7, x + 17, y + 17);
+
+    doc.setDrawColor(0, 184, 255);
+    doc.line(x + 5, y + 8, x + 9, y + 5.5);
+    doc.line(x + 9, y + 5.5, x + 13, y + 8);
+    doc.line(x + 6.5, y + 10.5, x + 9, y + 9);
+    doc.line(x + 9, y + 9, x + 11.5, y + 10.5);
+    doc.setFillColor(89, 73, 255);
+    doc.circle(x + 9, y + 12.3, 0.9, 'F');
+
+    doc.setFillColor(16, 30, 58);
+    doc.roundedRect(x + 4.2, y + 14, 9.6, 4.5, 1.3, 1.3, 'F');
+    doc.setFillColor(0, 200, 255);
+    doc.circle(x + 9, y + 16.2, 0.55, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(17);
+    doc.setTextColor(16, 30, 58);
+    doc.text('Hey', x + 22, y + 12.5);
+    doc.setTextColor(28, 94, 235);
+    doc.text('Smart', x + 37.2, y + 12.5);
+    doc.setTextColor(0, 0, 0);
+  }
+
+  function customerLines(customerEmail) {
+    const firstName = esc(byId('invoice-customer-first-name')?.value);
+    const lastName = esc(byId('invoice-customer-last-name')?.value);
+    const personalCode = esc(byId('invoice-customer-personal-code')?.value);
+    const fullName = [firstName, lastName].filter(Boolean).join(' ');
+    return [
+      fullName,
+      personalCode ? `Personas kods: ${personalCode}` : '',
+      customerEmail,
+    ].filter(Boolean);
+  }
+
   async function generatePdf() {
     if (!hasSettings(settings)) await loadPersistentSettings();
     if (!settings.sellerName || !settings.sellerIban) {
@@ -162,18 +220,20 @@
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.text('INVOICE', 20, 24);
-    doc.setFontSize(12);
-    doc.text(invoiceNo, 20, 32);
+    drawHeySmartLogo(doc);
 
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(19);
+    doc.text('INVOICE', 190, 20, { align: 'right' });
+    doc.setFontSize(11);
+    doc.text(invoiceNo, 190, 27, { align: 'right' });
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Date: ${date}`, 150, 24);
+    doc.setFontSize(9);
+    doc.text(`Date: ${date}`, 190, 34, { align: 'right' });
 
-    let y = 48;
+    let y = 49;
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
     doc.text('Seller', 20, y);
     doc.setFont('helvetica', 'normal');
     y += 6;
@@ -190,10 +250,10 @@
     doc.text('Customer', 20, y);
     doc.setFont('helvetica', 'normal');
     y += 6;
-    doc.text(customer, 20, y);
+    customerLines(customer).forEach(line => { doc.text(String(line), 20, y); y += 5; });
 
-    y += 16;
-    doc.setFillColor(245, 245, 245);
+    y += 11;
+    doc.setFillColor(245, 247, 250);
     doc.rect(20, y - 7, 170, 10, 'F');
     doc.setFont('helvetica', 'bold');
     doc.text('Description', 22, y);
@@ -205,6 +265,7 @@
     doc.text(`${amount.toFixed(2)} EUR`, 165, y);
 
     y += 14;
+    doc.setDrawColor(180, 188, 200);
     doc.line(120, y, 190, y);
     y += 8;
     doc.setFont('helvetica', 'bold');
@@ -226,13 +287,16 @@
 
     y += 14;
     doc.setFontSize(8);
+    doc.setTextColor(90, 100, 115);
     doc.text('VAT is not charged.', 20, y);
+    doc.setTextColor(0, 0, 0);
 
     doc.save(`${invoiceNo}.pdf`);
     toast(`PDF ${invoiceNo} создан`);
   }
 
   window.addEventListener('DOMContentLoaded', () => {
+    ensureCustomerFields();
     loadPersistentSettings();
     byId('invoice-number-btn')?.addEventListener('click', reserveInvoiceNumber);
     byId('invoice-pdf-btn')?.addEventListener('click', generatePdf);
