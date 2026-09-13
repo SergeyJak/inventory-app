@@ -26,3 +26,15 @@ patchFile('index.html', source => {
   if (!source.includes(anchor)) throw new Error('Finance bootstrap: admin navigation anchor not found');
   return source.replace(anchor, `${anchor}\n      <a class="tab-btn admin-only" href="/finance" role="menuitem">Финансы</a>`);
 });
+
+patchFile('finance.js', source => {
+  const oldLabel = "  function clientLabel(sub) {\n    return sub.name || sub.email || sub.tel || sub.id || 'Client';\n  }";
+  const newLabel = "  function clientLabel(sub) {\n    return sub.email || sub.id || 'Client';\n  }";
+  const oldOptions = "    const clients = [...state.subAccounts].sort((a,b) => clientLabel(a).localeCompare(clientLabel(b), 'ru'));\n    byId('income-client').innerHTML = clients.length\n      ? clients.map(sub => `<option value=\"${esc(sub.id)}\">${esc(clientLabel(sub))}${isCancelled(sub) ? ' [cancelled]' : ''}</option>`).join('')\n      : '<option value=\"\">Нет клиентов</option>';";
+  const newOptions = "    const clients = [...state.subAccounts]\n      .filter(sub => String(sub.email || '').trim())\n      .sort((a,b) => String(a.email || '').localeCompare(String(b.email || ''), 'en'));\n    byId('income-client').innerHTML = clients.length\n      ? clients.map(sub => `<option value=\"${esc(sub.id)}\">${esc(String(sub.email || '').trim())}</option>`).join('')\n      : '<option value=\"\">Нет аккаунтов с email</option>';";
+
+  let next = source;
+  if (next.includes(oldLabel)) next = next.replace(oldLabel, newLabel);
+  if (next.includes(oldOptions)) next = next.replace(oldOptions, newOptions);
+  return next;
+});
