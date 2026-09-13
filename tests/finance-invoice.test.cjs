@@ -5,10 +5,17 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'finance-invoice.js'), 'utf8');
+const html = fs.readFileSync(path.join(root, 'finance.html'), 'utf8');
 
 assert.doesNotThrow(() => new vm.Script(source, { filename: 'finance-invoice.js' }));
 assert.equal(source.includes('addImage('), false, 'mobile invoice must not use jsPDF addImage');
 assert.match(source, /const\s+LOGO\s*=\s*\{/, 'approved logo vector data must be embedded');
+
+assert.equal(html.includes('approvedLogo'), false, 'finance.html must not contain the stale inline image logo patch');
+assert.equal(html.includes('addImage('), false, 'finance.html must not reintroduce jsPDF addImage');
+assert.match(html, /finance-invoice\.js\?v=20260914-2/, 'invoice script must be cache-busted');
+assert.match(html, /this\.output\('blob'\)/, 'mobile save patch must use jsPDF blob output');
+assert.match(html, /URL\.createObjectURL\(blob\)/, 'mobile save patch must create a browser blob URL');
 
 const elements = new Map();
 function element(id, extra = {}) {
