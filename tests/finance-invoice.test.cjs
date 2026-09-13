@@ -6,24 +6,16 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'finance-invoice.js'), 'utf8');
 
-// 1) Basic parse guard. A broken browser script must fail CI immediately.
 assert.doesNotThrow(() => new vm.Script(source, { filename: 'finance-invoice.js' }));
-
-// 2) Validate the embedded logo payload before the browser/jsPDF sees it.
-const logoMatch = source.match(/const\s+LOGO_JPEG\s*=\s*['"]data:image\/jpeg;base64,([^'"]+)['"]/);
-assert.ok(logoMatch, 'finance-invoice.js must embed the approved JPEG logo');
-const logoBytes = Buffer.from(logoMatch[1], 'base64');
-assert.ok(logoBytes.length > 100, 'embedded logo must not be empty');
-assert.equal(logoBytes[0], 0xff, 'JPEG must start with FF D8');
-assert.equal(logoBytes[1], 0xd8, 'JPEG must start with FF D8');
-assert.equal(logoBytes.at(-2), 0xff, 'JPEG must end with FF D9');
-assert.equal(logoBytes.at(-1), 0xd9, 'JPEG must end with FF D9');
+assert.equal(source.includes('addImage('), false, 'mobile invoice must not use jsPDF addImage');
+assert.match(source, /const\s+LOGO\s*=\s*\{/, 'approved logo vector data must be embedded');
 
 const elements = new Map();
 function element(id, extra = {}) {
   const value = {
     id,
     value: '',
+    placeholder: '',
     hidden: false,
     className: '',
     textContent: '',
@@ -37,7 +29,6 @@ function element(id, extra = {}) {
   return value;
 }
 
-// Pre-create optional customer fields so ensureCustomerFields does not mutate DOM in the test.
 element('invoice-customer-first-name', { value: 'Test' });
 element('invoice-customer-last-name', { value: 'Customer' });
 element('invoice-customer-personal-code', { value: '010190-12345' });
@@ -47,67 +38,46 @@ element('invoice-settings-form');
 element('invoice-number-btn');
 element('invoice-pdf-btn');
 element('income-form');
-element('income-client', {
-  selectedIndex: 0,
-  options: [{ text: 'customer@example.com' }],
-});
+element('income-client', { selectedIndex: 0, options: [{ text: 'customer@example.com' }] });
 element('income-type', { value: 'subscription' });
 element('income-date', { value: '2026-09-13' });
 element('income-amount', { value: '35' });
 element('income-invoice', { value: 'HS-2026-001', placeholder: 'HS-2026-001' });
 for (const id of [
-  'invoice-seller-name',
-  'invoice-seller-regno',
-  'invoice-seller-address',
-  'invoice-seller-iban',
-  'invoice-seller-bic',
-  'invoice-seller-email',
+  'invoice-seller-name', 'invoice-seller-regno', 'invoice-seller-address',
+  'invoice-seller-iban', 'invoice-seller-bic', 'invoice-seller-email',
 ]) element(id);
 
 let domReady;
 let savedPdf = '';
-let imageCalls = 0;
-let imageValidated = false;
+let rectCalls = 0;
+let fillCalls = 0;
 
 class FakeJsPDF {
-  addImage(data, format) {
-    imageCalls += 1;
-    assert.equal(format, 'JPEG');
-    assert.match(data, /^data:image\/jpeg;base64,/);
-    const bytes = Buffer.from(data.split(',')[1], 'base64');
-    assert.equal(bytes[0], 0xff);
-    assert.equal(bytes[1], 0xd8);
-    imageValidated = true;
-  }
   setFont() {}
   setFontSize() {}
   setTextColor() {}
-  setFillColor() {}
+  setFillColor() { fillCalls += 1; }
   setDrawColor() {}
   text() {}
-  rect() {}
+  rect() { rectCalls += 1; }
   line() {}
   save(name) { savedPdf = name; }
 }
 
-const localStore = new Map();
+const localStore = new Map([['inv_token', 'test-token']]);
 const sandbox = {
   console,
-  Buffer,
   setTimeout: fn => { fn(); return 1; },
   clearTimeout() {},
   localStorage: {
     getItem(key) { return localStore.get(key) || null; },
     setItem(key, value) { localStore.set(key, String(value)); },
   },
-  document: {
-    getElementById(id) { return elements.get(id) || null; },
-  },
+  document: { getElementById(id) { return elements.get(id) || null; } },
   window: {
     jspdf: { jsPDF: FakeJsPDF },
-    addEventListener(type, fn) {
-      if (type === 'DOMContentLoaded') domReady = fn;
-    },
+    addEventListener(type, fn) { if (type === 'DOMContentLoaded') domReady = fn; },
   },
   fetch: async url => {
     if (url === '/api/data') {
@@ -140,14 +110,13 @@ assert.equal(typeof domReady, 'function', 'invoice script must register DOMConte
 domReady();
 
 (async () => {
-  // Allow async settings load triggered on DOMContentLoaded to settle.
   await new Promise(resolve => setImmediate(resolve));
   const button = elements.get('invoice-pdf-btn');
   assert.equal(typeof button.listeners.click, 'function', 'PDF button must have a click handler');
   await button.listeners.click();
 
-  assert.equal(imageCalls, 1, 'invoice must render exactly one logo image');
-  assert.equal(imageValidated, true, 'embedded logo image must be a valid JPEG payload');
+  assert.ok(fillCalls > 10, 'logo must use multiple approved colors');
+  assert.ok(rectCalls > 1000, 'logo must render from embedded vectorized raster data');
   assert.equal(savedPdf, 'HS-2026-001.pdf', 'invoice must be saved with its invoice number');
   console.log('finance-invoice.test.cjs: OK');
 })().catch(error => {
