@@ -9,11 +9,14 @@ const html = fs.readFileSync(path.join(root, 'finance.html'), 'utf8');
 
 assert.doesNotThrow(() => new vm.Script(source, { filename: 'finance-invoice.js' }));
 assert.equal(source.includes('addImage('), false, 'mobile invoice must not use jsPDF addImage');
-assert.match(source, /const\s+LOGO\s*=\s*\{/, 'approved logo vector data must be embedded');
+assert.equal(source.includes('const LOGO ='), false, 'invoice must not use pixel-rasterized logo data');
+assert.match(source, /doc\.text\('Hey'/, 'invoice logo must render Hey as vector text');
+assert.match(source, /\['S', \[13, 153, 255\]\]/, 'invoice logo must start Smart with approved blue');
+assert.match(source, /\['t', \[151, 0, 255\]\]/, 'invoice logo must end Smart with approved violet');
 
 assert.equal(html.includes('approvedLogo'), false, 'finance.html must not contain the stale inline image logo patch');
 assert.equal(html.includes('addImage('), false, 'finance.html must not reintroduce jsPDF addImage');
-assert.match(html, /finance-invoice\.js\?v=20260914-2/, 'invoice script must be cache-busted');
+assert.match(html, /finance-invoice\.js\?v=20260914-3/, 'invoice script must be cache-busted');
 assert.match(html, /this\.output\('blob'\)/, 'mobile save patch must use jsPDF blob output');
 assert.match(html, /URL\.createObjectURL\(blob\)/, 'mobile save patch must create a browser blob URL');
 
@@ -57,17 +60,18 @@ for (const id of [
 
 let domReady;
 let savedPdf = '';
-let rectCalls = 0;
-const fillColors = [];
+const textCalls = [];
+const textColors = [];
 
 class FakeJsPDF {
   setFont() {}
   setFontSize() {}
-  setTextColor() {}
-  setFillColor(...args) { fillColors.push(args.join(',')); }
+  setTextColor(...args) { textColors.push(args.join(',')); }
+  setFillColor() {}
   setDrawColor() {}
-  text() {}
-  rect() { rectCalls += 1; }
+  text(value, x, y) { textCalls.push({ value: String(value), x, y }); }
+  getTextWidth(value) { return String(value).length * 4.5; }
+  rect() {}
   line() {}
   save(name) { savedPdf = name; }
 }
@@ -122,9 +126,9 @@ domReady();
   assert.equal(typeof button.listeners.click, 'function', 'PDF button must have a click handler');
   await button.listeners.click();
 
-  const distinctColors = new Set(fillColors);
-  assert.ok(distinctColors.size >= 3, 'logo must render with multiple distinct approved colors');
-  assert.ok(rectCalls > 1000, 'logo must render from embedded vectorized raster data');
+  const logoText = textCalls.slice(0, 6).map(call => call.value).join('');
+  assert.equal(logoText, 'HeySmart', 'invoice logo must render exact HeySmart wordmark');
+  assert.ok(new Set(textColors.slice(0, 7)).size >= 5, 'invoice logo must use multiple blue-to-violet colors');
   assert.equal(savedPdf, 'HS-2026-001.pdf', 'invoice must be saved with its invoice number');
   console.log('finance-invoice.test.cjs: OK');
 })().catch(error => {
