@@ -139,43 +139,14 @@
     return 'Service';
   }
 
-  function logoSvg() {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260">
-      <defs>
-        <linearGradient id="smartGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#1488ff"/>
-          <stop offset="52%" stop-color="#2962ff"/>
-          <stop offset="100%" stop-color="#7a34e8"/>
-        </linearGradient>
-      </defs>
-      <rect width="1200" height="260" fill="white" fill-opacity="0"/>
-      <text x="20" y="188" font-family="Arial, Helvetica, sans-serif" font-size="178" font-weight="700" letter-spacing="-8" fill="#101b31">Hey</text>
-      <text x="338" y="188" font-family="Arial, Helvetica, sans-serif" font-size="178" font-weight="700" letter-spacing="-8" fill="url(#smartGradient)">Smart</text>
-    </svg>`;
-  }
-
-  async function drawHeySmartLogo(doc) {
-    const svg = logoSvg();
-    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    try {
-      const image = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = url;
-      });
-      const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 260;
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, 0, 0);
-      const png = canvas.toDataURL('image/png');
-      doc.addImage(png, 'PNG', 20, 12, 58, 12.6, undefined, 'FAST');
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+  function drawHeySmartLogo(doc) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(24);
+    doc.setTextColor(8, 22, 54);
+    doc.text('Hey', 20, 24);
+    doc.setTextColor(23, 118, 255);
+    doc.text('Smart', 39.5, 24);
+    doc.setTextColor(0, 0, 0);
   }
 
   function customerLines(customerEmail) {
@@ -191,114 +162,119 @@
   }
 
   async function generatePdf() {
-    if (!hasSettings(settings)) await loadPersistentSettings();
-    if (!settings.sellerName || !settings.sellerIban) {
-      const panel = byId('invoice-settings-panel');
-      if (panel) panel.open = true;
-      toast('Сначала заполни имя и IBAN в реквизитах', true);
-      return;
-    }
-    if (!window.jspdf?.jsPDF) {
-      toast('PDF-модуль ещё не загрузился', true);
-      return;
-    }
+    try {
+      if (!hasSettings(settings)) await loadPersistentSettings();
+      if (!settings.sellerName || !settings.sellerIban) {
+        const panel = byId('invoice-settings-panel');
+        if (panel) panel.open = true;
+        toast('Сначала заполни имя и IBAN в реквизитах', true);
+        return;
+      }
+      if (!window.jspdf?.jsPDF) {
+        toast('PDF-модуль ещё не загрузился', true);
+        return;
+      }
 
-    const clientSelect = byId('income-client');
-    const customer = clientSelect?.options?.[clientSelect.selectedIndex]?.text?.trim() || '';
-    if (!customer || customer === '-') {
-      toast('Выбери аккаунт клиента', true);
-      return;
-    }
+      const clientSelect = byId('income-client');
+      const customer = clientSelect?.options?.[clientSelect.selectedIndex]?.text?.trim() || '';
+      if (!customer || customer === '-') {
+        toast('Выбери аккаунт клиента', true);
+        return;
+      }
 
-    const amount = Number(byId('income-amount')?.value);
-    if (!(amount > 0)) {
-      toast('Укажи сумму', true);
-      return;
-    }
+      const amount = Number(byId('income-amount')?.value);
+      if (!(amount > 0)) {
+        toast('Укажи сумму', true);
+        return;
+      }
 
-    const invoiceNo = reserveInvoiceNumber();
-    if (!invoiceNo) {
-      toast('Не удалось получить номер счёта', true);
-      return;
-    }
+      const invoiceNo = reserveInvoiceNumber();
+      if (!invoiceNo) {
+        toast('Не удалось получить номер счёта', true);
+        return;
+      }
 
-    const date = byId('income-date')?.value || new Date().toISOString().slice(0, 10);
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const date = byId('income-date')?.value || new Date().toISOString().slice(0, 10);
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-    await drawHeySmartLogo(doc);
+      drawHeySmartLogo(doc);
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(19);
-    doc.text('INVOICE', 190, 20, { align: 'right' });
-    doc.setFontSize(11);
-    doc.text(invoiceNo, 190, 27, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(`Date: ${date}`, 190, 34, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(19);
+      doc.text('INVOICE', 190, 20, { align: 'right' });
+      doc.setFontSize(11);
+      doc.text(invoiceNo, 190, 27, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Date: ${date}`, 190, 34, { align: 'right' });
 
-    let y = 49;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('Seller', 20, y);
-    doc.setFont('helvetica', 'normal');
-    y += 6;
-    const sellerLines = [
-      settings.sellerName,
-      settings.sellerRegNo ? `Reg. no.: ${settings.sellerRegNo}` : '',
-      settings.sellerAddress,
-      settings.sellerEmail,
-    ].filter(Boolean);
-    sellerLines.forEach(line => { doc.text(String(line), 20, y); y += 5; });
+      let y = 49;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Seller', 20, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const sellerLines = [
+        settings.sellerName,
+        settings.sellerRegNo ? `Reg. no.: ${settings.sellerRegNo}` : '',
+        settings.sellerAddress,
+        settings.sellerEmail,
+      ].filter(Boolean);
+      sellerLines.forEach(line => { doc.text(String(line), 20, y); y += 5; });
 
-    y += 5;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Customer', 20, y);
-    doc.setFont('helvetica', 'normal');
-    y += 6;
-    customerLines(customer).forEach(line => { doc.text(String(line), 20, y); y += 5; });
-
-    y += 11;
-    doc.setFillColor(245, 247, 250);
-    doc.rect(20, y - 7, 170, 10, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.text('Description', 22, y);
-    doc.text('Amount', 165, y);
-
-    y += 12;
-    doc.setFont('helvetica', 'normal');
-    doc.text(invoiceDescription(), 22, y);
-    doc.text(`${amount.toFixed(2)} EUR`, 165, y);
-
-    y += 14;
-    doc.setDrawColor(180, 188, 200);
-    doc.line(120, y, 190, y);
-    y += 8;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Total', 140, y);
-    doc.text(`${amount.toFixed(2)} EUR`, 165, y);
-
-    y += 18;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Payment details', 20, y);
-    doc.setFont('helvetica', 'normal');
-    y += 6;
-    doc.text(`IBAN: ${settings.sellerIban}`, 20, y);
-    if (settings.sellerBic) {
       y += 5;
-      doc.text(`BIC/SWIFT: ${settings.sellerBic}`, 20, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Customer', 20, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      customerLines(customer).forEach(line => { doc.text(String(line), 20, y); y += 5; });
+
+      y += 11;
+      doc.setFillColor(245, 247, 250);
+      doc.rect(20, y - 7, 170, 10, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('Description', 22, y);
+      doc.text('Amount', 165, y);
+
+      y += 12;
+      doc.setFont('helvetica', 'normal');
+      doc.text(invoiceDescription(), 22, y);
+      doc.text(`${amount.toFixed(2)} EUR`, 165, y);
+
+      y += 14;
+      doc.setDrawColor(180, 188, 200);
+      doc.line(120, y, 190, y);
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total', 140, y);
+      doc.text(`${amount.toFixed(2)} EUR`, 165, y);
+
+      y += 18;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Payment details', 20, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text(`IBAN: ${settings.sellerIban}`, 20, y);
+      if (settings.sellerBic) {
+        y += 5;
+        doc.text(`BIC/SWIFT: ${settings.sellerBic}`, 20, y);
+      }
+      y += 5;
+      doc.text(`Payment reference: ${invoiceNo}`, 20, y);
+
+      y += 14;
+      doc.setFontSize(8);
+      doc.setTextColor(90, 100, 115);
+      doc.text('VAT is not charged.', 20, y);
+      doc.setTextColor(0, 0, 0);
+
+      doc.save(`${invoiceNo}.pdf`);
+      toast(`PDF ${invoiceNo} создан`);
+    } catch (error) {
+      console.error('[finance] PDF generation failed', error);
+      toast(`Ошибка PDF: ${error.message || error}`, true);
     }
-    y += 5;
-    doc.text(`Payment reference: ${invoiceNo}`, 20, y);
-
-    y += 14;
-    doc.setFontSize(8);
-    doc.setTextColor(90, 100, 115);
-    doc.text('VAT is not charged.', 20, y);
-    doc.setTextColor(0, 0, 0);
-
-    doc.save(`${invoiceNo}.pdf`);
-    toast(`PDF ${invoiceNo} создан`);
   }
 
   window.addEventListener('DOMContentLoaded', () => {
