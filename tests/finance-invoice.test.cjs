@@ -51,13 +51,13 @@ for (const id of [
 let domReady;
 let savedPdf = '';
 let rectCalls = 0;
-let fillCalls = 0;
+const fillColors = [];
 
 class FakeJsPDF {
   setFont() {}
   setFontSize() {}
   setTextColor() {}
-  setFillColor() { fillCalls += 1; }
+  setFillColor(...args) { fillColors.push(args.join(',')); }
   setDrawColor() {}
   text() {}
   rect() { rectCalls += 1; }
@@ -115,7 +115,8 @@ domReady();
   assert.equal(typeof button.listeners.click, 'function', 'PDF button must have a click handler');
   await button.listeners.click();
 
-  assert.ok(fillCalls > 10, 'logo must use multiple approved colors');
+  const distinctColors = new Set(fillColors);
+  assert.ok(distinctColors.size >= 3, 'logo must render with multiple distinct approved colors');
   assert.ok(rectCalls > 1000, 'logo must render from embedded vectorized raster data');
   assert.equal(savedPdf, 'HS-2026-001.pdf', 'invoice must be saved with its invoice number');
   console.log('finance-invoice.test.cjs: OK');
