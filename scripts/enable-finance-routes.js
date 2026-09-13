@@ -14,19 +14,22 @@ function patch(fileName, transform) {
 }
 
 patch('server.js', source => {
-  if (source.includes("['/finance', 'finance.html']")) return source;
+  let next = source;
   const anchor = "  ['/reports', 'reports.html'],";
-  if (!source.includes(anchor)) throw new Error('Finance route anchor not found');
-  return source.replace(
-    anchor,
-    [
-      anchor,
-      "  ['/finance', 'finance.html'],",
-      "  ['/finance.html', 'finance.html'],",
-      "  ['/finance.css', 'finance.css'],",
-      "  ['/finance.js', 'finance.js'],",
-    ].join('\n')
-  );
+  if (!next.includes(anchor)) throw new Error('Finance route anchor not found');
+
+  const routes = [
+    ["['/finance', 'finance.html']", "  ['/finance', 'finance.html'],"],
+    ["['/finance.html', 'finance.html']", "  ['/finance.html', 'finance.html'],"],
+    ["['/finance.css', 'finance.css']", "  ['/finance.css', 'finance.css'],"],
+    ["['/finance.js', 'finance.js']", "  ['/finance.js', 'finance.js'],"],
+    ["['/finance-client-email-only.js', 'finance-client-email-only.js']", "  ['/finance-client-email-only.js', 'finance-client-email-only.js'],"],
+    ["['/finance-invoice.js', 'finance-invoice.js']", "  ['/finance-invoice.js', 'finance-invoice.js'],"],
+  ];
+
+  const missing = routes.filter(([marker]) => !next.includes(marker)).map(([, line]) => line);
+  if (missing.length) next = next.replace(anchor, [anchor, ...missing].join('\n'));
+  return next;
 });
 
 patch('index.html', source => {
