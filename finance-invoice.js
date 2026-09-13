@@ -139,37 +139,43 @@
     return 'Service';
   }
 
-  function drawHeySmartLogo(doc) {
-    const x = 20;
-    const y = 14;
+  function logoSvg() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260">
+      <defs>
+        <linearGradient id="smartGradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1488ff"/>
+          <stop offset="52%" stop-color="#2962ff"/>
+          <stop offset="100%" stop-color="#7a34e8"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="260" fill="white" fill-opacity="0"/>
+      <text x="20" y="188" font-family="Arial, Helvetica, sans-serif" font-size="178" font-weight="700" letter-spacing="-8" fill="#101b31">Hey</text>
+      <text x="338" y="188" font-family="Arial, Helvetica, sans-serif" font-size="178" font-weight="700" letter-spacing="-8" fill="url(#smartGradient)">Smart</text>
+    </svg>`;
+  }
 
-    doc.setLineWidth(1.2);
-    doc.setDrawColor(28, 94, 235);
-    doc.line(x + 1, y + 7, x + 9, y + 1);
-    doc.line(x + 9, y + 1, x + 17, y + 7);
-    doc.line(x + 1, y + 7, x + 1, y + 17);
-    doc.line(x + 17, y + 7, x + 17, y + 17);
-
-    doc.setDrawColor(0, 184, 255);
-    doc.line(x + 5, y + 8, x + 9, y + 5.5);
-    doc.line(x + 9, y + 5.5, x + 13, y + 8);
-    doc.line(x + 6.5, y + 10.5, x + 9, y + 9);
-    doc.line(x + 9, y + 9, x + 11.5, y + 10.5);
-    doc.setFillColor(89, 73, 255);
-    doc.circle(x + 9, y + 12.3, 0.9, 'F');
-
-    doc.setFillColor(16, 30, 58);
-    doc.roundedRect(x + 4.2, y + 14, 9.6, 4.5, 1.3, 1.3, 'F');
-    doc.setFillColor(0, 200, 255);
-    doc.circle(x + 9, y + 16.2, 0.55, 'F');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(17);
-    doc.setTextColor(16, 30, 58);
-    doc.text('Hey', x + 22, y + 12.5);
-    doc.setTextColor(28, 94, 235);
-    doc.text('Smart', x + 37.2, y + 12.5);
-    doc.setTextColor(0, 0, 0);
+  async function drawHeySmartLogo(doc) {
+    const svg = logoSvg();
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 260;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0);
+      const png = canvas.toDataURL('image/png');
+      doc.addImage(png, 'PNG', 20, 12, 58, 12.6, undefined, 'FAST');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   function customerLines(customerEmail) {
@@ -220,7 +226,7 @@
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-    drawHeySmartLogo(doc);
+    await drawHeySmartLogo(doc);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(19);
