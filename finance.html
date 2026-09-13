@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HeySmart Finance</title>
   <link rel="stylesheet" href="/finance.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
   <script src="/finance.js" defer></script>
   <script src="/finance-client-email-only.js" defer></script>
+  <script src="/finance-invoice.js" defer></script>
 </head>
 <body>
   <header class="finance-header">
@@ -60,6 +62,19 @@
 
       <div class="summary-grid" id="services-summary"></div>
 
+      <details class="panel invoice-settings" id="invoice-settings-panel">
+        <summary><strong>Реквизиты PDF-счёта</strong> <span style="color:#94a3b8">заполняются один раз</span></summary>
+        <form id="invoice-settings-form" class="form-panel" style="margin-top:16px">
+          <label>Имя / наименование<input id="invoice-seller-name" type="text" maxlength="120" required /></label>
+          <label>Рег. № / personas kods<input id="invoice-seller-regno" type="text" maxlength="40" /></label>
+          <label>Адрес<input id="invoice-seller-address" type="text" maxlength="180" /></label>
+          <label>IBAN<input id="invoice-seller-iban" type="text" maxlength="40" required /></label>
+          <label>BIC / SWIFT<input id="invoice-seller-bic" type="text" maxlength="20" /></label>
+          <label>Email<input id="invoice-seller-email" type="email" maxlength="120" /></label>
+          <button type="submit" class="btn-secondary">Сохранить реквизиты</button>
+        </form>
+      </details>
+
       <div class="forms-grid">
         <section class="panel form-panel">
           <div class="panel-head"><div><h3>Добавить доход</h3><p>Подписка, настройка или другой сервис.</p></div></div>
@@ -69,6 +84,7 @@
             <label>Дата<input id="income-date" type="date" required /></label>
             <label>Сумма, €<input id="income-amount" type="number" min="0.01" step="0.01" value="35" required /></label>
             <label>№ счёта<input id="income-invoice" type="text" placeholder="HS-2026-001" /></label>
+            <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><button type="button" class="btn-secondary" id="invoice-number-btn">Получить №</button><button type="button" class="btn-secondary" id="invoice-pdf-btn">PDF-счёт</button></div>
             <label class="wide">Комментарий<input id="income-note" type="text" maxlength="160" placeholder="Например: продление на год" /></label>
             <button type="submit" class="btn-primary wide">Добавить доход</button>
           </form>
