@@ -2,6 +2,9 @@
   const byId = id => document.getElementById(id);
   const esc = value => String(value ?? '').trim();
   const SETTINGS_KEY = 'heysmart_finance_invoice_settings_v1';
+  const token = localStorage.getItem('inv_token');
+  let hostSubscriptions = [];
+  let settings = {};
 
   function toast(message, error = false) {
     const box = byId('finance-toast');
@@ -13,14 +16,17 @@
     toast.timer = setTimeout(() => { box.hidden = true; }, 2600);
   }
 
-  function loadSettings() {
+  function localSettings() {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); }
     catch { return {}; }
   }
 
-  function saveSettings(event) {
-    event.preventDefault();
-    const settings = {
+  function hasSettings(value) {
+    return !!(value && (value.sellerName || value.sellerIban || value.sellerBic || value.sellerAddress || value.sellerEmail || value.sellerRegNo));
+  }
+
+  function settingsFromForm() {
+    return {
       sellerName: esc(byId('invoice-seller-name')?.value),
       sellerRegNo: esc(byId('invoice-seller-regno')?.value),
       sellerAddress: esc(byId('invoice-seller-address')?.value),
@@ -28,12 +34,9 @@
       sellerBic: esc(byId('invoice-seller-bic')?.value),
       sellerEmail: esc(byId('invoice-seller-email')?.value),
     };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    toast('Реквизиты счёта сохранены');
   }
 
-  function fillSettings() {
-    const settings = loadSettings();
+  function fillSettings(value = settings) {
     const map = {
       'invoice-seller-name': 'sellerName',
       'invoice-seller-regno': 'sellerRegNo',
@@ -44,7 +47,67 @@
     };
     for (const [id, key] of Object.entries(map)) {
       const el = byId(id);
-      if (el) el.value = settings[key] || '';
+      if (el) el.value = value[key] || '';
+    }
+  }
+
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+  }
+
+  async function persistSettings(value, showToast = true) {
+    if (!hostSubscriptions.length) throw new Error('Не найден Host для хранения настроек Finance');
+    settings = { ...value };
+    hostSubscriptions[0].financeInvoiceSettings = settings;
+    await api('/api/save', {
+      method: 'POST',
+      body: JSON.stringify({ key: 'hostSubscriptions', data: hostSubscriptions }),
+    });
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    if (showToast) toast('Реквизиты счёта сохранены');
+  }
+
+  async function saveSettings(event) {
+    event.preventDefault();
+    try {
+      await persistSettings(settingsFromForm());
+    } catch (error) {
+      toast(`Не удалось сохранить реквизиты: ${error.message}`, true);
+    }
+  }
+
+  async function loadPersistentSettings() {
+    if (!token) return;
+    try {
+      const data = await api('/api/data');
+      hostSubscriptions = Array.isArray(data.hostSubscriptions) ? data.hostSubscriptions : [];
+      const dbSettings = hostSubscriptions[0]?.financeInvoiceSettings || {};
+      const oldLocalSettings = localSettings();
+
+      if (hasSettings(dbSettings)) {
+        settings = dbSettings;
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      } else if (hasSettings(oldLocalSettings) && hostSubscriptions.length) {
+        settings = oldLocalSettings;
+        await persistSettings(settings, false);
+      } else {
+        settings = oldLocalSettings;
+      }
+      fillSettings(settings);
+    } catch (error) {
+      settings = localSettings();
+      fillSettings(settings);
+      console.warn('[finance] failed to load invoice settings from database', error);
     }
   }
 
@@ -63,8 +126,8 @@
     return 'Service';
   }
 
-  function generatePdf() {
-    const settings = loadSettings();
+  async function generatePdf() {
+    if (!hasSettings(settings)) await loadPersistentSettings();
     if (!settings.sellerName || !settings.sellerIban) {
       const panel = byId('invoice-settings-panel');
       if (panel) panel.open = true;
@@ -170,7 +233,7 @@
   }
 
   window.addEventListener('DOMContentLoaded', () => {
-    fillSettings();
+    loadPersistentSettings();
     byId('invoice-number-btn')?.addEventListener('click', reserveInvoiceNumber);
     byId('invoice-pdf-btn')?.addEventListener('click', generatePdf);
     byId('invoice-settings-form')?.addEventListener('submit', saveSettings);
