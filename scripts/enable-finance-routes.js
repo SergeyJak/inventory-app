@@ -25,6 +25,7 @@ patch('server.js', source => {
     ["['/finance.js', 'finance.js']", "  ['/finance.js', 'finance.js'],"],
     ["['/finance-client-email-only.js', 'finance-client-email-only.js']", "  ['/finance-client-email-only.js', 'finance-client-email-only.js'],"],
     ["['/finance-invoice.js', 'finance-invoice.js']", "  ['/finance-invoice.js', 'finance-invoice.js'],"],
+    ["['/account-view-routing.js', 'account-view-routing.js']", "  ['/account-view-routing.js', 'account-view-routing.js'],"],
   ];
 
   const missing = routes.filter(([marker]) => !next.includes(marker)).map(([, line]) => line);
@@ -48,6 +49,12 @@ patch('index.html', source => {
         headerAnchor + '\n    <a href="/finance?view=services&focus=income" class="btn-primary admin-only" style="padding:6px 12px;font-size:0.83rem;text-decoration:none;white-space:nowrap">+ Приход / счёт</a>'
       );
     }
+  }
+
+  if (!next.includes('/account-view-routing.js')) {
+    const appAnchor = '<script src="app.js"></script>';
+    if (!next.includes(appAnchor)) throw new Error('Account routing script anchor not found');
+    next = next.replace(appAnchor, appAnchor + '\n<script src="/account-view-routing.js?v=20260914-1"></script>');
   }
   return next;
 });
