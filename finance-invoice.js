@@ -3,11 +3,22 @@
   const esc = value => String(value ?? '').trim();
   const SETTINGS_KEY = 'heysmart_finance_invoice_settings_v1';
   const token = localStorage.getItem('inv_token');
-  const PDF_FONT_REGULAR_URL = 'https://cdn.jsdelivr.net/npm/opensans-font@1.0.0/OpenSans-Regular.ttf';
-  const PDF_FONT_BOLD_URL = 'https://cdn.jsdelivr.net/npm/opensans-font@1.0.0/OpenSans-Bold.ttf';
   let hostSubscriptions = [];
   let settings = {};
-  let pdfFontPromise = null;
+
+  const LATVIAN_GLYPHS = {
+    'Ā': ['A', 'macron'], 'ā': ['a', 'macron'],
+    'Ē': ['E', 'macron'], 'ē': ['e', 'macron'],
+    'Ī': ['I', 'macron'], 'ī': ['i', 'macron'],
+    'Ū': ['U', 'macron'], 'ū': ['u', 'macron'],
+    'Č': ['C', 'caron'], 'č': ['c', 'caron'],
+    'Š': ['S', 'caron'], 'š': ['s', 'caron'],
+    'Ž': ['Z', 'caron'], 'ž': ['z', 'caron'],
+    'Ģ': ['G', 'comma'], 'ģ': ['g', 'comma'],
+    'Ķ': ['K', 'comma'], 'ķ': ['k', 'comma'],
+    'Ļ': ['L', 'comma'], 'ļ': ['l', 'comma'],
+    'Ņ': ['N', 'comma'], 'ņ': ['n', 'comma'],
+  };
 
   function toast(message, error = false) {
     const box = byId('finance-toast');
@@ -150,48 +161,55 @@
     return match ? `${match[3]}.${match[2]}.${match[1]}` : String(value || '');
   }
 
-  function arrayBufferToBase64(buffer) {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    return btoa(binary);
+  function pdfBaseChar(char) {
+    return LATVIAN_GLYPHS[char]?.[0] || char;
   }
 
-  async function ensureLatvianPdfFont(doc) {
-    if (typeof doc.addFileToVFS !== 'function' || typeof doc.addFont !== 'function') {
-      throw new Error('PDF-модуль не поддерживает Unicode-шрифты');
-    }
+  function lvTextWidth(doc, value) {
+    let width = 0;
+    for (const char of String(value ?? '')) width += doc.getTextWidth(pdfBaseChar(char));
+    return width;
+  }
 
-    if (!pdfFontPromise) {
-      pdfFontPromise = Promise.all([
-        fetch(PDF_FONT_REGULAR_URL).then(response => {
-          if (!response.ok) throw new Error(`Regular font HTTP ${response.status}`);
-          return response.arrayBuffer();
-        }),
-        fetch(PDF_FONT_BOLD_URL).then(response => {
-          if (!response.ok) throw new Error(`Bold font HTTP ${response.status}`);
-          return response.arrayBuffer();
-        }),
-      ]).then(([regular, bold]) => ({
-        regular: arrayBufferToBase64(regular),
-        bold: arrayBufferToBase64(bold),
-      }));
-    }
+  function drawLatvianMark(doc, mark, x, y, charWidth) {
+    const fontSize = Number(doc.internal?.getFontSize?.() || 10);
+    const em = fontSize * 0.3528;
+    const center = x + charWidth / 2;
+    const topY = y - em * 0.82;
 
-    try {
-      const fonts = await pdfFontPromise;
-      doc.addFileToVFS('OpenSans-Regular.ttf', fonts.regular);
-      doc.addFont('OpenSans-Regular.ttf', 'OpenSans', 'normal');
-      doc.addFileToVFS('OpenSans-Bold.ttf', fonts.bold);
-      doc.addFont('OpenSans-Bold.ttf', 'OpenSans', 'bold');
-      return 'OpenSans';
-    } catch (error) {
-      pdfFontPromise = null;
-      throw new Error(`Не удалось загрузить Unicode-шрифт для латышского счёта: ${error.message}`);
+    doc.setLineWidth?.(Math.max(0.12, em * 0.045));
+    if (mark === 'macron') {
+      const half = Math.max(0.8, charWidth * 0.28);
+      doc.line(center - half, topY, center + half, topY);
+    } else if (mark === 'caron') {
+      const half = Math.max(0.55, charWidth * 0.18);
+      const depth = Math.max(0.45, em * 0.12);
+      doc.line(center - half, topY - depth, center, topY);
+      doc.line(center, topY, center + half, topY - depth);
+    } else if (mark === 'comma') {
+      const baseY = y + em * 0.17;
+      const dx = Math.max(0.32, em * 0.09);
+      const dy = Math.max(0.42, em * 0.12);
+      doc.line(center, baseY, center - dx, baseY + dy);
     }
+  }
+
+  function textLv(doc, value, x, y, options = {}) {
+    const text = String(value ?? '');
+    const totalWidth = lvTextWidth(doc, text);
+    let cursor = x;
+    if (options.align === 'right') cursor -= totalWidth;
+    if (options.align === 'center') cursor -= totalWidth / 2;
+
+    for (const char of text) {
+      const glyph = LATVIAN_GLYPHS[char];
+      const base = glyph?.[0] || char;
+      const width = doc.getTextWidth(base);
+      doc.text(base, cursor, y);
+      if (glyph) drawLatvianMark(doc, glyph[1], cursor, y, width);
+      cursor += width;
+    }
+    return totalWidth;
   }
 
   function drawHeySmartLogo(doc) {
@@ -270,24 +288,23 @@
       const date = byId('income-date')?.value || new Date().toISOString().slice(0, 10);
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-      const pdfFont = await ensureLatvianPdfFont(doc);
 
       drawHeySmartLogo(doc);
 
-      doc.setFont(pdfFont, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(19);
-      doc.text('RĒĶINS', 190, 20, { align: 'right' });
+      textLv(doc, 'RĒĶINS', 190, 20, { align: 'right' });
       doc.setFontSize(11);
-      doc.text(invoiceNo, 190, 27, { align: 'right' });
-      doc.setFont(pdfFont, 'normal');
+      textLv(doc, invoiceNo, 190, 27, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.text(`Datums: ${formatLatvianDate(date)}`, 190, 34, { align: 'right' });
+      textLv(doc, `Datums: ${formatLatvianDate(date)}`, 190, 34, { align: 'right' });
 
       let y = 49;
-      doc.setFont(pdfFont, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text('Pakalpojuma sniedzējs', 20, y);
-      doc.setFont(pdfFont, 'normal');
+      textLv(doc, 'Pakalpojuma sniedzējs', 20, y);
+      doc.setFont('helvetica', 'normal');
       y += 6;
 
       const sellerLines = [
@@ -297,57 +314,57 @@
         settings.sellerEmail,
       ].filter(Boolean);
       sellerLines.forEach(line => {
-        doc.text(String(line), 20, y);
+        textLv(doc, String(line), 20, y);
         y += 5;
       });
 
       y += 5;
-      doc.setFont(pdfFont, 'bold');
-      doc.text('Klients', 20, y);
-      doc.setFont(pdfFont, 'normal');
+      doc.setFont('helvetica', 'bold');
+      textLv(doc, 'Klients', 20, y);
+      doc.setFont('helvetica', 'normal');
       y += 6;
       customerLines(customer).forEach(line => {
-        doc.text(String(line), 20, y);
+        textLv(doc, String(line), 20, y);
         y += 5;
       });
 
       y += 11;
       doc.setFillColor(245, 247, 250);
       doc.rect(20, y - 7, 170, 10, 'F');
-      doc.setFont(pdfFont, 'bold');
-      doc.text('Apraksts', 22, y);
-      doc.text('Summa', 165, y);
+      doc.setFont('helvetica', 'bold');
+      textLv(doc, 'Apraksts', 22, y);
+      textLv(doc, 'Summa', 165, y);
 
       y += 12;
-      doc.setFont(pdfFont, 'normal');
-      doc.text(invoiceDescription(), 22, y);
-      doc.text(`${amount.toFixed(2)} EUR`, 165, y);
+      doc.setFont('helvetica', 'normal');
+      textLv(doc, invoiceDescription(), 22, y);
+      textLv(doc, `${amount.toFixed(2)} EUR`, 165, y);
 
       y += 14;
       doc.setDrawColor(180, 188, 200);
       doc.line(120, y, 190, y);
       y += 8;
-      doc.setFont(pdfFont, 'bold');
-      doc.text('Kopā', 140, y);
-      doc.text(`${amount.toFixed(2)} EUR`, 165, y);
+      doc.setFont('helvetica', 'bold');
+      textLv(doc, 'Kopā', 140, y);
+      textLv(doc, `${amount.toFixed(2)} EUR`, 165, y);
 
       y += 18;
-      doc.setFont(pdfFont, 'bold');
-      doc.text('Maksājuma rekvizīti', 20, y);
-      doc.setFont(pdfFont, 'normal');
+      doc.setFont('helvetica', 'bold');
+      textLv(doc, 'Maksājuma rekvizīti', 20, y);
+      doc.setFont('helvetica', 'normal');
       y += 6;
-      doc.text(`IBAN: ${settings.sellerIban}`, 20, y);
+      textLv(doc, `IBAN: ${settings.sellerIban}`, 20, y);
       if (settings.sellerBic) {
         y += 5;
-        doc.text(`BIC/SWIFT: ${settings.sellerBic}`, 20, y);
+        textLv(doc, `BIC/SWIFT: ${settings.sellerBic}`, 20, y);
       }
       y += 5;
-      doc.text(`Maksājuma mērķis: ${invoiceNo}`, 20, y);
+      textLv(doc, `Maksājuma mērķis: ${invoiceNo}`, 20, y);
 
       y += 14;
       doc.setFontSize(8);
       doc.setTextColor(90, 100, 115);
-      doc.text('PVN netiek piemērots.', 20, y);
+      textLv(doc, 'PVN netiek piemērots.', 20, y);
       doc.setTextColor(0, 0, 0);
 
       doc.save(`${invoiceNo}.pdf`);
