@@ -13,6 +13,8 @@ assert.equal(source.includes('const LOGO ='), false, 'invoice must not use pixel
 assert.match(source, /doc\.text\('Hey'/, 'invoice logo must render Hey as vector text');
 assert.match(source, /\['S', \[13, 153, 255\]\]/, 'invoice logo must start Smart with approved blue');
 assert.match(source, /\['t', \[151, 0, 255\]\]/, 'invoice logo must end Smart with approved violet');
+assert.match(source, /RĒĶINS/, 'invoice must contain Latvian title');
+assert.match(source, /Maksājuma mērķis/, 'invoice must preserve Latvian diacritics');
 
 assert.equal(html.includes('approvedLogo'), false, 'finance.html must not contain the stale inline image logo patch');
 assert.equal(html.includes('addImage('), false, 'finance.html must not reintroduce jsPDF addImage');
@@ -62,8 +64,11 @@ let domReady;
 let savedPdf = '';
 const textCalls = [];
 const textColors = [];
+const embeddedFonts = [];
 
 class FakeJsPDF {
+  addFileToVFS(name, data) { embeddedFonts.push({ type: 'vfs', name, data }); }
+  addFont(file, family, style) { embeddedFonts.push({ type: 'font', file, family, style }); }
   setFont() {}
   setFontSize() {}
   setTextColor(...args) { textColors.push(args.join(',')); }
@@ -77,8 +82,11 @@ class FakeJsPDF {
 }
 
 const localStore = new Map([['inv_token', 'test-token']]);
+const fakeFontBuffer = Uint8Array.from([0, 1, 2, 3, 4, 5, 6, 7]).buffer;
 const sandbox = {
   console,
+  Uint8Array,
+  btoa(value) { return Buffer.from(value, 'binary').toString('base64'); },
   setTimeout: fn => { fn(); return 1; },
   clearTimeout() {},
   localStorage: {
@@ -100,7 +108,7 @@ const sandbox = {
               financeInvoiceSettings: {
                 sellerName: 'SERGEJS TESTS',
                 sellerRegNo: '010190-12345',
-                sellerAddress: 'Riga',
+                sellerAddress: 'Rīga',
                 sellerIban: 'LV00TEST0000000000000',
                 sellerBic: 'TESTLV22',
                 sellerEmail: 'test@example.com',
@@ -111,6 +119,9 @@ const sandbox = {
       };
     }
     if (url === '/api/save') return { ok: true, async json() { return {}; } };
+    if (/\.ttf(?:$|\?)/.test(String(url))) {
+      return { ok: true, status: 200, async arrayBuffer() { return fakeFontBuffer; } };
+    }
     throw new Error(`Unexpected fetch: ${url}`);
   },
 };
@@ -129,6 +140,10 @@ domReady();
   const logoText = textCalls.slice(0, 6).map(call => call.value).join('');
   assert.equal(logoText, 'HeySmart', 'invoice logo must render exact HeySmart wordmark');
   assert.ok(new Set(textColors.slice(0, 7)).size >= 5, 'invoice logo must use multiple blue-to-violet colors');
+  assert.ok(embeddedFonts.some(item => item.type === 'font' && item.style === 'normal'), 'regular Unicode font must be embedded');
+  assert.ok(embeddedFonts.some(item => item.type === 'font' && item.style === 'bold'), 'bold Unicode font must be embedded');
+  assert.ok(textCalls.some(call => call.value === 'RĒĶINS'), 'Latvian title must render with diacritics');
+  assert.ok(textCalls.some(call => call.value.includes('Maksājuma mērķis')), 'Latvian payment reference must render with diacritics');
   assert.equal(savedPdf, 'HS-2026-001.pdf', 'invoice must be saved with its invoice number');
   console.log('finance-invoice.test.cjs: OK');
 })().catch(error => {
