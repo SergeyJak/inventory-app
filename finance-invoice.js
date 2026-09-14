@@ -3,8 +3,8 @@
   const esc = value => String(value ?? '').trim();
   const SETTINGS_KEY = 'heysmart_finance_invoice_settings_v1';
   const token = localStorage.getItem('inv_token');
-  const PDF_FONT_REGULAR_URL = 'https://cdn.jsdelivr.net/gh/notofonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Regular.ttf';
-  const PDF_FONT_BOLD_URL = 'https://cdn.jsdelivr.net/gh/notofonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Bold.ttf';
+  const PDF_FONT_REGULAR_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf';
+  const PDF_FONT_BOLD_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf';
   let hostSubscriptions = [];
   let settings = {};
   let pdfFontPromise = null;
@@ -181,11 +181,11 @@
       }
 
       const fonts = await pdfFontPromise;
-      doc.addFileToVFS('NotoSans-Regular.ttf', fonts.regular);
-      doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal');
-      doc.addFileToVFS('NotoSans-Bold.ttf', fonts.bold);
-      doc.addFont('NotoSans-Bold.ttf', 'NotoSans', 'bold');
-      return 'NotoSans';
+      doc.addFileToVFS('DejaVuSans.ttf', fonts.regular);
+      doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
+      doc.addFileToVFS('DejaVuSans-Bold.ttf', fonts.bold);
+      doc.addFont('DejaVuSans-Bold.ttf', 'DejaVuSans', 'bold');
+      return 'DejaVuSans';
     } catch (error) {
       console.warn('[finance] Latvian PDF font unavailable, using fallback', error);
       return 'helvetica';
