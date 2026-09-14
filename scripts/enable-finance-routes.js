@@ -25,6 +25,7 @@ patch('server.js', source => {
     ["['/finance.js', 'finance.js']", "  ['/finance.js', 'finance.js'],"],
     ["['/finance-client-email-only.js', 'finance-client-email-only.js']", "  ['/finance-client-email-only.js', 'finance-client-email-only.js'],"],
     ["['/finance-invoice.js', 'finance-invoice.js']", "  ['/finance-invoice.js', 'finance-invoice.js'],"],
+    ["['/finance-combo.js', 'finance-combo.js']", "  ['/finance-combo.js', 'finance-combo.js'],"],
     ["['/account-view-routing.js', 'account-view-routing.js']", "  ['/account-view-routing.js', 'account-view-routing.js'],"],
   ];
 
@@ -55,6 +56,16 @@ patch('index.html', source => {
     const appAnchor = '<script src="app.js"></script>';
     if (!next.includes(appAnchor)) throw new Error('Account routing script anchor not found');
     next = next.replace(appAnchor, appAnchor + '\n<script src="/account-view-routing.js?v=20260914-1"></script>');
+  }
+  return next;
+});
+
+patch('finance.html', source => {
+  let next = source;
+  if (!next.includes('/finance-combo.js')) {
+    const anchor = '<script src="/finance-invoice.js?v=20260914-3&lv=4" defer></script>';
+    if (!next.includes(anchor)) throw new Error('Finance combo script anchor not found');
+    next = next.replace(anchor, anchor + '\n  <script src="/finance-combo.js?v=20260914-1" defer></script>');
   }
   return next;
 });
