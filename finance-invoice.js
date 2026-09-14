@@ -3,8 +3,11 @@
   const esc = value => String(value ?? '').trim();
   const SETTINGS_KEY = 'heysmart_finance_invoice_settings_v1';
   const token = localStorage.getItem('inv_token');
+  const PDF_FONT_REGULAR_URL = 'https://cdn.jsdelivr.net/gh/notofonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Regular.ttf';
+  const PDF_FONT_BOLD_URL = 'https://cdn.jsdelivr.net/gh/notofonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Bold.ttf';
   let hostSubscriptions = [];
   let settings = {};
+  let pdfFontPromise = null;
 
   function toast(message, error = false) {
     const box = byId('finance-toast');
@@ -137,9 +140,56 @@
 
   function invoiceDescription() {
     const type = byId('income-type')?.value;
-    if (type === 'subscription') return 'Subscription service';
-    if (type === 'setup') return 'Smart device setup and configuration';
-    return 'Service';
+    if (type === 'subscription') return 'Abonēšanas pakalpojums';
+    if (type === 'setup') return 'Viedierīces uzstādīšana un konfigurēšana';
+    return 'Pakalpojums';
+  }
+
+  function formatLatvianDate(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[3]}.${match[2]}.${match[1]}` : String(value || '');
+  }
+
+  function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  }
+
+  async function ensureLatvianPdfFont(doc) {
+    if (typeof doc.addFileToVFS !== 'function' || typeof doc.addFont !== 'function') return 'helvetica';
+
+    try {
+      if (!pdfFontPromise) {
+        pdfFontPromise = Promise.all([
+          fetch(PDF_FONT_REGULAR_URL).then(response => {
+            if (!response.ok) throw new Error(`Font HTTP ${response.status}`);
+            return response.arrayBuffer();
+          }),
+          fetch(PDF_FONT_BOLD_URL).then(response => {
+            if (!response.ok) throw new Error(`Font HTTP ${response.status}`);
+            return response.arrayBuffer();
+          }),
+        ]).then(([regular, bold]) => ({
+          regular: arrayBufferToBase64(regular),
+          bold: arrayBufferToBase64(bold),
+        }));
+      }
+
+      const fonts = await pdfFontPromise;
+      doc.addFileToVFS('NotoSans-Regular.ttf', fonts.regular);
+      doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal');
+      doc.addFileToVFS('NotoSans-Bold.ttf', fonts.bold);
+      doc.addFont('NotoSans-Bold.ttf', 'NotoSans', 'bold');
+      return 'NotoSans';
+    } catch (error) {
+      console.warn('[finance] Latvian PDF font unavailable, using fallback', error);
+      return 'helvetica';
+    }
   }
 
   function drawHeySmartLogo(doc) {
@@ -218,28 +268,29 @@
       const date = byId('income-date')?.value || new Date().toISOString().slice(0, 10);
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pdfFont = await ensureLatvianPdfFont(doc);
 
       drawHeySmartLogo(doc);
 
-      doc.setFont('helvetica', 'bold');
+      doc.setFont(pdfFont, 'bold');
       doc.setFontSize(19);
-      doc.text('INVOICE', 190, 20, { align: 'right' });
+      doc.text('RĒĶINS', 190, 20, { align: 'right' });
       doc.setFontSize(11);
       doc.text(invoiceNo, 190, 27, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
+      doc.setFont(pdfFont, 'normal');
       doc.setFontSize(9);
-      doc.text(`Date: ${date}`, 190, 34, { align: 'right' });
+      doc.text(`Datums: ${formatLatvianDate(date)}`, 190, 34, { align: 'right' });
 
       let y = 49;
-      doc.setFont('helvetica', 'bold');
+      doc.setFont(pdfFont, 'bold');
       doc.setFontSize(10);
-      doc.text('Seller', 20, y);
-      doc.setFont('helvetica', 'normal');
+      doc.text('Pakalpojuma sniedzējs', 20, y);
+      doc.setFont(pdfFont, 'normal');
       y += 6;
 
       const sellerLines = [
         settings.sellerName,
-        settings.sellerRegNo ? `Reg. no.: ${settings.sellerRegNo}` : '',
+        settings.sellerRegNo ? `Reģ. Nr.: ${settings.sellerRegNo}` : '',
         settings.sellerAddress,
         settings.sellerEmail,
       ].filter(Boolean);
@@ -249,9 +300,9 @@
       });
 
       y += 5;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Customer', 20, y);
-      doc.setFont('helvetica', 'normal');
+      doc.setFont(pdfFont, 'bold');
+      doc.text('Klients', 20, y);
+      doc.setFont(pdfFont, 'normal');
       y += 6;
       customerLines(customer).forEach(line => {
         doc.text(String(line), 20, y);
@@ -261,12 +312,12 @@
       y += 11;
       doc.setFillColor(245, 247, 250);
       doc.rect(20, y - 7, 170, 10, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.text('Description', 22, y);
-      doc.text('Amount', 165, y);
+      doc.setFont(pdfFont, 'bold');
+      doc.text('Apraksts', 22, y);
+      doc.text('Summa', 165, y);
 
       y += 12;
-      doc.setFont('helvetica', 'normal');
+      doc.setFont(pdfFont, 'normal');
       doc.text(invoiceDescription(), 22, y);
       doc.text(`${amount.toFixed(2)} EUR`, 165, y);
 
@@ -274,14 +325,14 @@
       doc.setDrawColor(180, 188, 200);
       doc.line(120, y, 190, y);
       y += 8;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Total', 140, y);
+      doc.setFont(pdfFont, 'bold');
+      doc.text('Kopā', 140, y);
       doc.text(`${amount.toFixed(2)} EUR`, 165, y);
 
       y += 18;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Payment details', 20, y);
-      doc.setFont('helvetica', 'normal');
+      doc.setFont(pdfFont, 'bold');
+      doc.text('Maksājuma rekvizīti', 20, y);
+      doc.setFont(pdfFont, 'normal');
       y += 6;
       doc.text(`IBAN: ${settings.sellerIban}`, 20, y);
       if (settings.sellerBic) {
@@ -289,12 +340,12 @@
         doc.text(`BIC/SWIFT: ${settings.sellerBic}`, 20, y);
       }
       y += 5;
-      doc.text(`Payment reference: ${invoiceNo}`, 20, y);
+      doc.text(`Maksājuma mērķis: ${invoiceNo}`, 20, y);
 
       y += 14;
       doc.setFontSize(8);
       doc.setTextColor(90, 100, 115);
-      doc.text('VAT is not charged.', 20, y);
+      doc.text('PVN netiek piemērots.', 20, y);
       doc.setTextColor(0, 0, 0);
 
       doc.save(`${invoiceNo}.pdf`);
