@@ -3,8 +3,8 @@
   const esc = value => String(value ?? '').trim();
   const SETTINGS_KEY = 'heysmart_finance_invoice_settings_v1';
   const token = localStorage.getItem('inv_token');
-  const PDF_FONT_REGULAR_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf';
-  const PDF_FONT_BOLD_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf';
+  const PDF_FONT_REGULAR_URL = 'https://cdn.jsdelivr.net/npm/opensans-font@1.0.0/OpenSans-Regular.ttf';
+  const PDF_FONT_BOLD_URL = 'https://cdn.jsdelivr.net/npm/opensans-font@1.0.0/OpenSans-Bold.ttf';
   let hostSubscriptions = [];
   let settings = {};
   let pdfFontPromise = null;
@@ -161,34 +161,36 @@
   }
 
   async function ensureLatvianPdfFont(doc) {
-    if (typeof doc.addFileToVFS !== 'function' || typeof doc.addFont !== 'function') return 'helvetica';
+    if (typeof doc.addFileToVFS !== 'function' || typeof doc.addFont !== 'function') {
+      throw new Error('PDF-модуль не поддерживает Unicode-шрифты');
+    }
+
+    if (!pdfFontPromise) {
+      pdfFontPromise = Promise.all([
+        fetch(PDF_FONT_REGULAR_URL).then(response => {
+          if (!response.ok) throw new Error(`Regular font HTTP ${response.status}`);
+          return response.arrayBuffer();
+        }),
+        fetch(PDF_FONT_BOLD_URL).then(response => {
+          if (!response.ok) throw new Error(`Bold font HTTP ${response.status}`);
+          return response.arrayBuffer();
+        }),
+      ]).then(([regular, bold]) => ({
+        regular: arrayBufferToBase64(regular),
+        bold: arrayBufferToBase64(bold),
+      }));
+    }
 
     try {
-      if (!pdfFontPromise) {
-        pdfFontPromise = Promise.all([
-          fetch(PDF_FONT_REGULAR_URL).then(response => {
-            if (!response.ok) throw new Error(`Font HTTP ${response.status}`);
-            return response.arrayBuffer();
-          }),
-          fetch(PDF_FONT_BOLD_URL).then(response => {
-            if (!response.ok) throw new Error(`Font HTTP ${response.status}`);
-            return response.arrayBuffer();
-          }),
-        ]).then(([regular, bold]) => ({
-          regular: arrayBufferToBase64(regular),
-          bold: arrayBufferToBase64(bold),
-        }));
-      }
-
       const fonts = await pdfFontPromise;
-      doc.addFileToVFS('DejaVuSans.ttf', fonts.regular);
-      doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
-      doc.addFileToVFS('DejaVuSans-Bold.ttf', fonts.bold);
-      doc.addFont('DejaVuSans-Bold.ttf', 'DejaVuSans', 'bold');
-      return 'DejaVuSans';
+      doc.addFileToVFS('OpenSans-Regular.ttf', fonts.regular);
+      doc.addFont('OpenSans-Regular.ttf', 'OpenSans', 'normal');
+      doc.addFileToVFS('OpenSans-Bold.ttf', fonts.bold);
+      doc.addFont('OpenSans-Bold.ttf', 'OpenSans', 'bold');
+      return 'OpenSans';
     } catch (error) {
-      console.warn('[finance] Latvian PDF font unavailable, using fallback', error);
-      return 'helvetica';
+      pdfFontPromise = null;
+      throw new Error(`Не удалось загрузить Unicode-шрифт для латышского счёта: ${error.message}`);
     }
   }
 
