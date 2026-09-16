@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const { isHandoffRequest, handoffText } = require('../assistant-handoff');
 
 test('recognizes observed Russian contact failures', () => {
-  for (const input of ['Можно поговорить с реальным человеком?', 'Какой номер телефона?', 'Дайте WhatsApp контакт', 'Позвонить менеджеру']) {
+  for (const input of ['Можно поговорить с реальным человеком?', 'Хочу поговорить с человеком', 'Какой номер телефона?', 'Дайте номер', 'Дайте WhatsApp контакт', 'Позвонить менеджеру']) {
     assert.equal(isHandoffRequest(input), true, input);
   }
 });
