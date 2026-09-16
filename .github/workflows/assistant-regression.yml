@@ -1,0 +1,18 @@
+name: Assistant regression
+on:
+  pull_request:
+    paths:
+      - 'assistant-*.js'
+      - 'tests/assistant-*.test.js'
+      - '.github/workflows/assistant-regression.yml'
+  workflow_dispatch:
+jobs:
+  assistant-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run assistant audit regression tests
+        run: node --test tests/assistant-handoff.test.js tests/assistant-audit-fixes.test.js
