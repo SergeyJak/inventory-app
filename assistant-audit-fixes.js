@@ -10,6 +10,10 @@
     return ['ru', 'en', 'lv'].includes(value) ? value : 'en';
   }
 
+  function normalize(value) {
+    return String(value || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/gi, ' ').trim();
+  }
+
   function unsupportedLanguageResponse(input) {
     const normalized = String(input || '').toLowerCase();
     if (!/(?:uzbek|o['’]?zbek|узбек)/i.test(normalized)) return null;
@@ -18,13 +22,7 @@
       en: 'I do not have confirmed information that Alice supports Uzbek. Before buying, please check Yandex’s current list of supported languages.',
       lv: 'Man nav apstiprinātas informācijas, ka Alise atbalsta uzbeku valodu. Pirms pirkuma pārbaudiet Yandex aktuālo atbalstīto valodu sarakstu.',
     }[locale()];
-    return {
-      type: 'language_uncertain',
-      intent: 'faq_question',
-      text,
-      actions: [],
-      faq: { matched: true, confidence: 1, faq: null, answer: text },
-    };
+    return { type: 'language_uncertain', intent: 'faq_question', text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
   }
 
   function handoffResponse(input, options) {
@@ -35,11 +33,40 @@
     const labels = methods.map(item => item?.label).filter(Boolean);
     const text = handoff.handoffText(locale(), labels);
     return {
-      type: 'human_handoff',
-      intent: 'human_handoff',
-      text,
+      type: 'human_handoff', intent: 'human_handoff', text,
       actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
       faq: { matched: true, confidence: 1, faq: null, answer: text },
+    };
+  }
+
+  function modelAliases(model, options) {
+    return [model.id, ...(model.aliases || []), options.modelText?.(model, 'title'), options.modelText?.(model, 'short')]
+      .map(normalize).filter(Boolean).sort((a, b) => b.length - a.length);
+  }
+
+  function directComparisonResponse(input, options) {
+    const text = normalize(input);
+    const models = typeof options.models === 'function' ? options.models() : [];
+    const mentioned = models.filter(model => modelAliases(model, options).some(alias => text.includes(alias)));
+    const unique = mentioned.filter((model, index) => mentioned.findIndex(item => item.id === model.id) === index);
+    if (unique.length < 2) return null;
+
+    const comparisonIntent = /(?:сравн|отлич|разниц|\bvs\b|\bcompare\b|\bdifference\b|sal[iī]dzin|at[sš]k[iī]r)/i.test(text);
+    if (!comparisonIntent) return null;
+
+    const selected = unique.slice(0, 2);
+    const lines = selected.map(model => {
+      const title = options.modelText?.(model, 'title') || model.title || model.id;
+      const price = Number(model.price) > 0 ? ` ${Number(model.price)} €` : '';
+      const detail = options.modelText?.(model, 'line') || options.modelText?.(model, 'description') || '';
+      return `${title}${price}${detail ? `: ${detail}` : ''}`;
+    });
+    const lead = { ru: 'Сравнение:', en: 'Comparison:', lv: 'Salīdzinājums:' }[locale()];
+    const result = `${lead} ${lines.join(' | ')}`;
+    return {
+      type: 'compare', intent: 'model_comparison', text: result,
+      modelIds: selected.map(model => model.id), actions: [],
+      faq: { matched: true, confidence: 1, faq: null, answer: result },
     };
   }
 
@@ -63,15 +90,7 @@
   function normalizeAnalytics(response) {
     if (!response || response.faq) return response;
     const handled = response.type && !['fallback', 'noise_or_test'].includes(response.type);
-    return {
-      ...response,
-      faq: {
-        matched: Boolean(handled),
-        confidence: handled ? 1 : 0,
-        faq: null,
-        answer: response.text || '',
-      },
-    };
+    return { ...response, faq: { matched: Boolean(handled), confidence: handled ? 1 : 0, faq: null, answer: response.text || '' } };
   }
 
   function installContactNavigation() {
@@ -81,11 +100,7 @@
       const action = event.target?.closest?.('.assistant-action[data-action="contact"][data-channel]');
       if (!action) return;
       const channel = action.dataset.channel;
-      const url = channel === 'whatsapp'
-        ? 'https://wa.me/37126198525'
-        : channel === 'telegram'
-          ? 'https://t.me/alicestation'
-          : '';
+      const url = channel === 'whatsapp' ? 'https://wa.me/37126198525' : channel === 'telegram' ? 'https://t.me/alicestation' : '';
       if (!url) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -109,6 +124,8 @@
           if (directHandoff) return directHandoff;
           const language = unsupportedLanguageResponse(input);
           if (language) return language;
+          const comparison = directComparisonResponse(input, options);
+          if (comparison) return comparison;
           const response = originalHandle(input);
           return normalizeAnalytics(recommendationText(response, engine, options));
         },
@@ -120,5 +137,5 @@
   }
 
   if (root?.AssistantEngine) install();
-  return { install, unsupportedLanguageResponse, handoffResponse, recommendationText, normalizeAnalytics, installContactNavigation };
+  return { install, unsupportedLanguageResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
 });
