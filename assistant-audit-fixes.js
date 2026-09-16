@@ -70,13 +70,20 @@
 
   function directComparisonResponse(input, options) {
     const text = normalize(input);
-    const models = typeof options.models === 'function' ? options.models() : [];
-    const mentioned = models.filter(model => modelAliases(model, options).some(alias => text.includes(alias)));
-    const unique = mentioned.filter((model, index) => mentioned.findIndex(item => item.id === model.id) === index);
-    if (unique.length < 2) return null;
     if (!/(?:сравн|отлич|разниц|\bvs\b|\bcompare\b|\bdifference\b|sal[iī]dzin|at[sš]k[iī]r)/i.test(text)) return null;
 
-    const selected = unique.slice(0, 2);
+    const availableModels = typeof options.models === 'function' ? options.models() : [];
+    const knownModels = typeof options.knownModels === 'function' ? options.knownModels() : availableModels;
+    const mentionedKnown = knownModels.filter(model => modelAliases(model, options).some(alias => text.includes(alias)));
+    const mentionedIds = mentionedKnown.map(model => model.id)
+      .filter((id, index, ids) => id && ids.indexOf(id) === index);
+    if (mentionedIds.length < 2) return null;
+
+    const selected = mentionedIds.slice(0, 2).map(id =>
+      availableModels.find(model => model.id === id) || knownModels.find(model => model.id === id)
+    ).filter(Boolean);
+    if (selected.length < 2) return null;
+
     const lang = locale();
     const profiles = COMPARISON_PROFILES[lang];
     const lines = selected.map(model => {

@@ -27,12 +27,21 @@ global.AssistantEngine = {
 const fixes = require('../assistant-audit-fixes');
 fixes.install();
 
+// Mirrors production: live catalog models contain price/copy but aliases live in PHOTO_MODELS/knownModels.
+const liveModels = [
+  { id: 'mini3', price: 140, title: 'Станция Мини 3', short: 'Мини 3', line: 'Компактная модель с LED-дисплеем.' },
+  { id: 'midi', price: 200, title: 'Станция Миди', short: 'Миди', line: 'Более мощная модель для музыки.' },
+  { id: 'miniPro', price: 170, title: 'Мини 3 Про', short: 'Мини 3 Про', line: 'Модель Pro.' },
+];
+const knownModels = [
+  { id: 'mini3', aliases: ['мини 3', 'mini 3'], title: 'Станция Мини 3', short: 'Мини 3' },
+  { id: 'midi', aliases: ['миди', 'midi'], title: 'Станция Миди', short: 'Миди' },
+  { id: 'miniPro', aliases: ['мини 3 про', 'mini 3 pro'], title: 'Мини 3 Про', short: 'Мини 3 Про' },
+];
+
 const options = {
-  models: () => [
-    { id: 'mini3', aliases: ['мини 3', 'mini 3'], price: 140, title: 'Станция Мини 3', line: 'Компактная модель с LED-дисплеем.' },
-    { id: 'midi', aliases: ['миди', 'midi'], price: 200, title: 'Станция Миди', line: 'Более мощная модель для музыки.' },
-    { id: 'miniPro', aliases: ['мини 3 про', 'mini 3 pro'], price: 170, title: 'Мини 3 Про', line: 'Модель Pro.' },
-  ],
+  models: () => liveModels,
+  knownModels: () => knownModels,
   modelText: (model, key) => model[key] || '',
   t: key => key === 'assistant.recommend' ? 'Рекомендую:' : key,
   contactMethods: () => [
@@ -56,9 +65,9 @@ test('routes audited Russian handoff requests to WhatsApp and Telegram only', ()
   }
 });
 
-test('compares both explicitly named models with useful size and sound differences', () => {
+test('compares Latin model names when production live models do not contain aliases', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
-  for (const input of ['Чем Mini 3 отличается от Midi?', 'Сравни Мини 3 и Миди', 'Mini 3 vs Midi']) {
+  for (const input of ['Чем Mini 3 отличается от Midi?', 'Mini 3 vs Midi']) {
     const response = engine.handle(input);
     assert.equal(response.type, 'compare', input);
     assert.equal(response.intent, 'model_comparison', input);
@@ -72,6 +81,13 @@ test('compares both explicitly named models with useful size and sound differenc
     assert.match(response.text, /мощнее/i);
     assert.match(response.text, /бас/i);
   }
+});
+
+test('compares Cyrillic model names too', () => {
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Сравни Мини 3 и Миди');
+  assert.equal(response.type, 'compare');
+  assert.deepEqual(response.modelIds, ['mini3', 'midi']);
 });
 
 test('does not attach an unrelated FAQ id to color answers', () => {
