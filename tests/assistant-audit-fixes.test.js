@@ -29,7 +29,7 @@ fixes.install();
 
 const options = {
   models: () => [
-    { id: 'mini3', aliases: ['мини 3', 'mini 3'], price: 120, title: 'Станция Мини 3', line: 'Компактная модель с LED-дисплеем.' },
+    { id: 'mini3', aliases: ['мини 3', 'mini 3'], price: 140, title: 'Станция Мини 3', line: 'Компактная модель с LED-дисплеем.' },
     { id: 'midi', aliases: ['миди', 'midi'], price: 200, title: 'Станция Миди', line: 'Более мощная модель для музыки.' },
     { id: 'miniPro', aliases: ['мини 3 про', 'mini 3 pro'], price: 170, title: 'Мини 3 Про', line: 'Модель Pro.' },
   ],
@@ -56,7 +56,7 @@ test('routes audited Russian handoff requests to WhatsApp and Telegram only', ()
   }
 });
 
-test('compares both explicitly named models instead of returning only the first model', () => {
+test('compares both explicitly named models with useful size and sound differences', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
   for (const input of ['Чем Mini 3 отличается от Midi?', 'Сравни Мини 3 и Миди', 'Mini 3 vs Midi']) {
     const response = engine.handle(input);
@@ -65,8 +65,12 @@ test('compares both explicitly named models instead of returning only the first 
     assert.deepEqual(response.modelIds, ['mini3', 'midi'], input);
     assert.match(response.text, /Станция Мини 3/);
     assert.match(response.text, /Станция Миди/);
-    assert.match(response.text, /120 €/);
+    assert.match(response.text, /140 €/);
     assert.match(response.text, /200 €/);
+    assert.match(response.text, /компакт/i);
+    assert.match(response.text, /крупнее/i);
+    assert.match(response.text, /мощнее/i);
+    assert.match(response.text, /бас/i);
   }
 });
 

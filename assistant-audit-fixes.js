@@ -44,25 +44,54 @@
       .map(normalize).filter(Boolean).sort((a, b) => b.length - a.length);
   }
 
+  const COMPARISON_PROFILES = {
+    ru: {
+      mini3: 'компактнее, лучше подходит для небольшой комнаты и повседневного прослушивания; звучание легче и менее масштабное',
+      midi: 'заметно крупнее и мощнее; звучание более объёмное и насыщенное, с более выраженным басом',
+      miniPro: 'компактная, но с усиленным звуком и возможностями центра умного дома',
+      light2: 'очень компактная, удобна для небольшой комнаты, детской или рабочего стола',
+      street: 'портативная модель для использования вне дома',
+    },
+    en: {
+      mini3: 'more compact and better suited to a smaller room and everyday listening; its sound is lighter and less room-filling',
+      midi: 'noticeably larger and more powerful; its sound is fuller and richer, with stronger bass',
+      miniPro: 'compact, with stronger sound and smart-home hub capabilities',
+      light2: 'very compact and suited to a small room, kids room or desk',
+      street: 'portable and designed for use away from home',
+    },
+    lv: {
+      mini3: 'kompaktāka un labāk piemērota mazākai telpai un ikdienas klausīšanai; skanējums ir vieglāks un mazāk jaudīgs',
+      midi: 'ievērojami lielāka un jaudīgāka; skanējums ir pilnīgāks un piesātinātāks, ar izteiktāku basu',
+      miniPro: 'kompakta, ar jaudīgāku skaņu un viedās mājas centra iespējām',
+      light2: 'ļoti kompakta, piemērota mazai telpai, bērnistabai vai darba galdam',
+      street: 'pārnēsājama un paredzēta lietošanai ārpus mājas',
+    },
+  };
+
   function directComparisonResponse(input, options) {
     const text = normalize(input);
     const models = typeof options.models === 'function' ? options.models() : [];
     const mentioned = models.filter(model => modelAliases(model, options).some(alias => text.includes(alias)));
     const unique = mentioned.filter((model, index) => mentioned.findIndex(item => item.id === model.id) === index);
     if (unique.length < 2) return null;
-
-    const comparisonIntent = /(?:сравн|отлич|разниц|\bvs\b|\bcompare\b|\bdifference\b|sal[iī]dzin|at[sš]k[iī]r)/i.test(text);
-    if (!comparisonIntent) return null;
+    if (!/(?:сравн|отлич|разниц|\bvs\b|\bcompare\b|\bdifference\b|sal[iī]dzin|at[sš]k[iī]r)/i.test(text)) return null;
 
     const selected = unique.slice(0, 2);
+    const lang = locale();
+    const profiles = COMPARISON_PROFILES[lang];
     const lines = selected.map(model => {
       const title = options.modelText?.(model, 'title') || model.title || model.id;
-      const price = Number(model.price) > 0 ? ` ${Number(model.price)} €` : '';
-      const detail = options.modelText?.(model, 'line') || options.modelText?.(model, 'description') || '';
-      return `${title}${price}${detail ? `: ${detail}` : ''}`;
+      const price = Number(model.price) > 0 ? ` (${Number(model.price)} €)` : '';
+      const detail = profiles[model.id] || options.modelText?.(model, 'line') || options.modelText?.(model, 'description') || '';
+      return `${title}${price}: ${detail}.`;
     });
-    const lead = { ru: 'Сравнение:', en: 'Comparison:', lv: 'Salīdzinājums:' }[locale()];
-    const result = `${lead} ${lines.join(' | ')}`;
+    const lead = { ru: 'Главные отличия:', en: 'Main differences:', lv: 'Galvenās atšķirības:' }[lang];
+    const conclusion = {
+      ru: 'Если важнее компактность, выбирайте более компактную модель. Если приоритет — мощность, объём звучания и бас, выбирайте более мощную.',
+      en: 'If compactness matters more, choose the smaller model. If power, fuller sound and bass matter more, choose the more powerful one.',
+      lv: 'Ja svarīgāks ir kompaktums, izvēlieties mazāko modeli. Ja prioritāte ir jauda, pilnīgāks skanējums un bass, izvēlieties jaudīgāko.',
+    }[lang];
+    const result = `${lead}\n${lines.join('\n')}\n${conclusion}`;
     return {
       type: 'compare', intent: 'model_comparison', text: result,
       modelIds: selected.map(model => model.id), actions: [],
