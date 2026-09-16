@@ -43,6 +43,20 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(page.locator('#hero-image')).toHaveAttribute('src', /\/images\/catalog\/light-2\/pink\//);
   });
 
+  test('assistant routes observed contact requests to human handoff in the real storefront runtime', async ({ page }) => {
+    await page.locator('#assistant-fab').click();
+    const input = page.locator('#faq-input');
+    const form = page.locator('#faq-form');
+
+    for (const question of ['Хочу поговорить с человеком', 'Дайте номер']) {
+      await input.fill(question);
+      await form.evaluate(formElement => formElement.requestSubmit());
+      const answer = page.locator('#faq-messages .faq-message').last();
+      await expect(answer).not.toContainText('Я пока не нашёл точный ответ');
+      await expect(answer).toContainText(/Свяжитесь|WhatsApp|Telegram/);
+    }
+  });
+
   test('Yandex Plus renders as a separate API-driven offer', async ({ page }) => {
     const offer = page.locator('#yandex-plus-offer');
     await expect(offer).toBeVisible();
