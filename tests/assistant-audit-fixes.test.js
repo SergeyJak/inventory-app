@@ -27,10 +27,9 @@ global.AssistantEngine = {
 const fixes = require('../assistant-audit-fixes');
 fixes.install();
 
-// Mirrors production: live catalog models contain price/copy but aliases live in PHOTO_MODELS/knownModels.
+// Mirrors production: only in-stock models are exposed by models(); aliases and unavailable models live in knownModels().
 const liveModels = [
   { id: 'mini3', price: 140, title: 'Станция Мини 3', short: 'Мини 3', line: 'Компактная модель с LED-дисплеем.' },
-  { id: 'midi', price: 200, title: 'Станция Миди', short: 'Миди', line: 'Более мощная модель для музыки.' },
   { id: 'miniPro', price: 170, title: 'Мини 3 Про', short: 'Мини 3 Про', line: 'Модель Pro.' },
 ];
 const knownModels = [
@@ -65,17 +64,16 @@ test('routes audited Russian handoff requests to WhatsApp and Telegram only', ()
   }
 });
 
-test('compares Latin model names when production live models do not contain aliases', () => {
+test('compares Latin model names and labels an unavailable model instead of inventing a price', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
   for (const input of ['Чем Mini 3 отличается от Midi?', 'Mini 3 vs Midi']) {
     const response = engine.handle(input);
     assert.equal(response.type, 'compare', input);
     assert.equal(response.intent, 'model_comparison', input);
     assert.deepEqual(response.modelIds, ['mini3', 'midi'], input);
-    assert.match(response.text, /Станция Мини 3/);
-    assert.match(response.text, /Станция Миди/);
-    assert.match(response.text, /140 €/);
-    assert.match(response.text, /200 €/);
+    assert.match(response.text, /Станция Мини 3 \(140 €\)/);
+    assert.match(response.text, /Станция Миди \(сейчас нет в наличии\)/);
+    assert.doesNotMatch(response.text, /Станция Миди \(\d+ €\)/);
     assert.match(response.text, /компакт/i);
     assert.match(response.text, /крупнее/i);
     assert.match(response.text, /мощнее/i);
@@ -88,6 +86,7 @@ test('compares Cyrillic model names too', () => {
   const response = engine.handle('Сравни Мини 3 и Миди');
   assert.equal(response.type, 'compare');
   assert.deepEqual(response.modelIds, ['mini3', 'midi']);
+  assert.match(response.text, /сейчас нет в наличии/);
 });
 
 test('does not attach an unrelated FAQ id to color answers', () => {
