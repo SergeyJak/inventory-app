@@ -86,11 +86,16 @@
 
     const lang = locale();
     const profiles = COMPARISON_PROFILES[lang];
+    const unavailableLabel = { ru: 'сейчас нет в наличии', en: 'currently out of stock', lv: 'pašlaik nav noliktavā' }[lang];
+    const availableIds = new Set(availableModels.map(model => model.id));
     const lines = selected.map(model => {
       const title = options.modelText?.(model, 'title') || model.title || model.id;
-      const price = Number(model.price) > 0 ? ` (${Number(model.price)} €)` : '';
+      const availability = availableIds.has(model.id)
+        ? (Number(model.price) > 0 ? `${Number(model.price)} €` : '')
+        : unavailableLabel;
+      const suffix = availability ? ` (${availability})` : '';
       const detail = profiles[model.id] || options.modelText?.(model, 'line') || options.modelText?.(model, 'description') || '';
-      return `${title}${price}: ${detail}.`;
+      return `${title}${suffix}: ${detail}.`;
     });
     const lead = { ru: 'Главные отличия:', en: 'Main differences:', lv: 'Galvenās atšķirības:' }[lang];
     const conclusion = {
