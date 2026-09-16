@@ -15,7 +15,6 @@ const directRuntimeTags = [
   '<script src="/assistant-handoff.js?v=20260916-runtime5"></script>',
   '<script src="/assistant-engine-core.js?v=20260916-runtime5"></script>',
   '<script src="/assistant-audit-fixes.js?v=20260916-runtime5"></script>',
-  '<script src="/assistant-comparison-fixes.js?v=20260916-runtime5"></script>',
 ].join('\n  ');
 
 const catalog = fs.readFileSync(catalogPath, 'utf8');
