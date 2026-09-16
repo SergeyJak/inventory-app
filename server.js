@@ -993,7 +993,7 @@ app.get('/:locale/help/:articleSlug', (req, res, next) => {
   res.type('html').send(knowledgeBase.renderArticlePage(req, article));
 });
 
-app.get(['/catalog.css', '/catalog.js', '/assistant-engine.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/404.html', '/favicon.ico'], (req, res, next) => {
+app.get(['/catalog.css', '/catalog.js', '/assistant-engine.js', '/assistant-handoff.js', '/assistant-engine-core.js', '/assistant-audit-fixes.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/404.html', '/favicon.ico'], (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
     return res.sendFile(path.join(__dirname, req.path.slice(1)));
   }
