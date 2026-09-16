@@ -4,20 +4,31 @@ const fs = require('fs');
 const path = require('path');
 
 const catalogPath = path.join(__dirname, '..', 'catalog.html');
-const previousSrc = '/assistant-engine.js?v=20260624-v21';
-const currentSrc = '/assistant-engine.js?v=20260916-runtime3';
+const legacyLoaderTag = '<script src="/assistant-engine.js?v=20260624-v21"></script>';
+const cachedLoaderTag = '<script src="/assistant-engine.js?v=20260916-runtime3"></script>';
+const directRuntimeTags = [
+  '<script src="/assistant-handoff.js?v=20260916-runtime4"></script>',
+  '<script src="/assistant-engine-core.js?v=20260916-runtime4"></script>',
+  '<script src="/assistant-audit-fixes.js?v=20260916-runtime4"></script>',
+].join('\n  ');
 
 const catalog = fs.readFileSync(catalogPath, 'utf8');
 
-if (catalog.includes(currentSrc)) {
-  console.log('[assistant-cache] loader URL already current');
+if (catalog.includes(directRuntimeTags)) {
+  console.log('[assistant-runtime] direct runtime scripts already configured');
   process.exit(0);
 }
 
-if (!catalog.includes(previousSrc)) {
-  throw new Error(`[assistant-cache] expected loader URL not found: ${previousSrc}`);
+const sourceTag = catalog.includes(cachedLoaderTag)
+  ? cachedLoaderTag
+  : catalog.includes(legacyLoaderTag)
+    ? legacyLoaderTag
+    : '';
+
+if (!sourceTag) {
+  throw new Error('[assistant-runtime] expected assistant loader tag not found');
 }
 
-const updated = catalog.replace(previousSrc, currentSrc);
+const updated = catalog.replace(sourceTag, directRuntimeTags);
 fs.writeFileSync(catalogPath, updated, 'utf8');
-console.log(`[assistant-cache] loader URL updated to ${currentSrc}`);
+console.log('[assistant-runtime] replaced loader with direct runtime scripts');
