@@ -37,14 +37,16 @@ const options = {
   ],
 };
 
-test('routes audited Russian handoff requests to real contact methods', () => {
+test('routes audited Russian handoff requests to WhatsApp and Telegram only', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
   for (const input of ['Можно поговорить с реальным человеком?', 'Какой номер телефона?', 'Дайте WhatsApp контакт', 'Позвонить менеджеру']) {
     const response = engine.handle(input);
     assert.equal(response.type, 'human_handoff', input);
     assert.equal(response.intent, 'human_handoff', input);
     assert.match(response.text, /WhatsApp/);
-    assert.match(response.text, /\+37126198525/);
+    assert.match(response.text, /Telegram/);
+    assert.doesNotMatch(response.text, /37126198525/);
+    assert.deepEqual(response.actions.map(action => action.channel), ['whatsapp', 'telegram']);
     assert.equal(response.faq.faq, null);
   }
 });

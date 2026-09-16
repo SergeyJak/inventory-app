@@ -30,7 +30,8 @@
   function handoffResponse(input, options) {
     const handoff = root?.HeySmartAssistantHandoff;
     if (!handoff?.isHandoffRequest?.(input)) return null;
-    const methods = typeof options.contactMethods === 'function' ? options.contactMethods() : [];
+    const methods = (typeof options.contactMethods === 'function' ? options.contactMethods() : [])
+      .filter(item => item?.id === 'whatsapp' || item?.id === 'telegram');
     const labels = methods.map(item => item?.label).filter(Boolean);
     const text = handoff.handoffText(locale(), labels);
     return {
@@ -73,6 +74,26 @@
     };
   }
 
+  function installContactNavigation() {
+    const doc = root?.document;
+    if (!doc?.addEventListener || doc.__assistantContactNavigationInstalled) return;
+    doc.addEventListener('click', event => {
+      const action = event.target?.closest?.('.assistant-action[data-action="contact"][data-channel]');
+      if (!action) return;
+      const channel = action.dataset.channel;
+      const url = channel === 'whatsapp'
+        ? 'https://wa.me/37126198525'
+        : channel === 'telegram'
+          ? 'https://t.me/alicestation'
+          : '';
+      if (!url) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      root.location.href = url;
+    }, true);
+    doc.__assistantContactNavigationInstalled = true;
+  }
+
   function install() {
     const assistant = root?.AssistantEngine;
     if (!assistant?.createAssistantEngine || assistant.__auditFixesInstalled) return false;
@@ -94,9 +115,10 @@
       };
     };
     assistant.__auditFixesInstalled = true;
+    installContactNavigation();
     return true;
   }
 
   if (root?.AssistantEngine) install();
-  return { install, unsupportedLanguageResponse, handoffResponse, recommendationText, normalizeAnalytics };
+  return { install, unsupportedLanguageResponse, handoffResponse, recommendationText, normalizeAnalytics, installContactNavigation };
 });
