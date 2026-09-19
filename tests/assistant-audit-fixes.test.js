@@ -113,6 +113,38 @@ test('answers Uzbek support uncertainty without inventing support', () => {
   assert.equal(response.faq.faq, null);
 });
 
+test('answers English support questions explicitly and in English on the English storefront', () => {
+  global.catalogPageLocale = 'en';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Does Alice understand English?');
+  assert.equal(response.type, 'language_unsupported');
+  assert.equal(response.intent, 'faq_question');
+  assert.match(response.text, /does not support English/i);
+  assert.match(response.text, /works in Russian/i);
+  assert.equal(response.faq.faq, null);
+  global.catalogPageLocale = 'ru';
+});
+
+test('handles the audited Greece purchase question as international shipping, not conversation end', () => {
+  global.catalogPageLocale = 'en';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const input = 'Hello! I would like to buy the Yandex Station Mini 3 Pro. Do you ship to Greece (Korinthos)? How much does shipping cost, approximately how long does delivery take, and when/how do I pay for the order? Thank you!';
+  const response = engine.handle(input);
+  assert.equal(response.type, 'international_shipping');
+  assert.equal(response.intent, 'international_shipping');
+  assert.equal(response.modelId, 'miniPro');
+  assert.match(response.text, /€170/);
+  assert.match(response.text, /Greece/i);
+  assert.match(response.text, /Korinthos/i);
+  assert.match(response.text, /€20/);
+  assert.match(response.text, /Revolut/i);
+  assert.match(response.text, /confirm the delivery time/i);
+  assert.match(response.text, /does not support English/i);
+  assert.doesNotMatch(response.text, /^Thanks\.?$/i);
+  assert.deepEqual(response.actions.map(action => action.channel), ['whatsapp', 'telegram']);
+  global.catalogPageLocale = 'ru';
+});
+
 test('fallback remains unmatched for analytics', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
   const response = engine.handle('совсем неизвестный вопрос');
