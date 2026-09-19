@@ -1,3 +1,4 @@
+// PR preview smoke trigger
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
@@ -64,21 +65,34 @@ test('routes audited Russian handoff requests to WhatsApp and Telegram only', ()
   }
 });
 
-test('compares Latin model names and labels an unavailable model instead of inventing a price', () => {
+test('compares Latin model names and localizes the answer from the message language', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
-  for (const input of ['Чем Mini 3 отличается от Midi?', 'Mini 3 vs Midi']) {
-    const response = engine.handle(input);
-    assert.equal(response.type, 'compare', input);
-    assert.equal(response.intent, 'model_comparison', input);
-    assert.deepEqual(response.modelIds, ['mini3', 'midi'], input);
-    assert.match(response.text, /Станция Мини 3 \(140 €\)/);
-    assert.match(response.text, /Станция Миди \(сейчас нет в наличии\)/);
-    assert.doesNotMatch(response.text, /Станция Миди \(\d+ €\)/);
-    assert.match(response.text, /компакт/i);
-    assert.match(response.text, /крупнее/i);
-    assert.match(response.text, /мощнее/i);
-    assert.match(response.text, /бас/i);
-  }
+
+  const ru = engine.handle('Чем Mini 3 отличается от Midi?');
+  assert.equal(ru.type, 'compare');
+  assert.equal(ru.locale, 'ru');
+  assert.equal(ru.intent, 'model_comparison');
+  assert.deepEqual(ru.modelIds, ['mini3', 'midi']);
+  assert.match(ru.text, /Станция Мини 3 \(140 €\)/);
+  assert.match(ru.text, /Станция Миди \(сейчас нет в наличии\)/);
+  assert.doesNotMatch(ru.text, /Станция Миди \(\d+ €\)/);
+  assert.match(ru.text, /компакт/i);
+  assert.match(ru.text, /крупнее/i);
+  assert.match(ru.text, /мощнее/i);
+  assert.match(ru.text, /бас/i);
+
+  const en = engine.handle('Mini 3 vs Midi');
+  assert.equal(en.type, 'compare');
+  assert.equal(en.locale, 'en');
+  assert.equal(en.intent, 'model_comparison');
+  assert.deepEqual(en.modelIds, ['mini3', 'midi']);
+  assert.match(en.text, /140 €/);
+  assert.match(en.text, /currently out of stock/i);
+  assert.doesNotMatch(en.text, /Midi \(\d+ €\)/i);
+  assert.match(en.text, /compact/i);
+  assert.match(en.text, /larger/i);
+  assert.match(en.text, /powerful/i);
+  assert.match(en.text, /bass/i);
 });
 
 test('compares Cyrillic model names too', () => {
@@ -109,7 +123,8 @@ test('answers Uzbek support uncertainty without inventing support', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
   const response = engine.handle('Alisa knows uzbek language?');
   assert.equal(response.type, 'language_uncertain');
-  assert.match(response.text, /нет подтверждённой информации/i);
+  assert.equal(response.locale, 'en');
+  assert.match(response.text, /do not have confirmed information/i);
   assert.equal(response.faq.faq, null);
 });
 
@@ -143,6 +158,56 @@ test('handles the audited Greece purchase question as international shipping, no
   assert.doesNotMatch(response.text, /^Thanks\.?$/i);
   assert.deepEqual(response.actions.map(action => action.channel), ['whatsapp', 'telegram']);
   global.catalogPageLocale = 'ru';
+});
+
+test('detects English message language on the Russian storefront', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Does Alice understand English?');
+  assert.equal(response.locale, 'en');
+  assert.equal(response.type, 'language_unsupported');
+  assert.match(response.text, /^No\./);
+});
+
+test('detects Russian message language on the English storefront', () => {
+  global.catalogPageLocale = 'en';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Дайте номер');
+  assert.equal(response.locale, 'ru');
+  assert.equal(response.type, 'human_handoff');
+  assert.match(response.text, /Свяжитесь с нами напрямую/);
+  global.catalogPageLocale = 'ru';
+});
+
+test('detects Latvian message language independently from page language', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Vai Alise atbalsta angļu valodu?');
+  assert.equal(response.locale, 'lv');
+  assert.equal(response.type, 'language_unsupported');
+  assert.match(response.text, /^Nē\./);
+});
+
+test('generic European shipping question follows English message language', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Do you ship to Germany?');
+  assert.equal(response.locale, 'en');
+  assert.equal(response.type, 'international_shipping');
+  assert.match(response.text, /Courier delivery across Europe is available/i);
+  assert.doesNotMatch(response.text, /€20/);
+});
+
+test('long Greece order keeps Mini 3 Pro instead of matching shorter Mini 3 alias', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Hello! I would like to buy the Yandex Station Mini 3 Pro. Do you ship to Greece (Korinthos)? How much does shipping cost, approximately how long does delivery take, and when/how do I pay for the order? Thank you!');
+  assert.equal(response.locale, 'en');
+  assert.equal(response.type, 'international_shipping');
+  assert.equal(response.modelId, 'miniPro');
+  assert.equal(response.modelId, 'miniPro');
+  assert.match(response.text, /€170/);
+  assert.doesNotMatch(response.text, /Mini 3 is currently in stock for €140/i);
 });
 
 test('fallback remains unmatched for analytics', () => {

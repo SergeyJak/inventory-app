@@ -5,9 +5,24 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
-  function locale() {
+  function pageLocale() {
     const value = String(root?.catalogPageLocale || root?.document?.documentElement?.lang || 'en').toLowerCase();
     return ['ru', 'en', 'lv'].includes(value) ? value : 'en';
+  }
+
+  function detectInputLocale(input) {
+    const raw = String(input || '').trim();
+    if (!raw) return pageLocale();
+    if (/[а-яё]/i.test(raw)) return 'ru';
+    if (/[āčēģīķļņšūž]/i.test(raw)) return 'lv';
+
+    const normalized = raw.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+    const tokens = normalized.split(/\s+/).filter(Boolean);
+    const lvHints = new Set(['vai','alise','latvija','latvija','piegade','piegadi','piegadat','cik','maksa','maksat','varu','var','bernam','majam','anglu','krievu','valoda','valodu','skaļrunis','skalrunis']);
+    const lvHits = tokens.filter(token => lvHints.has(token)).length;
+    if (lvHits >= 2) return 'lv';
+    if (/[a-z]/i.test(raw)) return 'en';
+    return pageLocale();
   }
 
   function normalize(value) {
@@ -23,16 +38,16 @@
         ru: 'Нет, Алиса на Яндекс Станции не поддерживает английский язык. Голосовой ассистент работает на русском языке.',
         en: 'No. Alice on Yandex Station does not support English. The voice assistant works in Russian.',
         lv: 'Nē. Alise Yandex Station neatbalsta angļu valodu. Balss asistents darbojas krievu valodā.',
-      }[locale()];
-      return { type: 'language_unsupported', intent: 'faq_question', text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
+      }[detectInputLocale(input)];
+      return { type: 'language_unsupported', intent: 'faq_question', locale: detectInputLocale(input), text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
     }
     if (!/(?:uzbek|o['’]?zbek|узбек)/i.test(normalized)) return null;
     const text = {
       ru: 'У меня нет подтверждённой информации, что Алиса поддерживает узбекский язык. Перед покупкой лучше проверить актуальный список поддерживаемых языков Яндекса.',
       en: 'I do not have confirmed information that Alice supports Uzbek. Before buying, please check Yandex’s current list of supported languages.',
       lv: 'Man nav apstiprinātas informācijas, ka Alise atbalsta uzbeku valodu. Pirms pirkuma pārbaudiet Yandex aktuālo atbalstīto valodu sarakstu.',
-    }[locale()];
-    return { type: 'language_uncertain', intent: 'faq_question', text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
+    }[detectInputLocale(input)];
+    return { type: 'language_uncertain', intent: 'faq_question', locale: detectInputLocale(input), text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
   }
 
   function handoffResponse(input, options) {
@@ -41,9 +56,9 @@
     const methods = (typeof options.contactMethods === 'function' ? options.contactMethods() : [])
       .filter(item => item?.id === 'whatsapp' || item?.id === 'telegram');
     const labels = methods.map(item => item?.label).filter(Boolean);
-    const text = handoff.handoffText(locale(), labels);
+    const text = handoff.handoffText(detectInputLocale(input), labels);
     return {
-      type: 'human_handoff', intent: 'human_handoff', text,
+      type: 'human_handoff', intent: 'human_handoff', locale: detectInputLocale(input), text,
       actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
       faq: { matched: true, confidence: 1, faq: null, answer: text },
     };
@@ -54,12 +69,17 @@
     const normalized = normalize(raw);
     const shippingRequested = /(?:ship|shipping|deliver|delivery|courier|достав|отправ|pieg[aā]d)/i.test(raw);
     const greece = /(?:greece|greek|korinth|corinth|греци)/i.test(raw);
-    const international = greece || /(?:abroad|international|europe|europa|европ|за границ)/i.test(raw);
+    const international = greece ||
+      /(?:abroad|international|europe|europa|европ|за границ)/i.test(raw) ||
+      /\b(?:ship|deliver)\s+(?:it\s+)?to\s+[a-z]/i.test(raw);
     if (!shippingRequested || !international) return null;
 
     const availableModels = typeof options.models === 'function' ? options.models() : [];
     const knownModels = typeof options.knownModels === 'function' ? options.knownModels() : availableModels;
-    const mentioned = knownModels.find(model => modelAliases(model, options).some(alias => normalized.includes(alias)));
+    const mentioned = knownModels
+      .flatMap(model => modelAliases(model, options).map(alias => ({ model, alias })))
+      .filter(item => item.alias && normalized.includes(item.alias))
+      .sort((left, right) => right.alias.length - left.alias.length)[0]?.model || null;
     const available = mentioned ? availableModels.find(model => model.id === mentioned.id) : null;
     const title = mentioned ? (options.modelText?.(mentioned, 'title') || mentioned.title || mentioned.id) : '';
     const price = available && Number(available.price) > 0 ? Number(available.price) : 0;
@@ -80,12 +100,14 @@
       lv: 'Piegāde Eiropā ir iespējama ar kurjeru. Cena ir atkarīga no galamērķa un tiek saskaņota atsevišķi. Apmaksu var veikt ar Revolut. Piegādes termiņu apstiprināsim pirms nosūtīšanas. Ņemiet vērā: Alise Yandex Station neatbalsta angļu valodu un darbojas krievu valodā.',
     };
 
-    const text = textByLocale[locale()];
+    const responseLocale = detectInputLocale(input);
+    const text = textByLocale[responseLocale];
     const methods = (typeof options.contactMethods === 'function' ? options.contactMethods() : [])
       .filter(item => item?.id === 'whatsapp' || item?.id === 'telegram');
     return {
       type: 'international_shipping',
       intent: 'international_shipping',
+      locale: responseLocale,
       text,
       modelId: mentioned?.id || '',
       actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
@@ -138,7 +160,7 @@
     ).filter(Boolean);
     if (selected.length < 2) return null;
 
-    const lang = locale();
+    const lang = detectInputLocale(input);
     const profiles = COMPARISON_PROFILES[lang];
     const unavailableLabel = { ru: 'сейчас нет в наличии', en: 'currently out of stock', lv: 'pašlaik nav noliktavā' }[lang];
     const availableIds = new Set(availableModels.map(model => model.id));
@@ -159,7 +181,7 @@
     }[lang];
     const result = `${lead}\n${lines.join('\n')}\n${conclusion}`;
     return {
-      type: 'compare', intent: 'model_comparison', text: result,
+      type: 'compare', intent: 'model_comparison', locale: lang, text: result,
       modelIds: selected.map(model => model.id), actions: [],
       faq: { matched: true, confidence: 1, faq: null, answer: result },
     };
@@ -171,14 +193,15 @@
     if (!scenario) return response;
     const model = (typeof options.models === 'function' ? options.models() : []).find(item => item.id === response.modelId);
     if (!model) return response;
+    const lang = ['ru', 'en', 'lv'].includes(response.locale) ? response.locale : pageLocale();
     const title = options.modelText?.(model, 'title') || model.title || response.modelId;
     const price = Number(model.price) > 0 ? ` ${Number(model.price)} €` : '';
-    const lead = options.t?.('assistant.recommend') || ({ ru: 'Рекомендую:', en: 'I recommend:', lv: 'Iesaku:' }[locale()]);
+    const lead = options.t?.('assistant.recommend') || ({ ru: 'Рекомендую:', en: 'I recommend:', lv: 'Iesaku:' }[lang]);
     const reason = {
       ru: 'Эта модель лучше всего подходит под выбранный сценарий из моделей, которые сейчас есть в каталоге.',
       en: 'This model is the best fit for the selected use case among the models currently shown in the catalog.',
       lv: 'Šis modelis vislabāk atbilst izvēlētajam lietošanas scenārijam no pašlaik katalogā redzamajiem modeļiem.',
-    }[locale()];
+    }[lang];
     return { ...response, text: `${lead} ${title}${price}. ${reason}` };
   }
 
@@ -209,22 +232,34 @@
     if (!assistant?.createAssistantEngine || assistant.__auditFixesInstalled) return false;
     const originalCreate = assistant.createAssistantEngine.bind(assistant);
     assistant.createAssistantEngine = function (options) {
-      const engine = originalCreate(options);
+      let activeLocale = pageLocale();
+      const localizedOptions = {
+        ...options,
+        t: key => typeof options.tForLocale === 'function' ? options.tForLocale(key, activeLocale) : options.t(key),
+        modelText: (model, key) => typeof options.modelTextForLocale === 'function'
+          ? options.modelTextForLocale(model, key, activeLocale)
+          : options.modelText(model, key),
+        findFaq: input => typeof options.findFaqForLocale === 'function'
+          ? options.findFaqForLocale(input, activeLocale)
+          : options.findFaq(input),
+      };
+      const engine = originalCreate(localizedOptions);
       if (!engine?.handle) return engine;
       const originalHandle = engine.handle.bind(engine);
       return {
         ...engine,
         handle(input) {
-          const directHandoff = handoffResponse(input, options);
+          activeLocale = detectInputLocale(input);
+          const directHandoff = handoffResponse(input, localizedOptions);
           if (directHandoff) return directHandoff;
           const language = unsupportedLanguageResponse(input);
           if (language) return language;
-          const shipping = internationalShippingResponse(input, options);
+          const shipping = internationalShippingResponse(input, localizedOptions);
           if (shipping) return shipping;
-          const comparison = directComparisonResponse(input, options);
+          const comparison = directComparisonResponse(input, localizedOptions);
           if (comparison) return comparison;
-          const response = originalHandle(input);
-          return normalizeAnalytics(recommendationText(response, engine, options));
+          const response = { ...originalHandle(input), locale: activeLocale };
+          return normalizeAnalytics(recommendationText(response, engine, localizedOptions));
         },
       };
     };
@@ -234,5 +269,5 @@
   }
 
   if (root?.AssistantEngine) install();
-  return { install, unsupportedLanguageResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
+  return { install, detectInputLocale, unsupportedLanguageResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
 });
