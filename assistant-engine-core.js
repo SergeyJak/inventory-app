@@ -170,7 +170,7 @@
     const tokenCount = normalized ? normalized.split(' ').length : 0;
     const exact = words => words.some(word => normalized === normalize(word));
     if (!normalized || /^[?.!,\s-]+$/.test(String(input || ''))) return INTENTS.noise_or_test;
-    if (exact(['ok', 'okay', 'thanks', 'thank you', 'bye', 'спасибо', 'ок', 'хорошо', 'пока', 'paldies']) || hasAny(input, ['спасибо', 'подумаю', 'thank you', 'thanks', 'paldies'])) return INTENTS.conversation_end;
+    if (exact(['ok', 'okay', 'thanks', 'thank you', 'thanks a lot', 'thank you very much', 'bye', 'спасибо', 'спасибо подумаю', 'подумаю', 'ок', 'хорошо', 'пока', 'paldies'])) return INTENTS.conversation_end;
     if (exact(['test', 'тест', 'asdf', '123', 'qwerty'])) return INTENTS.noise_or_test;
     if (hasAny(input, ['оператор', 'менеджер', 'связаться', 'позвонить', 'с человеком', 'whatsapp', 'telegram', 'human operator', 'contact person']) || /\b(phone|call)\b/.test(normalized)) return INTENTS.human_handoff;
     if (hasAny(input, SYNONYMS.cheaper) || /\b(under|budget|max|up to)\b/.test(normalized)) return INTENTS.budget_request;
