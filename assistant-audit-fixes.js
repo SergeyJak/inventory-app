@@ -16,6 +16,16 @@
 
   function unsupportedLanguageResponse(input) {
     const normalized = String(input || '').toLowerCase();
+    const asksAboutEnglish = /(?:english|английск|angļu|anglu)/i.test(normalized) &&
+      /(?:alice|alisa|station|speaker|алис|станц|колон|understand|speak|language|язык|valod)/i.test(normalized);
+    if (asksAboutEnglish) {
+      const text = {
+        ru: 'Нет, Алиса на Яндекс Станции не поддерживает английский язык. Голосовой ассистент работает на русском языке.',
+        en: 'No. Alice on Yandex Station does not support English. The voice assistant works in Russian.',
+        lv: 'Nē. Alise Yandex Station neatbalsta angļu valodu. Balss asistents darbojas krievu valodā.',
+      }[locale()];
+      return { type: 'language_unsupported', intent: 'faq_question', text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
+    }
     if (!/(?:uzbek|o['’]?zbek|узбек)/i.test(normalized)) return null;
     const text = {
       ru: 'У меня нет подтверждённой информации, что Алиса поддерживает узбекский язык. Перед покупкой лучше проверить актуальный список поддерживаемых языков Яндекса.',
@@ -34,6 +44,50 @@
     const text = handoff.handoffText(locale(), labels);
     return {
       type: 'human_handoff', intent: 'human_handoff', text,
+      actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
+      faq: { matched: true, confidence: 1, faq: null, answer: text },
+    };
+  }
+
+  function internationalShippingResponse(input, options) {
+    const raw = String(input || '');
+    const normalized = normalize(raw);
+    const shippingRequested = /(?:ship|shipping|deliver|delivery|courier|достав|отправ|pieg[aā]d)/i.test(raw);
+    const greece = /(?:greece|greek|korinth|corinth|греци)/i.test(raw);
+    const international = greece || /(?:abroad|international|europe|europa|европ|за границ)/i.test(raw);
+    if (!shippingRequested || !international) return null;
+
+    const availableModels = typeof options.models === 'function' ? options.models() : [];
+    const knownModels = typeof options.knownModels === 'function' ? options.knownModels() : availableModels;
+    const mentioned = knownModels.find(model => modelAliases(model, options).some(alias => normalized.includes(alias)));
+    const available = mentioned ? availableModels.find(model => model.id === mentioned.id) : null;
+    const title = mentioned ? (options.modelText?.(mentioned, 'title') || mentioned.title || mentioned.id) : '';
+    const price = available && Number(available.price) > 0 ? Number(available.price) : 0;
+
+    const productLine = title
+      ? (available
+        ? (price ? `${title} is currently in stock for €${price}. ` : `${title} is currently in stock. `)
+        : `${title} is currently not in stock. `)
+      : '';
+
+    const textByLocale = greece ? {
+      ru: `${title ? (available ? `${title}${price ? ` стоит €${price}` : ''} сейчас в наличии. ` : `${title} сейчас нет в наличии. `) : ''}Да, можем отправить заказ в Грецию, включая Коринф. Доставка стоит примерно €20. Оплата возможна через Revolut. Срок доставки подтвердим перед отправкой. Обратите внимание: Алиса на Яндекс Станции не поддерживает английский язык и работает на русском.`,
+      en: `${productLine}Yes, we can ship to Greece, including Korinthos. Shipping is approximately €20. Payment can be made via Revolut. We will confirm the delivery time before dispatch. Please note that Alice on Yandex Station does not support English; the voice assistant works in Russian.`,
+      lv: `${title ? (available ? `${title}${price ? ` maksā €${price}` : ''} pašlaik ir pieejama. ` : `${title} pašlaik nav noliktavā. `) : ''}Jā, varam nosūtīt pasūtījumu uz Grieķiju, tostarp Korintu. Piegāde maksā aptuveni €20. Apmaksu var veikt ar Revolut. Piegādes termiņu apstiprināsim pirms nosūtīšanas. Ņemiet vērā: Alise Yandex Station neatbalsta angļu valodu un darbojas krievu valodā.`,
+    } : {
+      ru: 'Доставка по Европе возможна курьерской службой. Стоимость зависит от страны и согласуется отдельно. Оплата возможна через Revolut. Срок доставки подтвердим перед отправкой. Для нерусскоязычных покупателей важно: Алиса на Яндекс Станции не поддерживает английский язык и работает на русском.',
+      en: 'Courier delivery across Europe is available. Shipping cost depends on the destination and is confirmed separately. Payment can be made via Revolut. We will confirm the delivery time before dispatch. Please note that Alice on Yandex Station does not support English; the voice assistant works in Russian.',
+      lv: 'Piegāde Eiropā ir iespējama ar kurjeru. Cena ir atkarīga no galamērķa un tiek saskaņota atsevišķi. Apmaksu var veikt ar Revolut. Piegādes termiņu apstiprināsim pirms nosūtīšanas. Ņemiet vērā: Alise Yandex Station neatbalsta angļu valodu un darbojas krievu valodā.',
+    };
+
+    const text = textByLocale[locale()];
+    const methods = (typeof options.contactMethods === 'function' ? options.contactMethods() : [])
+      .filter(item => item?.id === 'whatsapp' || item?.id === 'telegram');
+    return {
+      type: 'international_shipping',
+      intent: 'international_shipping',
+      text,
+      modelId: mentioned?.id || '',
       actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
       faq: { matched: true, confidence: 1, faq: null, answer: text },
     };
@@ -165,6 +219,8 @@
           if (directHandoff) return directHandoff;
           const language = unsupportedLanguageResponse(input);
           if (language) return language;
+          const shipping = internationalShippingResponse(input, options);
+          if (shipping) return shipping;
           const comparison = directComparisonResponse(input, options);
           if (comparison) return comparison;
           const response = originalHandle(input);
@@ -178,5 +234,5 @@
   }
 
   if (root?.AssistantEngine) install();
-  return { install, unsupportedLanguageResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
+  return { install, unsupportedLanguageResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
 });
