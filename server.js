@@ -2933,6 +2933,138 @@ app.patch('/api/admin/assistant-improvement-reports/:reportId/actions/:actionInd
   }
 });
 
+
+function sanitizeFinanceEntry(raw, kind) {
+  const entry = raw && typeof raw === 'object' ? raw : {};
+  const id = sanitizeAssistantText(entry.id, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  const type = sanitizeAssistantText(entry.type, 60);
+  const date = sanitizeAssistantText(entry.date, 10);
+  const amount = Number(entry.amount);
+  const createdAt = sanitizeAssistantText(entry.createdAt, 40) || new Date().toISOString();
+  const note = sanitizeAssistantText(entry.note, 500);
+  if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !(amount > 0)) return null;
+  if (kind === 'income') {
+    return {
+      id, type, date, amount,
+      invoiceNo: sanitizeAssistantText(entry.invoiceNo, 80),
+      note, createdAt,
+    };
+  }
+  return {
+    id, type, date, amount,
+    documentNo: sanitizeAssistantText(entry.documentNo, 120),
+    note, createdAt,
+  };
+}
+
+async function appendFinanceEntry(collectionKey, ownerId, field, entry) {
+  const cleanOwnerId = sanitizeAssistantText(ownerId, 100);
+  if (!cleanOwnerId) return { ok: false, reason: 'owner' };
+  if (USE_MONGO) {
+    const coll = db.collection(COLL[collectionKey]);
+    const owner = await coll.findOne({ id: cleanOwnerId }, { projection: { _id: 1 } });
+    if (!owner) return { ok: false, reason: 'owner' };
+    const duplicate = await coll.findOne({ [`${field}.id`]: entry.id }, { projection: { _id: 1 } });
+    if (duplicate) return { ok: false, reason: 'duplicate' };
+    if (field === 'financePayments' && entry.invoiceNo) {
+      const sameInvoice = await coll.findOne({ 'financePayments.invoiceNo': entry.invoiceNo }, { projection: { _id: 1 } });
+      if (sameInvoice) return { ok: false, reason: 'invoice' };
+    }
+    const result = await coll.updateOne({ id: cleanOwnerId }, { $push: { [field]: entry } });
+    return { ok: result.modifiedCount === 1 };
+  }
+
+  const fileKey = collectionKey;
+  const data = JSON.parse(fs.readFileSync(FILES[fileKey], 'utf8'));
+  const owner = data.find(item => String(item.id) === cleanOwnerId);
+  if (!owner) return { ok: false, reason: 'owner' };
+  if (data.some(item => (item[field] || []).some(row => row.id === entry.id))) return { ok: false, reason: 'duplicate' };
+  if (field === 'financePayments' && entry.invoiceNo &&
+      data.some(item => (item.financePayments || []).some(row => row.invoiceNo === entry.invoiceNo))) {
+    return { ok: false, reason: 'invoice' };
+  }
+  owner[field] = Array.isArray(owner[field]) ? owner[field] : [];
+  owner[field].push(entry);
+  fs.writeFileSync(FILES[fileKey], JSON.stringify(data, null, 2), 'utf8');
+  return { ok: true };
+}
+
+async function removeFinanceEntry(collectionKey, ownerId, field, entryId) {
+  const cleanOwnerId = sanitizeAssistantText(ownerId, 100);
+  const cleanEntryId = sanitizeAssistantText(entryId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!cleanOwnerId || !cleanEntryId) return false;
+  if (USE_MONGO) {
+    const result = await db.collection(COLL[collectionKey]).updateOne(
+      { id: cleanOwnerId },
+      { $pull: { [field]: { id: cleanEntryId } } },
+    );
+    return result.modifiedCount === 1;
+  }
+  const data = JSON.parse(fs.readFileSync(FILES[collectionKey], 'utf8'));
+  const owner = data.find(item => String(item.id) === cleanOwnerId);
+  if (!owner) return false;
+  const before = Array.isArray(owner[field]) ? owner[field].length : 0;
+  owner[field] = (owner[field] || []).filter(row => row.id !== cleanEntryId);
+  if (owner[field].length === before) return false;
+  fs.writeFileSync(FILES[collectionKey], JSON.stringify(data, null, 2), 'utf8');
+  return true;
+}
+
+app.post('/api/finance/income', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const payment = sanitizeFinanceEntry(req.body?.payment, 'income');
+    if (!payment) return res.status(400).json({ error: 'Invalid finance payment' });
+    const result = await appendFinanceEntry('subAccounts', req.body?.ownerId, 'financePayments', payment);
+    if (!result.ok) {
+      if (result.reason === 'invoice') return res.status(409).json({ error: 'Invoice number already exists' });
+      if (result.reason === 'duplicate') return res.status(409).json({ error: 'Payment already exists' });
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    res.json({ ok: true, payment });
+  } catch (e) {
+    console.error('Finance income route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/finance/expense', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const expense = sanitizeFinanceEntry(req.body?.expense, 'expense');
+    if (!expense) return res.status(400).json({ error: 'Invalid finance expense' });
+    const result = await appendFinanceEntry('hostSubscriptions', req.body?.ownerId, 'financeExpenses', expense);
+    if (!result.ok) {
+      if (result.reason === 'duplicate') return res.status(409).json({ error: 'Expense already exists' });
+      return res.status(404).json({ error: 'Host not found' });
+    }
+    res.json({ ok: true, expense });
+  } catch (e) {
+    console.error('Finance expense route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.delete('/api/finance/income/:ownerId/:entryId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const ok = await removeFinanceEntry('subAccounts', req.params.ownerId, 'financePayments', req.params.entryId);
+    if (!ok) return res.status(404).json({ error: 'Payment not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Finance income delete error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.delete('/api/finance/expense/:ownerId/:entryId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const ok = await removeFinanceEntry('hostSubscriptions', req.params.ownerId, 'financeExpenses', req.params.entryId);
+    if (!ok) return res.status(404).json({ error: 'Expense not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Finance expense delete error:', e.message);
+    sendGenericError(res);
+  }
+});
+
 app.get('/api/data', requireInventoryHost, requireAuth, async (req, res) => {
   try {
     const data = await dbGetAll();
