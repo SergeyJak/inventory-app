@@ -569,10 +569,11 @@ function sendAssistantAnalytics(result) {
     window.gtag?.('event', 'assistant_question', {
       matched: Boolean(result.matched),
       faq_id: result.faq?.id || '',
-      locale: currentLang,
+      locale: result.locale || currentLang,
     });
   } catch {}
   trackVisitorEvent('assistant_question', {
+    locale: result.locale || currentLang,
     modelId: result.modelId || '',
     color: result.colorKey || '',
     metadata: {
@@ -680,10 +681,12 @@ function answerFaq(question) {
     faq: result,
   };
   const message = appendAssistantResponse(assistantResponse);
-  sendAssistantAnalytics(result);
+  const responseLocale = assistantResponse.locale || result.locale || currentLang;
+  sendAssistantAnalytics({ ...result, locale: responseLocale });
   const answerText = assistantResponse.text || dict('faq.fallback');
   logAssistantQuestion(cleanQuestion, answerText, {
     ...result,
+    locale: responseLocale,
     type: assistantResponse.type,
     intent: assistantResponse.intent,
     modelId: assistantResponse.modelId,
