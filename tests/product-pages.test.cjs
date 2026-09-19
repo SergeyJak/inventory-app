@@ -103,7 +103,7 @@ async function main() {
     assert.match(sitemap.text, /yandex-station-street/); assert.doesNotMatch(sitemap.text, /\?model=/);
     const catalog = await request('/ru');
     assert.match(catalog.text, /<h3><a href="\/ru\/yandex-station-lite-2">Lite 2<\/a><\/h3>/); assert.doesNotMatch(catalog.text, /catalog-product-links|"@type":"Product"/);
-    assert.match(catalog.text, /catalog\.js\?v=20260906-product-catalog/, 'catalog serves the updated JavaScript asset URL');
+    assert.match(catalog.text, /catalog\.js\?v=20260919-message-locale/, 'catalog serves the updated JavaScript asset URL');
     const liteRu = await request('/ru/yandex-station-lite-2');
     for (const [locale, slug] of routes) assert.ok(sitemap.text.includes(`<loc>https://heysmart.lv/${locale}/${slug}</loc>`));
     for (const locale of ['ru', 'en']) {
