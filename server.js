@@ -872,9 +872,16 @@ function requestHost(req) {
   return String(rawHost).toLowerCase().replace(/:\d+$/, '');
 }
 
+function isRailwayPreviewHost(host) {
+  return /^eshop-inventory-app-pr-\d+\.up\.railway\.app$/.test(String(host || ''));
+}
+
 function isCatalogHost(req) {
   const host = requestHost(req);
-  return CATALOG_HOSTS.includes(host) || /^eshop-inventory-app-pr-\d+\.up\.railway\.app$/.test(host);
+  if (isRailwayPreviewHost(host)) {
+    return String(process.env.PR_PREVIEW_MODE || 'catalog').toLowerCase() !== 'inventory';
+  }
+  return CATALOG_HOSTS.includes(host);
 }
 
 function redirectWwwCatalogHost(req, res, next) {
@@ -886,6 +893,9 @@ function redirectWwwCatalogHost(req, res, next) {
 
 function isInventoryHost(req) {
   const host = requestHost(req);
+  if (isRailwayPreviewHost(host) && String(process.env.PR_PREVIEW_MODE || '').toLowerCase() === 'inventory') {
+    return true;
+  }
   return host === INVENTORY_HOST || host === 'localhost' || host === '127.0.0.1';
 }
 
