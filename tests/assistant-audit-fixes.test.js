@@ -145,6 +145,56 @@ test('handles the audited Greece purchase question as international shipping, no
   global.catalogPageLocale = 'ru';
 });
 
+test('detects English message language on the Russian storefront', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Does Alice understand English?');
+  assert.equal(response.locale, 'en');
+  assert.equal(response.type, 'language_unsupported');
+  assert.match(response.text, /^No\./);
+});
+
+test('detects Russian message language on the English storefront', () => {
+  global.catalogPageLocale = 'en';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Дайте номер');
+  assert.equal(response.locale, 'ru');
+  assert.equal(response.type, 'human_handoff');
+  assert.match(response.text, /Свяжитесь с нами напрямую/);
+  global.catalogPageLocale = 'ru';
+});
+
+test('detects Latvian message language independently from page language', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Vai Alise atbalsta angļu valodu?');
+  assert.equal(response.locale, 'lv');
+  assert.equal(response.type, 'language_unsupported');
+  assert.match(response.text, /^Nē\./);
+});
+
+test('generic European shipping question follows English message language', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Do you ship to Germany?');
+  assert.equal(response.locale, 'en');
+  assert.equal(response.type, 'international_shipping');
+  assert.match(response.text, /Courier delivery across Europe is available/i);
+  assert.doesNotMatch(response.text, /€20/);
+});
+
+test('long Greece order keeps Mini 3 Pro instead of matching shorter Mini 3 alias', () => {
+  global.catalogPageLocale = 'ru';
+  const engine = global.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('Hello! I would like to buy the Yandex Station Mini 3 Pro. Do you ship to Greece (Korinthos)? How much does shipping cost, approximately how long does delivery take, and when/how do I pay for the order? Thank you!');
+  assert.equal(response.locale, 'en');
+  assert.equal(response.type, 'international_shipping');
+  assert.equal(response.modelId, 'miniPro');
+  assert.match(response.text, /Mini 3 Pro/);
+  assert.match(response.text, /€170/);
+  assert.doesNotMatch(response.text, /Mini 3 is currently in stock for €140/i);
+});
+
 test('fallback remains unmatched for analytics', () => {
   const engine = global.AssistantEngine.createAssistantEngine(options);
   const response = engine.handle('совсем неизвестный вопрос');
