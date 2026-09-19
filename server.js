@@ -873,7 +873,8 @@ function requestHost(req) {
 }
 
 function isCatalogHost(req) {
-  return CATALOG_HOSTS.includes(requestHost(req));
+  const host = requestHost(req);
+  return CATALOG_HOSTS.includes(host) || /^eshop-inventory-app-pr-\d+\.up\.railway\.app$/.test(host);
 }
 
 function redirectWwwCatalogHost(req, res, next) {
