@@ -203,6 +203,86 @@ async function run() {
   assert.equal(report.totals.cost, 102.5);
   assert.equal(report.totals.profit, 46.5);
 
+  const financeClients = [
+    {
+      id: 'client-001',
+      email: 'first@example.com',
+      financePayments: [{
+        id: 'payment-001',
+        type: 'subscription',
+        date: '2026-09-12',
+        amount: 35,
+        invoiceNo: 'HS-2026-001',
+        note: 'first invoice',
+        createdAt: '2026-09-12T10:00:00.000Z',
+      }],
+    },
+    { id: 'client-003', email: 'third@example.com' },
+  ];
+  response = await request('/api/save', {
+    method: 'POST',
+    token: adminToken,
+    body: { key: 'subAccounts', data: financeClients },
+  });
+  assert.equal(response.status, 200);
+
+  response = await request('/api/finance/income', {
+    method: 'POST',
+    token: adminToken,
+    body: {
+      ownerId: 'client-003',
+      payment: {
+        id: 'payment-003',
+        type: 'setup_subscription',
+        date: '2026-09-19',
+        amount: 60,
+        invoiceNo: 'HS-2026-003',
+        note: 'third invoice',
+        createdAt: '2026-09-19T10:00:00.000Z',
+      },
+    },
+  });
+  assert.equal(response.status, 200, 'atomic finance income append should succeed');
+
+  response = await request('/api/data', { token: adminToken });
+  const financeData = await json(response);
+  const firstClient = financeData.subAccounts.find(item => item.id === 'client-001');
+  const thirdClient = financeData.subAccounts.find(item => item.id === 'client-003');
+  assert.equal(firstClient.financePayments[0].invoiceNo, 'HS-2026-001', 'adding 003 must not erase existing 001');
+  assert.equal(thirdClient.financePayments[0].invoiceNo, 'HS-2026-003', 'new payment must be appended only to its owner');
+
+  response = await request('/api/finance/income', {
+    method: 'POST',
+    token: adminToken,
+    body: {
+      ownerId: 'client-003',
+      payment: {
+        id: 'payment-duplicate-invoice',
+        type: 'subscription',
+        date: '2026-09-19',
+        amount: 35,
+        invoiceNo: 'HS-2026-001',
+        note: '',
+        createdAt: '2026-09-19T10:01:00.000Z',
+      },
+    },
+  });
+  assert.equal(response.status, 409, 'duplicate invoice number must be rejected');
+
+  response = await request('/api/finance/income/client-003/payment-003', {
+    method: 'DELETE',
+    token: adminToken,
+  });
+  assert.equal(response.status, 200, 'atomic finance delete should succeed');
+
+  response = await request('/api/data', { token: adminToken });
+  const afterFinanceDelete = await json(response);
+  assert.equal(
+    afterFinanceDelete.subAccounts.find(item => item.id === 'client-001').financePayments[0].invoiceNo,
+    'HS-2026-001',
+    'deleting 003 must not erase 001',
+  );
+
   response = await request('/api/save', {
     method: 'POST',
     token: adminToken,
