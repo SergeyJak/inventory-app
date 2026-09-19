@@ -235,19 +235,18 @@
       note: byId('income-note').value.trim(),
       createdAt: new Date().toISOString(),
     };
-    sub.financePayments = Array.isArray(sub.financePayments) ? sub.financePayments : [];
-    sub.financePayments.push(payment);
     try {
-      await saveKey('subAccounts', state.subAccounts);
+      await api('/api/finance/income', {
+        method: 'POST',
+        body: JSON.stringify({ ownerId: sub.id, payment }),
+      });
       byId('income-invoice').value = '';
       byId('income-note').value = '';
-      refreshSuggestedInvoice();
-      renderYearSelects();
-      renderServices();
+      await loadData();
       toast(`Доход ${money(amount)} добавлен`);
     } catch (error) {
-      sub.financePayments = sub.financePayments.filter(item => item.id !== payment.id);
       toast(error.message, true);
+      await loadData();
     }
   }
 
@@ -271,18 +270,18 @@
       note: byId('expense-note').value.trim(),
       createdAt: new Date().toISOString(),
     };
-    host.financeExpenses = Array.isArray(host.financeExpenses) ? host.financeExpenses : [];
-    host.financeExpenses.push(expense);
     try {
-      await saveKey('hostSubscriptions', state.hostSubscriptions);
+      await api('/api/finance/expense', {
+        method: 'POST',
+        body: JSON.stringify({ ownerId: host.id, expense }),
+      });
       byId('expense-document').value = '';
       byId('expense-note').value = '';
-      renderYearSelects();
-      renderServices();
+      await loadData();
       toast(`Расход ${money(amount)} добавлен`);
     } catch (error) {
-      host.financeExpenses = host.financeExpenses.filter(item => item.id !== expense.id);
       toast(error.message, true);
+      await loadData();
     }
   }
 
@@ -314,18 +313,11 @@
     const { deleteId: id, deleteKind: kind, ownerId } = button.dataset;
     if (!confirm('Удалить эту финансовую операцию?')) return;
     try {
-      if (kind === 'income') {
-        const sub = state.subAccounts.find(item => String(item.id) === String(ownerId));
-        if (!sub) throw new Error('Client not found');
-        sub.financePayments = (sub.financePayments || []).filter(item => item.id !== id);
-        await saveKey('subAccounts', state.subAccounts);
-      } else {
-        const host = state.hostSubscriptions.find(item => String(item.id) === String(ownerId));
-        if (!host) throw new Error('Host not found');
-        host.financeExpenses = (host.financeExpenses || []).filter(item => item.id !== id);
-        await saveKey('hostSubscriptions', state.hostSubscriptions);
-      }
-      renderServices();
+      const path = kind === 'income'
+        ? `/api/finance/income/${encodeURIComponent(ownerId)}/${encodeURIComponent(id)}`
+        : `/api/finance/expense/${encodeURIComponent(ownerId)}/${encodeURIComponent(id)}`;
+      await api(path, { method: 'DELETE' });
+      await loadData();
       toast('Операция удалена');
     } catch (error) {
       toast(error.message, true);
