@@ -448,8 +448,11 @@ function createAssistantEngine() {
     models: () => models.filter(model => !model.unavailable),
     knownModels: () => PHOTO_MODELS,
     t: path => dict(path),
+    tForLocale: (path, lang) => dict(path, lang),
     modelText,
+    modelTextForLocale: (model, key, lang) => dict(`models.${model.id}.${key}`, lang),
     findFaq: findFaqAnswer,
+    findFaqForLocale: (question, lang) => findFaqAnswer(question, lang),
     contactMethods: () => [
       CONTACT_CONFIG.whatsappPhone ? { id: 'whatsapp', label: 'WhatsApp' } : null,
       CONTACT_CONFIG.telegramUsername ? { id: 'telegram', label: 'Telegram' } : null,
@@ -545,7 +548,7 @@ function scoreFaqQuestion(input, candidate) {
   return Math.max(tokenScore * 0.82, distanceScore * 0.72);
 }
 
-function findFaqAnswer(question) {
+function findFaqAnswer(question, lang = currentLang) {
   const matches = faqItems.map(item => {
     const questionScore = Math.max(...(item.questions || []).map(candidate => scoreFaqQuestion(question, candidate)));
     const categoryScore = scoreFaqQuestion(question, item.category) * 0.65;
@@ -557,7 +560,7 @@ function findFaqAnswer(question) {
     matched: true,
     faq: best.item,
     confidence: Number(best.confidence.toFixed(2)),
-    answer: best.item.answer?.[currentLang] || best.item.answer?.ru || '',
+    answer: best.item.answer?.[lang] || best.item.answer?.ru || '',
   };
 }
 
@@ -601,7 +604,7 @@ function logAssistantQuestion(question, answer, result = {}) {
     body: JSON.stringify({
       question: String(question || '').slice(0, 300),
       answer: String(answer || '').slice(0, 1200),
-      locale: currentLang,
+      locale: result.locale || currentLang,
       matched: Boolean(result.matched),
       matchedFaqId: result.faq?.id || null,
       confidence: result.confidence || 0,
