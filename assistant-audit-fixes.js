@@ -193,14 +193,15 @@
     if (!scenario) return response;
     const model = (typeof options.models === 'function' ? options.models() : []).find(item => item.id === response.modelId);
     if (!model) return response;
+    const lang = ['ru', 'en', 'lv'].includes(response.locale) ? response.locale : pageLocale();
     const title = options.modelText?.(model, 'title') || model.title || response.modelId;
     const price = Number(model.price) > 0 ? ` ${Number(model.price)} €` : '';
-    const lead = options.t?.('assistant.recommend') || ({ ru: 'Рекомендую:', en: 'I recommend:', lv: 'Iesaku:' }[locale()]);
+    const lead = options.t?.('assistant.recommend') || ({ ru: 'Рекомендую:', en: 'I recommend:', lv: 'Iesaku:' }[lang]);
     const reason = {
       ru: 'Эта модель лучше всего подходит под выбранный сценарий из моделей, которые сейчас есть в каталоге.',
       en: 'This model is the best fit for the selected use case among the models currently shown in the catalog.',
       lv: 'Šis modelis vislabāk atbilst izvēlētajam lietošanas scenārijam no pašlaik katalogā redzamajiem modeļiem.',
-    }[detectInputLocale(input)];
+    }[lang];
     return { ...response, text: `${lead} ${title}${price}. ${reason}` };
   }
 
@@ -257,8 +258,8 @@
           if (shipping) return shipping;
           const comparison = directComparisonResponse(input, localizedOptions);
           if (comparison) return comparison;
-          const response = originalHandle(input);
-          return { ...normalizeAnalytics(recommendationText(response, engine, localizedOptions)), locale: activeLocale };
+          const response = { ...originalHandle(input), locale: activeLocale };
+          return normalizeAnalytics(recommendationText(response, engine, localizedOptions));
         },
       };
     };
