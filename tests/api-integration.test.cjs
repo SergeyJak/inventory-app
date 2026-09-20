@@ -301,12 +301,25 @@ async function run() {
   });
   assert.equal(response.status, 200, 'atomic finance delete should succeed');
 
-  response = await request('/api/data', { token: adminToken });
+  response = await request('/api/finance/ledger', { token: adminToken });
   const afterFinanceDelete = await json(response);
   assert.equal(
-    afterFinanceDelete.subAccounts.find(item => item.id === 'client-001').financePayments[0].invoiceNo,
+    afterFinanceDelete.income.find(item => item.id === 'payment-001')?.invoiceNo,
     'HS-2026-001',
     'deleting 003 must not erase 001',
+  );
+  assert.equal(
+    afterFinanceDelete.income.some(item => item.id === 'payment-003'),
+    false,
+    'deleted Finance entry must disappear from standalone ledger',
+  );
+
+  response = await request('/api/data', { token: adminToken });
+  const accountsAfterFinanceDelete = await json(response);
+  assert.equal(
+    Array.isArray(accountsAfterFinanceDelete.subAccounts.find(item => item.id === 'client-001').financePayments),
+    false,
+    'Finance delete must not mutate Accounts storage',
   );
 
   response = await request('/api/save', {
