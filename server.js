@@ -71,6 +71,7 @@ if (!USE_MONGO) {
 
 // ── MONGODB STORAGE ──────────────────────────────────────────
 let db = null;
+let mongoClient = null;
 let mail = null;
 const COLL = {
   products: 'products',
@@ -96,9 +97,9 @@ const ASSISTANT_WEAK_FAQ_NEGATIVE_RATE = 0.25;
 const ASSISTANT_REPORT_PROMPT_VERSION = 1;
 
 async function connectMongo() {
-  const client = new MongoClient(process.env.MONGODB_URI);
-  await client.connect();
-  db = client.db('inventory');
+  mongoClient = new MongoClient(process.env.MONGODB_URI);
+  await mongoClient.connect();
+  db = mongoClient.db('inventory');
   await ensureAssistantQuestionIndexes(db);
   await ensureVisitorAnalyticsIndexes(db);
   console.log('✅  MongoDB connected');
@@ -3522,6 +3523,83 @@ app.get('/api/reports/sales', requireInventoryHost, requireAuth, async (req, res
     }));
   } catch (e) {
     console.error('Sales report route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/inventory/movement', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  const products = Array.isArray(req.body?.products) ? req.body.products : null;
+  const transactions = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
+  const expectedProducts = String(req.body?.expectedFingerprints?.products || '');
+  const expectedTransactions = String(req.body?.expectedFingerprints?.transactions || '');
+  if (!products || !transactions) return res.status(400).json({ error: 'Products and transactions are required' });
+  if (USE_MONGO && (!expectedProducts || !expectedTransactions)) {
+    return res.status(428).json({ error: 'Data versions required. Reload and retry.' });
+  }
+
+  try {
+    validateCriticalDataset('products', products);
+    validateCriticalDataset('transactions', transactions);
+
+    if (!USE_MONGO) {
+      const productResult = await dbSave('products', products);
+      const transactionResult = await dbSave('transactions', transactions);
+      return res.json({
+        ok: true,
+        fingerprints: {
+          products: productResult.fingerprint,
+          transactions: transactionResult.fingerprint,
+        },
+      });
+    }
+
+    const productColl = db.collection(COLL.products);
+    const transactionColl = db.collection(COLL.transactions);
+    const [existingProducts, existingTransactions] = await Promise.all([
+      productColl.find({}, { projection: { _id: 0 } }).toArray(),
+      transactionColl.find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+
+    if (datasetFingerprint(existingProducts) !== expectedProducts ||
+        datasetFingerprint(existingTransactions) !== expectedTransactions) {
+      return res.status(409).json({ error: 'Inventory data changed in another session. Reload and retry.' });
+    }
+
+    await Promise.all([
+      createDataSnapshot('products', existingProducts, req.user.username),
+      createDataSnapshot('transactions', existingTransactions, req.user.username),
+    ]);
+
+    const session = mongoClient.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await productColl.deleteMany({}, { session });
+        if (products.length) await productColl.insertMany(products, { session });
+        await transactionColl.deleteMany({}, { session });
+        if (transactions.length) await transactionColl.insertMany(transactions, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    const [writtenProducts, writtenTransactions] = await Promise.all([
+      productColl.find({}, { projection: { _id: 0 } }).toArray(),
+      transactionColl.find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+    if (datasetFingerprint(writtenProducts) !== datasetFingerprint(products) ||
+        datasetFingerprint(writtenTransactions) !== datasetFingerprint(transactions)) {
+      throw new Error('Inventory movement post-write verification failed');
+    }
+
+    res.json({
+      ok: true,
+      fingerprints: {
+        products: datasetFingerprint(products),
+        transactions: datasetFingerprint(transactions),
+      },
+    });
+  } catch (e) {
+    console.error('Inventory movement save error:', e.message);
     sendGenericError(res);
   }
 });
