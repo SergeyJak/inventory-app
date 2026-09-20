@@ -26,3 +26,10 @@ assert.match(app, /This mailbox is already a host/, 'existing Hosts must not be 
 assert.match(app, /title="This mailbox is a host">HOST</, 'mail table must visibly identify host mailboxes');
 
 console.log('mail-host-onboarding.test.cjs: OK');
+
+
+assert.match(app, /function generatedMailPassword\(/, 'mail password generation must be deterministic');
+assert.match(app, /Parole\.123456789!/, 'Host password must use the fixed Host password');
+assert.match(app, /Number\(digit\) \+ 2/, 'mail password must derive the next digits by adding two');
+assert.match(app, /Username must end with at least 2 digits/, 'password generation must reject usernames without a numeric suffix');
+assert.match(html, /id="mail-host-renewal-row" style="display:none"/, 'Host renewal date must stay hidden for non-Host purpose');
