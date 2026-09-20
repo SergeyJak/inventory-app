@@ -325,6 +325,13 @@ async function run() {
   response = await request('/api/save', {
     method: 'POST',
     token: adminToken,
+    body: { key: 'financeIncome', data: [] },
+  });
+  assert.equal(response.status, 403, 'generic save must be forbidden for Finance collections');
+
+  response = await request('/api/save', {
+    method: 'POST',
+    token: adminToken,
     body: { key: 'totallyUnknown', data: [] },
   });
   assert.equal(response.status, 400);
