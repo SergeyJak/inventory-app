@@ -12,6 +12,7 @@ const sharedNavigation = fs.readFileSync(path.join(root, 'shared-navigation.js')
 const appSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const financeHtml = fs.readFileSync(path.join(root, 'finance.html'), 'utf8');
 const reportsHtml = fs.readFileSync(path.join(root, 'reports.html'), 'utf8');
+const reportsSource = fs.readFileSync(path.join(root, 'reports.js'), 'utf8');
 
 const sandbox = { window: {} };
 vm.runInNewContext(navigationSource, sandbox, { filename: 'navigation.js' });
@@ -75,6 +76,10 @@ assert.match(financeHtml, /shared-navigation\.js/, 'finance must load shared nav
 assert.match(reportsHtml, /shared-navigation\.js/, 'reports must load shared navigation');
 assert.match(financeHtml, /data-nav-id="finance"/, 'finance must identify its active navigation item');
 assert.match(reportsHtml, /data-nav-id="reports"/, 'reports must identify its active navigation item');
+assert.match(navigationSource, /href:\s*'\/analytics'/, 'Visitors navigation must open the analytics dashboard');
+assert.match(reportsSource, /dataset\.navId\s*=\s*'visitor-activity'/, 'Visitors dashboard must identify its active navigation item');
+assert.match(reportsSource, /mountSharedNavigation\?\.\(\)/, 'Visitors dashboard must remount shared navigation after rebuilding the body');
+assert.match(sharedNavigation, /window\.mountSharedNavigation\s*=\s*mountSharedNavigation/, 'shared navigation must support remounting');
 assert.match(sharedNavigation, /\/#\//, 'standalone navigation must link directly to Inventory hash routes');
 assert.match(appSource, /history\.pushState\(/, 'inventory routing must write browser history');
 assert.match(appSource, /restoreNavigationFromUrl\(/, 'inventory routing must restore navigation from URL');
