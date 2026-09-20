@@ -56,8 +56,9 @@ assert.equal(
 );
 
 assert.match(html, /id="desktop-navigation"/i, 'desktop navigation shell must exist');
-assert.match(html, /id="mobile-primary-navigation"/i, 'mobile bottom navigation shell must exist');
+assert.match(html, /id="mobile-menu-button"/i, 'mobile header menu button must exist');
 assert.match(html, /id="mobile-navigation-drawer"/i, 'mobile drawer shell must exist');
+assert.doesNotMatch(html, /id="mobile-primary-navigation"/i, 'mobile bottom navigation must be removed');
 assert.match(html, /<script src="navigation\.js"><\/script>/i, 'navigation config must load before app.js');
 assert.match(
   server,
@@ -85,14 +86,14 @@ assert.match(
 
 assert.match(
   css,
-  /\.mobile-bottom-nav\s*\{/i,
-  'mobile bottom navigation styles must exist',
+  /\.mobile-menu-button\s*\{/i,
+  'mobile header menu button styles must exist',
 );
 
 assert.match(
   css,
-  /\.mobile-nav-panel\s*\{/i,
-  'mobile drawer styles must exist',
+  /\.mobile-nav-panel\s*\{[\s\S]*?transform:\s*translateX\(-105%\)/i,
+  'mobile navigation must use an off-canvas left drawer',
 );
 
 assert.match(
