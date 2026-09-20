@@ -85,9 +85,11 @@ const COLL = {
   financeExpenses: 'financeExpenses',
   financeAudit: 'financeAudit',
   financeMigrations: 'financeMigrations',
+  dataSnapshots: 'dataSnapshots',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
-const GENERIC_SAVE_BLOCKED_KEYS = new Set(['financeIncome', 'financeExpenses', 'financeAudit', 'financeMigrations']);
+const GENERIC_SAVE_BLOCKED_KEYS = new Set(['financeIncome', 'financeExpenses', 'financeAudit', 'financeMigrations', 'dataSnapshots']);
+const CRITICAL_DATA_KEYS = new Set(['products', 'transactions', 'andreyReturns', 'subAccounts', 'hostSubscriptions']);
 const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
 const ASSISTANT_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 const ASSISTANT_WEAK_FAQ_NEGATIVE_RATE = 0.25;
@@ -110,6 +112,79 @@ async function ensureFinanceIndexes() {
     db.collection(financeCollectionName('financeExpenses')).createIndex({ id: 1 }, { unique: true, name: 'uniq_finance_expense_id' }),
     db.collection(financeCollectionName('financeAudit')).createIndex({ entryId: 1, createdAt: -1 }, { name: 'finance_audit_entry_time' }),
   ]);
+}
+
+async function ensureDataIntegrityIndexes() {
+  if (!USE_MONGO) return;
+  await Promise.all([
+    db.collection(COLL.dataSnapshots).createIndex({ key: 1, createdAt: -1 }, { name: 'snapshot_key_time' }),
+    db.collection(COLL.dataSnapshots).createIndex({ snapshotId: 1 }, { unique: true, name: 'uniq_snapshot_id' }),
+  ]);
+}
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((out, key) => {
+      if (key !== '_id') out[key] = canonicalValue(value[key]);
+      return out;
+    }, {});
+  }
+  return value;
+}
+
+function datasetFingerprint(rows) {
+  const normalized = (Array.isArray(rows) ? rows : [])
+    .map(row => canonicalValue(row))
+    .sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || '')));
+  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
+function validateCriticalDataset(key, rows) {
+  if (!CRITICAL_DATA_KEYS.has(key)) return;
+  if (!Array.isArray(rows)) throw new Error(`Invalid dataset for ${key}: expected array`);
+  const ids = new Set();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') throw new Error(`Invalid row in ${key}`);
+    const id = String(row.id || '').trim();
+    if (!id) throw new Error(`Missing id in ${key}`);
+    if (ids.has(id)) throw new Error(`Duplicate id in ${key}: ${id}`);
+    ids.add(id);
+    if (key === 'products') {
+      for (const lot of Array.isArray(row.lots) ? row.lots : []) {
+        if (!Number.isFinite(Number(lot.qty)) || Number(lot.qty) < 0) {
+          throw new Error(`Invalid stock qty for product ${id}`);
+        }
+      }
+    }
+  }
+}
+
+async function createDataSnapshot(key, rows, actor = '') {
+  if (!USE_MONGO || !CRITICAL_DATA_KEYS.has(key)) return null;
+  const snapshot = {
+    snapshotId: crypto.randomUUID(),
+    key,
+    actor: sanitizeAssistantText(actor, 100),
+    createdAt: new Date(),
+    count: rows.length,
+    fingerprint: datasetFingerprint(rows),
+    documents: rows,
+  };
+  await db.collection(COLL.dataSnapshots).insertOne(snapshot);
+  return snapshot;
+}
+
+async function currentCriticalDataMeta() {
+  const data = await dbGetAll();
+  const fingerprints = {};
+  const counts = {};
+  for (const key of CRITICAL_DATA_KEYS) {
+    const rows = data[key] || [];
+    fingerprints[key] = datasetFingerprint(rows);
+    counts[key] = rows.length;
+  }
+  return { fingerprints, counts };
 }
 
 function isProductionRailwayEnvironment() {
@@ -323,29 +398,71 @@ function mergeProtectedFinanceFields(key, incoming, existing) {
   return merged;
 }
 
-async function dbSave(key, data) {
+async function dbSave(key, data, options = {}) {
   if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
     throw new Error(`Generic save forbidden for protected collection: ${key}`);
   }
+
+  let safeData = Array.isArray(data) ? data : [];
+  validateCriticalDataset(key, safeData);
+
   if (USE_MONGO) {
     const coll = db.collection(COLL[key]);
-    let safeData = Array.isArray(data) ? data : [];
+    const existing = await coll.find({}, { projection: { _id: 0 } }).toArray();
+    const currentFingerprint = datasetFingerprint(existing);
+
+    if (CRITICAL_DATA_KEYS.has(key)) {
+      if (!options.expectedFingerprint) {
+        const error = new Error(`Missing data version for ${key}`);
+        error.code = 'MISSING_DATA_VERSION';
+        throw error;
+      }
+      if (options.expectedFingerprint !== currentFingerprint) {
+        const error = new Error(`Stale data for ${key}`);
+        error.code = 'STALE_DATA';
+        throw error;
+      }
+      await createDataSnapshot(key, existing, options.actor || '');
+    }
+
     if (key === 'subAccounts' || key === 'hostSubscriptions') {
-      const existing = await coll.find({}, { projection: { _id: 0 } }).toArray();
       safeData = mergeProtectedFinanceFields(key, safeData, existing);
     }
-    await coll.deleteMany({});
-    if (safeData.length > 0) await coll.insertMany(safeData);
-  } else {
-    let safeData = Array.isArray(data) ? data : [];
-    if (key === 'subAccounts' || key === 'hostSubscriptions') {
-      const existing = fs.existsSync(FILES[key])
-        ? JSON.parse(fs.readFileSync(FILES[key], 'utf8'))
-        : [];
-      safeData = mergeProtectedFinanceFields(key, safeData, existing);
+    validateCriticalDataset(key, safeData);
+
+    try {
+      await coll.deleteMany({});
+      if (safeData.length > 0) await coll.insertMany(safeData);
+
+      if (CRITICAL_DATA_KEYS.has(key)) {
+        const written = await coll.find({}, { projection: { _id: 0 } }).toArray();
+        if (written.length !== safeData.length || datasetFingerprint(written) !== datasetFingerprint(safeData)) {
+          throw new Error(`Post-write verification failed for ${key}`);
+        }
+      }
+    } catch (error) {
+      if (CRITICAL_DATA_KEYS.has(key)) {
+        await coll.deleteMany({});
+        if (existing.length > 0) await coll.insertMany(existing);
+      }
+      throw error;
     }
-    fs.writeFileSync(FILES[key], JSON.stringify(safeData, null, 2), 'utf8');
+
+    return {
+      fingerprint: CRITICAL_DATA_KEYS.has(key) ? datasetFingerprint(safeData) : null,
+      count: safeData.length,
+    };
   }
+
+  if (key === 'subAccounts' || key === 'hostSubscriptions') {
+    const existing = fs.existsSync(FILES[key])
+      ? JSON.parse(fs.readFileSync(FILES[key], 'utf8'))
+      : [];
+    safeData = mergeProtectedFinanceFields(key, safeData, existing);
+  }
+  validateCriticalDataset(key, safeData);
+  fs.writeFileSync(FILES[key], JSON.stringify(safeData, null, 2), 'utf8');
+  return { fingerprint: datasetFingerprint(safeData), count: safeData.length };
 }
 
 function uniqueProductTypes(products) {
@@ -3386,6 +3503,9 @@ app.get('/api/data', requireInventoryHost, requireAuth, async (req, res) => {
     if (req.user.role !== 'admin') {
       ADMIN_ONLY_KEYS.forEach(key => delete data[key]);
     }
+    if (req.user.role === 'admin' && USE_MONGO) {
+      data._meta = await currentCriticalDataMeta();
+    }
     res.json(data);
   } catch (e) {
     console.error('Data route error:', e.message);
@@ -3407,15 +3527,20 @@ app.get('/api/reports/sales', requireInventoryHost, requireAuth, async (req, res
 });
 
 app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
-  const { key, data } = req.body;
+  const { key, data, expectedFingerprint } = req.body;
   if (!COLL[key]) return res.status(400).json({ error: 'Unknown key: ' + key });
   if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
     return res.status(403).json({ error: 'Protected collection: use dedicated API' });
   }
+  if (CRITICAL_DATA_KEYS.has(key) && !expectedFingerprint) {
+    return res.status(428).json({ error: 'Data version required. Reload and retry.' });
+  }
   try {
-    await dbSave(key, data);
-    res.json({ ok: true });
+    const result = await dbSave(key, data, { expectedFingerprint, actor: req.user.username });
+    res.json({ ok: true, ...result });
   } catch (e) {
+    if (e.code === 'STALE_DATA') return res.status(409).json({ error: 'Data changed in another session. Reload and retry.' });
+    if (e.code === 'MISSING_DATA_VERSION') return res.status(428).json({ error: 'Data version required. Reload and retry.' });
     console.error('Save route error:', e.message);
     sendGenericError(res);
   }
@@ -3491,6 +3616,7 @@ async function start() {
     await connectMongo();
     await migrateEmbeddedFinanceToStandalone();
     await ensureFinanceIndexes();
+    await ensureDataIntegrityIndexes();
     await mail.ensureMailIndexes(db);
   } else {
     console.log('📁  Using local JSON files (no MONGODB_URI set)');
