@@ -309,8 +309,10 @@ if (location.pathname === '/analytics') {
   }
 
   function renderDoughnut(key, canvasId, labels, data) {
-    if (charts[key]) charts[key].destroy();
-    charts[key] = new Chart(document.getElementById(canvasId), {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    Chart.getChart(canvas)?.destroy();
+    charts[key] = new Chart(canvas, {
       type: 'doughnut',
       data: { labels, datasets: [{ data, borderWidth: 0 }] },
       options: {
@@ -323,8 +325,10 @@ if (location.pathname === '/analytics') {
   }
 
   function renderTrend() {
-    if (charts.trend) charts.trend.destroy();
-    charts.trend = new Chart(document.getElementById('visitor-trend-chart'), {
+    const canvas = document.getElementById('visitor-trend-chart');
+    if (!canvas) return;
+    Chart.getChart(canvas)?.destroy();
+    charts.trend = new Chart(canvas, {
       type: 'line',
       data: {
         labels: state.daily.map(item => formatShortDate(item.day)),
