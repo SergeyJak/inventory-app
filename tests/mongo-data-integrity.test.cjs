@@ -29,6 +29,16 @@ assert.match(server, /productColl\.deleteMany\(\{\}, \{ session \}\)/, 'product 
 assert.match(server, /transactionColl\.deleteMany\(\{\}, \{ session \}\)/, 'transaction replacement must participate in the transaction');
 assert.match(server, /Inventory movement post-write verification failed/, 'atomic inventory movement must be verified');
 
+assert.match(server, /function dataCollectionName\(key\)/, 'critical Mongo collections must be environment-aware');
+assert.match(server, /CRITICAL_DATA_KEYS\.has\(key\) \|\| key === 'dataSnapshots'/, 'all critical business data and snapshots must be namespaced outside production');
+assert.match(server, /async function seedPreviewCriticalData\(\)/, 'preview must seed isolated critical collections from production data');
+assert.match(server, /if \(!USE_MONGO \|\| isProductionRailwayEnvironment\(\)\) return;/, 'preview seeding must never run in production');
+assert.match(server, /db\.collection\(dataCollectionName\('products'\)\)/, 'inventory products must use the environment-scoped collection');
+assert.match(server, /db\.collection\(dataCollectionName\('transactions'\)\)/, 'inventory transactions must use the environment-scoped collection');
+assert.match(server, /db\.collection\(dataCollectionName\('subAccounts'\)\)/, 'preview account reads must use the environment-scoped collection');
+assert.match(server, /db\.collection\(dataCollectionName\('hostSubscriptions'\)\)/, 'preview host reads must use the environment-scoped collection');
+assert.match(server, /await seedPreviewCriticalData\(\);/, 'preview data isolation must be initialized at startup');
+
 assert.match(app, /const _cacheMeta = \{\}/, 'browser must track server data versions');
 assert.match(app, /const _persistChains = \{\}/, 'writes to the same collection must be serialized');
 assert.match(app, /expectedFingerprint/, 'browser saves must send the expected Mongo fingerprint');
