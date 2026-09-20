@@ -38,8 +38,7 @@ const NAVIGATION_GROUPS = [
     label: 'Подписки',
     roles: ['admin'],
     items: [
-      { id: 'accounts', label: 'Аккаунты', icon: '◎', tab: 'accounts', accountView: 'subs', roles: ['admin'] },
-      { id: 'hosts', label: 'Хосты', icon: '◫', tab: 'accounts', accountView: 'hosts', roles: ['admin'] },
+      { id: 'accounts', label: 'Аккаунты', icon: '◎', tab: 'accounts', roles: ['admin'] },
     ],
   },
   {
