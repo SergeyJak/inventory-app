@@ -1710,12 +1710,28 @@ function copyMailCredentials() {
   navigator.clipboard.writeText(text).then(() => showToast('Mail credentials copied'));
 }
 
+function generatedMailPassword(usernameValue, purpose = 'mail') {
+  if (purpose === 'host') return 'Parole.123456789!';
+
+  const clean = String(usernameValue || '')
+    .trim()
+    .toLowerCase()
+    .replace(/@heysmart\.lv$/i, '')
+    .replace(/^alstrix/i, '');
+  const digits = clean.match(/(\d{2})$/)?.[1];
+  if (!digits) return '';
+
+  const nextDigits = [...digits]
+    .map(digit => String((Number(digit) + 2) % 10))
+    .join('');
+  return `Parole.${digits}${nextDigits}!`;
+}
+
 function generateMailPassword() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  let value = '';
-  for (let i = 0; i < 12; i++) {
-    value += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
+  const username = document.getElementById('mail-username')?.value || '';
+  const purpose = document.getElementById('mail-purpose')?.value || 'mail';
+  const value = generatedMailPassword(username, purpose);
+  if (!value) return showToast('Username must end with at least 2 digits', 'error');
   document.getElementById('mail-password').value = value;
   document.getElementById('mail-confirm-password').value = value;
 }
@@ -1732,7 +1748,7 @@ function buildMailUsername(value) {
 function updateMailPurposeFields() {
   const purpose = document.getElementById('mail-purpose')?.value || 'mail';
   const renewalRow = document.getElementById('mail-host-renewal-row');
-  if (renewalRow) renewalRow.hidden = purpose !== 'host';
+  if (renewalRow) renewalRow.style.display = purpose === 'host' ? '' : 'none';
 }
 
 function findHostSubscriptionByEmail(email) {
