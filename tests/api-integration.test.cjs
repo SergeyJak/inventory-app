@@ -244,12 +244,32 @@ async function run() {
   });
   assert.equal(response.status, 200, 'atomic finance income append should succeed');
 
-  response = await request('/api/data', { token: adminToken });
+  response = await request('/api/finance/ledger', { token: adminToken });
   const financeData = await json(response);
-  const firstClient = financeData.subAccounts.find(item => item.id === 'client-001');
-  const thirdClient = financeData.subAccounts.find(item => item.id === 'client-003');
-  assert.equal(firstClient.financePayments[0].invoiceNo, 'HS-2026-001', 'adding 003 must not erase existing 001');
-  assert.equal(thirdClient.financePayments[0].invoiceNo, 'HS-2026-003', 'new payment must be appended only to its owner');
+  assert.equal(
+    financeData.income.find(item => item.id === 'payment-001')?.invoiceNo,
+    'HS-2026-001',
+    'adding 003 must not erase existing 001'
+  );
+  assert.equal(
+    financeData.income.find(item => item.id === 'payment-003')?.invoiceNo,
+    'HS-2026-003',
+    'new payment must be stored in standalone Finance'
+  );
+  assert.equal(
+    financeData.income.find(item => item.id === 'payment-003')?.ownerId,
+    'client-003',
+    'standalone Finance must keep the account reference'
+  );
+
+  response = await request('/api/data', { token: adminToken });
+  const accountsAfterFinanceWrite = await json(response);
+  const thirdClient = accountsAfterFinanceWrite.subAccounts.find(item => item.id === 'client-003');
+  assert.equal(
+    Array.isArray(thirdClient.financePayments) ? thirdClient.financePayments.length : 0,
+    0,
+    'Finance writes must not mutate subAccounts'
+  );
 
   response = await request('/api/finance/income', {
     method: 'POST',
