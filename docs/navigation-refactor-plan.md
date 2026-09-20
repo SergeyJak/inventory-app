@@ -88,23 +88,17 @@ Analytics/report links should exist in one logical location only. The duplicate 
 
 Mobile must not shrink the desktop sidebar into a narrow column.
 
-Target pattern:
-- fixed bottom navigation for 3-4 frequent destinations
-- final "More" action opens a drawer
+Final pattern:
+- compact header menu button opens an off-canvas left drawer
 - drawer uses the same role-filtered navigation source as desktop
 - only permitted destinations are rendered
 - active destination is clearly highlighted
 - current destination survives drawer open/close
-- Escape/backdrop closes drawer where applicable
-- content remains usable with one hand and without horizontal navigation scrolling
+- Escape/backdrop closes drawer
+- no fixed bottom navigation
+- content keeps the full mobile viewport height
 
-Initial bottom navigation proposal:
-- Dashboard
-- Products
-- Sales
-- More
-
-This is intentionally conservative and can be adjusted after usage.
+The bottom-navigation prototype was rejected during preview testing because the navigation entry point was harder to discover and consumed useful screen space.
 
 ## Routing
 
@@ -123,7 +117,7 @@ A framework/router migration is not required.
 1. Characterization tests for current role access.
 2. Introduce one navigation configuration as the source of truth.
 3. Render desktop sidebar from that configuration.
-4. Render mobile bottom navigation and drawer from the same configuration.
+4. Render mobile hamburger + drawer from the same configuration.
 5. Add hash routing and route authorization.
 6. Move "Return to Andrey" out of Dashboard sub-tabs into navigation without changing its calculations.
 7. Remove duplicate Analytics entry.
@@ -145,7 +139,7 @@ Must verify:
 During implementation verify:
 - active destination state
 - sidebar renders on desktop
-- bottom navigation + drawer renders on mobile
+- hamburger + drawer renders on mobile
 - drawer contains role-appropriate items only
 - selecting an item closes the mobile drawer
 - duplicated Analytics link is removed
@@ -175,8 +169,18 @@ Do not introduce a frontend framework solely for navigation.
 - Sergey sees all current admin functionality
 - Andrey sees exactly his current viewer functionality and no admin-only pages
 - desktop uses the scalable sidebar pattern
-- mobile uses bottom navigation + drawer
+- mobile uses the shared hamburger + drawer pattern
 - direct navigation is URL-addressable
 - no duplicate Analytics navigation
 - existing business tests pass
 - new navigation tests pass on desktop and mobile
+
+
+## Preview decisions completed
+
+- Finance, Sales Analytics and Visitors Analytics use the shared navigation shell.
+- Visitors points to the full `/analytics` dashboard; the legacy embedded Visitors tab is removed.
+- "Return to Andrey" is a first-class navigation destination; the legacy Dashboard sub-tabs are removed.
+- Hosts is a first-class admin navigation destination while Subscribers/New/Cancelled remain account status views.
+- Inventory uses hash routes with refresh persistence and browser Back/Forward support.
+- Mobile uses a header hamburger and left drawer; the bottom navigation prototype was removed.
