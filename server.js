@@ -118,8 +118,8 @@ async function ensureFinanceIndexes() {
 async function ensureDataIntegrityIndexes() {
   if (!USE_MONGO) return;
   await Promise.all([
-    db.collection(COLL.dataSnapshots).createIndex({ key: 1, createdAt: -1 }, { name: 'snapshot_key_time' }),
-    db.collection(COLL.dataSnapshots).createIndex({ snapshotId: 1 }, { unique: true, name: 'uniq_snapshot_id' }),
+    db.collection(dataCollectionName('dataSnapshots')).createIndex({ key: 1, createdAt: -1 }, { name: 'snapshot_key_time' }),
+    db.collection(dataCollectionName('dataSnapshots')).createIndex({ snapshotId: 1 }, { unique: true, name: 'uniq_snapshot_id' }),
   ]);
 }
 
@@ -172,7 +172,7 @@ async function createDataSnapshot(key, rows, actor = '') {
     fingerprint: datasetFingerprint(rows),
     documents: rows,
   };
-  await db.collection(COLL.dataSnapshots).insertOne(snapshot);
+  await db.collection(dataCollectionName('dataSnapshots')).insertOne(snapshot);
   return snapshot;
 }
 
@@ -200,6 +200,40 @@ function financeCollectionName(key) {
     return `${base}__${suffix}`;
   }
   return base;
+}
+
+function previewCollectionSuffix() {
+  return String(process.env.RAILWAY_ENVIRONMENT_NAME || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 60);
+}
+
+function dataCollectionName(key) {
+  const base = COLL[key];
+  if (isProductionRailwayEnvironment()) return base;
+  const suffix = previewCollectionSuffix();
+  if (!suffix) return base;
+  if (CRITICAL_DATA_KEYS.has(key) || key === 'dataSnapshots') return `${base}__${suffix}`;
+  return base;
+}
+
+async function seedPreviewCriticalData() {
+  if (!USE_MONGO || isProductionRailwayEnvironment()) return;
+  const suffix = previewCollectionSuffix();
+  if (!suffix) return;
+
+  for (const key of CRITICAL_DATA_KEYS) {
+    const source = db.collection(COLL[key]);
+    const targetName = dataCollectionName(key);
+    const target = db.collection(targetName);
+    const targetCount = await target.countDocuments({});
+    if (targetCount > 0) continue;
+
+    const rows = await source.find({}, { projection: { _id: 0 } }).toArray();
+    if (rows.length > 0) await target.insertMany(rows);
+    console.log(`[preview] seeded ${targetName} from production ${COLL[key]}: ${rows.length} rows`);
+  }
 }
 
 function embeddedFinanceRows(subAccounts, hostSubscriptions) {
@@ -348,11 +382,11 @@ async function migrateEmbeddedFinanceToStandalone() {
 async function dbGetAll() {
   if (USE_MONGO) {
     const [products, transactions, andreyReturns, subAccounts, hostSubscriptions] = await Promise.all([
-      db.collection(COLL.products).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLL.transactions).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLL.andreyReturns).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('products')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('transactions')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('andreyReturns')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('subAccounts')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('hostSubscriptions')).find({}, { projection: { _id: 0 } }).toArray(),
     ]);
     return { products, transactions, andreyReturns, subAccounts, hostSubscriptions };
   }
@@ -408,7 +442,7 @@ async function dbSave(key, data, options = {}) {
   validateCriticalDataset(key, safeData);
 
   if (USE_MONGO) {
-    const coll = db.collection(COLL[key]);
+    const coll = db.collection(dataCollectionName(key));
     const existing = await coll.find({}, { projection: { _id: 0 } }).toArray();
     const currentFingerprint = datasetFingerprint(existing);
 
@@ -3321,8 +3355,8 @@ async function financeLedgerData() {
     if (isProductionRailwayEnvironment()) return { income: activeIncome, expenses: activeExpenses };
 
     const [subAccounts, hostSubscriptions] = await Promise.all([
-      db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('subAccounts')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('hostSubscriptions')).find({}, { projection: { _id: 0 } }).toArray(),
     ]);
     const embedded = embeddedFinanceRows(subAccounts, hostSubscriptions);
     const mergeById = (legacyRows, allStandaloneRows) => {
@@ -3346,8 +3380,8 @@ async function findFinanceOwner(kind, ownerId) {
   const cleanOwnerId = sanitizeAssistantText(ownerId, 100);
   if (!cleanOwnerId) return null;
   if (USE_MONGO) {
-    const collection = kind === 'income' ? COLL.subAccounts : COLL.hostSubscriptions;
-    return db.collection(collection).findOne({ id: cleanOwnerId }, { projection: { _id: 0 } });
+    const collectionKey = kind === 'income' ? 'subAccounts' : 'hostSubscriptions';
+    return db.collection(dataCollectionName(collectionKey)).findOne({ id: cleanOwnerId }, { projection: { _id: 0 } });
   }
   const file = kind === 'income' ? FILES.subAccounts : FILES.hostSubscriptions;
   return JSON.parse(fs.readFileSync(file, 'utf8')).find(item => String(item.id) === cleanOwnerId) || null;
@@ -3553,8 +3587,8 @@ app.post('/api/inventory/movement', requireInventoryHost, requireAuth, requireAd
       });
     }
 
-    const productColl = db.collection(COLL.products);
-    const transactionColl = db.collection(COLL.transactions);
+    const productColl = db.collection(dataCollectionName('products'));
+    const transactionColl = db.collection(dataCollectionName('transactions'));
     const [existingProducts, existingTransactions] = await Promise.all([
       productColl.find({}, { projection: { _id: 0 } }).toArray(),
       transactionColl.find({}, { projection: { _id: 0 } }).toArray(),
@@ -3694,6 +3728,7 @@ async function start() {
     await connectMongo();
     await migrateEmbeddedFinanceToStandalone();
     await ensureFinanceIndexes();
+    await seedPreviewCriticalData();
     await ensureDataIntegrityIndexes();
     await mail.ensureMailIndexes(db);
   } else {
