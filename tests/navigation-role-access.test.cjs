@@ -132,3 +132,7 @@ assert.match(reportsSource, /Chart\.getChart\(canvas\)\?\.destroy\(\)/, 'visitor
 
 assert.doesNotMatch(reportsSource, /<header class="visitor-header">/, 'Visitors analytics must not render its own legacy header');
 assert.match(reportsSource, /<section class="visitor-page-title">/, 'Visitors analytics must keep its page title inside shared shell content');
+
+assert.doesNotMatch(sharedNavigation, /\}\}\s*\n\s*window\.mountSharedNavigation/, 'shared navigation wrapper must have valid closing braces');
+assert.doesNotMatch(reportsSource, /visitor-user/, 'Visitors analytics must not reference removed legacy user element');
+assert.doesNotMatch(reportsSource, /visitor-logout/, 'Visitors analytics must not reference removed legacy logout element');
