@@ -30,6 +30,7 @@ const NAVIGATION_GROUPS = [
     label: 'Финансы',
     items: [
       { id: 'andrey', label: 'Вернуть Андрею', icon: '↗', dashboardView: 'andrey' },
+      { id: 'finance', label: 'Финансы', icon: '₣', href: '/finance', roles: ['admin'] },
     ],
   },
   {
