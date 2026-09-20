@@ -13,6 +13,8 @@ function logout() {
 
 // ========== STORAGE (server-backed) ==========
 const _cache = { products: [], transactions: [], andreyReturns: [], subAccounts: [], hostSubscriptions: [] };
+const _cacheMeta = {};
+const _persistChains = {};
 const BACKUP_SECTIONS = [
   { id: 'products', label: 'products', hint: 'товары и остатки', restorable: true },
   { id: 'sales', label: 'sales', hint: 'только продажи', restorable: true },
@@ -54,11 +56,81 @@ function saveHostSubscriptions(data) {
 }
 
 function _persist(key, data) {
-  fetch('/api/save', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({ key, data }),
-  }).catch(err => console.error('Save error:', err));
+  const previous = _persistChains[key] || Promise.resolve(true);
+  const next = previous.catch(() => false).then(async () => {
+    const expectedFingerprint = _cacheMeta[key];
+    if (!expectedFingerprint) {
+      console.error('Save blocked: missing data version for', key);
+      showToast('Данные устарели. Обновляю страницу для безопасного сохранения.', 'error');
+      setTimeout(() => location.reload(), 800);
+      return false;
+    }
+
+    try {
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ key, data, expectedFingerprint }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409 || res.status === 428) {
+          showToast('Данные изменились в другой вкладке. Страница будет обновлена.', 'error');
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showToast('Ошибка сохранения: ' + (result.error || ('HTTP ' + res.status)), 'error');
+        }
+        console.error('Save error:', key, result.error || res.status);
+        return false;
+      }
+      if (result.fingerprint) _cacheMeta[key] = result.fingerprint;
+      return true;
+    } catch (err) {
+      console.error('Save error:', err);
+      showToast('Ошибка связи при сохранении. Данные не подтверждены сервером.', 'error');
+      return false;
+    }
+  });
+  _persistChains[key] = next;
+  return next;
+}
+
+async function _persistInventoryMovement(products, transactions) {
+  const expectedProducts = _cacheMeta.products;
+  const expectedTransactions = _cacheMeta.transactions;
+  if (!expectedProducts || !expectedTransactions) {
+    showToast('Нет версии данных склада. Страница будет обновлена.', 'error');
+    setTimeout(() => location.reload(), 800);
+    return false;
+  }
+  try {
+    const res = await fetch('/api/inventory/movement', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        products,
+        transactions,
+        expectedFingerprints: {
+          products: expectedProducts,
+          transactions: expectedTransactions,
+        },
+      }),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(result.error || ('Ошибка сохранения HTTP ' + res.status), 'error');
+      if (res.status === 409 || res.status === 428) setTimeout(() => location.reload(), 800);
+      return false;
+    }
+    _cacheMeta.products = result.fingerprints?.products || _cacheMeta.products;
+    _cacheMeta.transactions = result.fingerprints?.transactions || _cacheMeta.transactions;
+    return true;
+  } catch (error) {
+    console.error('Inventory movement save error:', error);
+    showToast('Не удалось подтвердить запись продажи/остатка. Обновляю данные.', 'error');
+    setTimeout(() => location.reload(), 800);
+    return false;
+  }
 }
 
 function genId() {
@@ -2186,7 +2258,7 @@ function updateSalePreview() {
   preview.innerHTML = `Выручка: <b>${fmt(total)}</b> &nbsp;|&nbsp; Себестоимость (FIFO): <b>${fmt(cost)}</b> &nbsp;|&nbsp; Прибыль: <b>${fmt(profit)}</b>`;
 }
 
-function recordSale() {
+async function recordSale() {
   const sel     = document.getElementById('sale-product');
   const qty     = parseInt(document.getElementById('sale-qty').value);
   const price   = parseFloat(document.getElementById('sale-price').value);
@@ -2202,10 +2274,9 @@ function recordSale() {
   const total     = qty * price;
   const costTotal = consumeFIFO(p, qty);
   const profit    = total - costTotal;
-  saveProducts(products);
   const txs = loadTransactions();
   txs.unshift({ id: genId(), type: 'sale', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal, profit, date: dateVal + 'T12:00:00' });
-  saveTransactions(txs);
+  if (!await _persistInventoryMovement(products, txs)) return;
   document.getElementById('sale-qty').value   = '';
   document.getElementById('sale-price').value = '';
   document.getElementById('sale-date').value  = '';
@@ -2216,7 +2287,7 @@ function recordSale() {
 }
 
 // ========== RESTOCK ==========
-function recordRestock() {
+async function recordRestock() {
   const sel     = document.getElementById('restock-product');
   const qty     = parseInt(document.getElementById('restock-qty').value);
   const price   = parseFloat(document.getElementById('restock-price').value);
@@ -2231,11 +2302,10 @@ function recordRestock() {
   p.lots = p.lots || [];
   p.lots.push({ qty, buyPrice: price, date: dateVal });
   delete p.refBuyPrice;
-  saveProducts(products);
   const total = qty * price;
   const txs = loadTransactions();
   txs.unshift({ id: genId(), type: 'restock', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal: 0, profit: 0, date: dateVal + 'T12:00:00' });
-  saveTransactions(txs);
+  if (!await _persistInventoryMovement(products, txs)) return;
   document.getElementById('restock-qty').value   = '';
   document.getElementById('restock-price').value = '';
   document.getElementById('restock-date').value  = '';
@@ -2268,7 +2338,7 @@ function renderHistory(filter) {
   }).join('');
 }
 
-function returnOneSaleItem(txId) {
+async function returnOneSaleItem(txId) {
   const txs = loadTransactions();
   const tx = txs.find(t => t.id === txId);
   if (!tx || tx.type !== 'sale') return;
@@ -2296,17 +2366,18 @@ function returnOneSaleItem(txId) {
   product.lots = product.lots || [];
   product.lots.push({ qty: 1, buyPrice: returnedCost, date: new Date().toISOString().slice(0, 10) });
 
+  let nextTransactions = txs;
   if (qty <= 1) {
-    saveTransactions(txs.filter(t => t.id !== txId));
+    nextTransactions = txs.filter(t => t.id !== txId);
   } else {
     tx.qty = qty - 1;
     tx.total = (Number(tx.total) || 0) - (Number(tx.price) || 0);
     tx.costTotal = (Number(tx.costTotal) || 0) - returnedCost;
     tx.profit = (Number(tx.total) || 0) - (Number(tx.costTotal) || 0);
-    saveTransactions(txs);
   }
 
-  saveProducts(products);
+  if (!await _persistInventoryMovement(products, nextTransactions)) return;
+  _cache.transactions = nextTransactions;
   renderHistory(document.getElementById('history-filter').value);
   renderDashboard();
   showToast('Returned 1 item to stock');
@@ -2562,6 +2633,7 @@ async function restoreBackup() {
     _cache.andreyReturns = fresh.andreyReturns || [];
     _cache.subAccounts = fresh.subAccounts || [];
     _cache.hostSubscriptions = fresh.hostSubscriptions || [];
+    Object.assign(_cacheMeta, fresh._meta?.fingerprints || {});
     renderDashboard();
     showToast('Восстановлено: ' + (data.restored || []).join(', '));
   } catch (e) {
@@ -2634,11 +2706,12 @@ async function doImport() {
   try { parsed = JSON.parse(raw); } catch (e) { return showToast('Неверный JSON: ' + e.message, 'error'); }
   const products = parsed.p || [], transactions = parsed.t || [], andreyReturns = parsed.a || [];
   try {
-    await Promise.all([
-      fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:'products',      data: products      }) }),
-      fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:'transactions',  data: transactions  }) }),
-      fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:'andreyReturns', data: andreyReturns }) }),
+    const saved = await Promise.all([
+      _persist('products', products),
+      _persist('transactions', transactions),
+      _persist('andreyReturns', andreyReturns),
     ]);
+    if (saved.some(ok => !ok)) throw new Error('Server rejected one or more datasets');
     _cache.products = products; _cache.transactions = transactions; _cache.andreyReturns = andreyReturns;
     document.getElementById('import-modal').style.display = 'none';
     document.getElementById('migrate-banner').style.display = 'none';
@@ -2660,6 +2733,7 @@ async function doImport() {
     _cache.andreyReturns = d.andreyReturns || [];
     _cache.subAccounts = d.subAccounts || [];
     _cache.hostSubscriptions = d.hostSubscriptions || [];
+    Object.assign(_cacheMeta, d._meta?.fingerprints || {});
   } catch (e) {
     console.error('Could not load data from server:', e);
     document.body.insertAdjacentHTML('afterbegin',

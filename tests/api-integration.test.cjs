@@ -118,7 +118,11 @@ async function run() {
     body: { key: 'products', data: products },
   });
   assert.equal(response.status, 200, 'admin product save should succeed');
-  assert.deepEqual(await json(response), { ok: true });
+  const productSave = await json(response);
+  assert.equal(productSave.ok, true, 'admin product save should confirm success');
+  assert.equal(productSave.count, products.length, 'save response must confirm persisted product count');
+  assert.equal(typeof productSave.fingerprint, 'string', 'save response must return a dataset fingerprint');
+  assert.ok(productSave.fingerprint.length >= 32, 'dataset fingerprint must be non-empty');
 
   response = await request('/api/data', { token: adminToken });
   assert.equal(response.status, 200);

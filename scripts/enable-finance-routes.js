@@ -60,8 +60,9 @@ patch('index.html', source => {
   }
 
   if (!next.includes('/account-view-routing.js')) {
-    const appAnchor = '<script src="app.js"></script>';
-    if (!next.includes(appAnchor)) throw new Error('Account routing script anchor not found');
+    const appAnchorMatch = next.match(/<script src="\/?app\.js(?:\?[^"]*)?"><\/script>/);
+    if (!appAnchorMatch) throw new Error('Account routing script anchor not found');
+    const appAnchor = appAnchorMatch[0];
     next = next.replace(appAnchor, appAnchor + '\n<script src="/account-view-routing.js?v=20260914-1"></script>');
   }
   return next;

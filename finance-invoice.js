@@ -4,6 +4,7 @@
   const SETTINGS_KEY = 'heysmart_finance_invoice_settings_v1';
   const token = localStorage.getItem('inv_token');
   let hostSubscriptions = [];
+  let hostSubscriptionsFingerprint = '';
   let settings = {};
 
   const LATVIAN_GLYPHS = {
@@ -99,10 +100,15 @@
     if (!hostSubscriptions.length) throw new Error('Не найден Host для хранения настроек Finance');
     settings = { ...value };
     hostSubscriptions[0].financeInvoiceSettings = settings;
-    await api('/api/save', {
+    const saved = await api('/api/save', {
       method: 'POST',
-      body: JSON.stringify({ key: 'hostSubscriptions', data: hostSubscriptions }),
+      body: JSON.stringify({
+        key: 'hostSubscriptions',
+        data: hostSubscriptions,
+        expectedFingerprint: hostSubscriptionsFingerprint,
+      }),
     });
+    hostSubscriptionsFingerprint = saved.fingerprint || hostSubscriptionsFingerprint;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     if (showToast) toast('Реквизиты счёта сохранены');
   }
@@ -121,6 +127,7 @@
     try {
       const data = await api('/api/data');
       hostSubscriptions = Array.isArray(data.hostSubscriptions) ? data.hostSubscriptions : [];
+      hostSubscriptionsFingerprint = data._meta?.fingerprints?.hostSubscriptions || '';
       const dbSettings = hostSubscriptions[0]?.financeInvoiceSettings || {};
       const oldLocalSettings = localSettings();
 
