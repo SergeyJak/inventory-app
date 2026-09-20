@@ -79,6 +79,10 @@
     return sub.name || sub.email || sub.tel || sub.id || 'Client';
   }
 
+  function invoiceClientLabel(sub) {
+    return sub.email || sub.name || sub.tel || sub.id || 'Client';
+  }
+
   function hostLabel(host) {
     return host.hostMail || host.email || host.id || 'Host';
   }
@@ -201,9 +205,9 @@
   }
 
   function renderClientOptions() {
-    const clients = [...state.subAccounts].sort((a,b) => clientLabel(a).localeCompare(clientLabel(b), 'ru'));
+    const clients = [...state.subAccounts].sort((a,b) => invoiceClientLabel(a).localeCompare(invoiceClientLabel(b), 'ru'));
     byId('income-client').innerHTML = clients.length
-      ? clients.map(sub => `<option value="${esc(sub.id)}">${esc(clientLabel(sub))}${isCancelled(sub) ? ' [cancelled]' : ''}</option>`).join('')
+      ? clients.map(sub => `<option value="${esc(sub.id)}" data-email="${esc(sub.email || '')}">${esc(invoiceClientLabel(sub))}${isCancelled(sub) ? ' [cancelled]' : ''}</option>`).join('')
       : '<option value="">Нет клиентов</option>';
     const hosts = [...state.hostSubscriptions].sort((a,b) => hostLabel(a).localeCompare(hostLabel(b), 'ru'));
     byId('expense-host').innerHTML = '<option value="">Без привязки</option>' + hosts.map(host => `<option value="${esc(host.id)}">${esc(hostLabel(host))}</option>`).join('');
