@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 const navigationSource = fs.readFileSync(path.join(root, 'navigation.js'), 'utf8');
 
 const sandbox = { window: {} };
@@ -58,6 +59,11 @@ assert.match(html, /id="desktop-navigation"/i, 'desktop navigation shell must ex
 assert.match(html, /id="mobile-primary-navigation"/i, 'mobile bottom navigation shell must exist');
 assert.match(html, /id="mobile-navigation-drawer"/i, 'mobile drawer shell must exist');
 assert.match(html, /<script src="navigation\.js"><\/script>/i, 'navigation config must load before app.js');
+assert.match(
+  server,
+  /\['\/navigation\.js',\s*'navigation\.js'\]/,
+  'server must expose navigation.js to inventory clients',
+);
 
 assert.doesNotMatch(
   html,
