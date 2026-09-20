@@ -1721,9 +1721,8 @@ function generatedMailPassword(usernameValue, purpose = 'mail') {
   const digits = clean.match(/(\d{2})$/)?.[1];
   if (!digits) return '';
 
-  const nextDigits = [...digits]
-    .map(digit => String((Number(digit) + 2) % 10))
-    .join('');
+  const lastDigit = Number(digits[1]);
+  const nextDigits = String((lastDigit + 1) % 10) + String((lastDigit + 2) % 10);
   return `Parole.${digits}${nextDigits}!`;
 }
 
