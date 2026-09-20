@@ -8,21 +8,13 @@ if (location.pathname === '/analytics') {
 
   document.title = 'HeySmart Visitors';
   document.body.classList.add('visitors-mode');
+  document.body.dataset.navId = 'visitor-activity';
   document.body.innerHTML = `
-    <header class="visitor-header">
-      <div>
-        <a class="back-link" href="/">Inventory</a>
+    <main class="visitor-shell">
+      <section class="visitor-page-title">
         <h1>Посетители HeySmart</h1>
         <p>Реальная активность посетителей heysmart.lv из visitor analytics.</p>
-      </div>
-      <div class="header-actions">
-        <span id="visitor-user"></span>
-        <a href="/reports" class="header-link">Sales Analytics</a>
-        <button type="button" id="visitor-logout">Logout</button>
-      </div>
-    </header>
-
-    <main class="visitor-shell">
+      </section>
       <section class="visitor-toolbar panel">
         <div class="range-buttons" id="range-buttons" aria-label="Период">
           <button type="button" data-days="7">7 дней</button>
@@ -109,6 +101,7 @@ if (location.pathname === '/analytics') {
       <div class="drawer-content" id="drawer-content"></div>
     </aside>
   `;
+  window.mountSharedNavigation?.();
 
   const charts = { trend: null, country: null, device: null };
   const state = {
@@ -124,7 +117,6 @@ if (location.pathname === '/analytics') {
     search: '',
   };
 
-  document.getElementById('visitor-user').textContent = username ? `${username} · ${role || 'admin'}` : 'admin';
 
   function authHeaders() {
     return { Authorization: `Bearer ${token}` };
@@ -307,8 +299,10 @@ if (location.pathname === '/analytics') {
   }
 
   function renderDoughnut(key, canvasId, labels, data) {
-    if (charts[key]) charts[key].destroy();
-    charts[key] = new Chart(document.getElementById(canvasId), {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    Chart.getChart(canvas)?.destroy();
+    charts[key] = new Chart(canvas, {
       type: 'doughnut',
       data: { labels, datasets: [{ data, borderWidth: 0 }] },
       options: {
@@ -321,8 +315,10 @@ if (location.pathname === '/analytics') {
   }
 
   function renderTrend() {
-    if (charts.trend) charts.trend.destroy();
-    charts.trend = new Chart(document.getElementById('visitor-trend-chart'), {
+    const canvas = document.getElementById('visitor-trend-chart');
+    if (!canvas) return;
+    Chart.getChart(canvas)?.destroy();
+    charts.trend = new Chart(canvas, {
       type: 'line',
       data: {
         labels: state.daily.map(item => formatShortDate(item.day)),
@@ -519,13 +515,6 @@ if (location.pathname === '/analytics') {
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
   document.getElementById('visitor-drawer-backdrop').addEventListener('click', closeDrawer);
   document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); });
-  document.getElementById('visitor-logout').addEventListener('click', () => {
-    localStorage.removeItem('inv_token');
-    localStorage.removeItem('inv_role');
-    localStorage.removeItem('inv_username');
-    location.href = '/login.html';
-  });
-
   setRange(30);
   loadAnalytics();
 } else {

@@ -712,6 +712,9 @@ const INVENTORY_PUBLIC_FILES = new Map([
   ['/reports.css', 'reports.css'],
   ['/reports.js', 'reports.js'],
   ['/app.js', 'app.js'],
+  ['/navigation.js', 'navigation.js'],
+  ['/shared-navigation.js', 'shared-navigation.js'],
+  ['/shared-navigation.css', 'shared-navigation.css'],
   ['/style.css', 'style.css'],
   ['/favicon.ico', 'favicon.ico'],
 ]);
@@ -873,7 +876,7 @@ function requestHost(req) {
 }
 
 function isRailwayPreviewHost(host) {
-  return /^eshop-inventory-app-pr-\d+\.up\.railway\.app$/.test(String(host || ''));
+  return /^(?:eshop-|inventory-app-)?inventory-app-pr-\d+\.up\.railway\.app$/.test(String(host || ''));
 }
 
 function isCatalogHost(req) {

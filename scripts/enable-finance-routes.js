@@ -38,8 +38,15 @@ patch('index.html', source => {
   let next = source;
   if (!next.includes('href="/finance"')) {
     const anchor = '      <button class="tab-btn admin-only" type="button" data-tab="accounts" role="menuitem">Аккаунты</button>';
-    if (!next.includes(anchor)) throw new Error('Finance nav anchor not found');
-    next = next.replace(anchor, anchor + '\n      <a class="tab-btn admin-only" href="/finance" role="menuitem">Финансы</a>');
+    const navigationPath = path.join(ROOT, 'navigation.js');
+    const navigationHasFinance = fs.existsSync(navigationPath)
+      && fs.readFileSync(navigationPath, 'utf8').includes("href: '/finance'");
+
+    if (next.includes(anchor)) {
+      next = next.replace(anchor, anchor + '\n      <a class="tab-btn admin-only" href="/finance" role="menuitem">Финансы</a>');
+    } else if (!navigationHasFinance) {
+      throw new Error('Finance navigation entry not found');
+    }
   }
 
   if (!next.includes('href="/finance?view=services&focus=income"')) {

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HeySmart Finance</title>
   <link rel="stylesheet" href="/finance.css" />
+  <link rel="stylesheet" href="/shared-navigation.css" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
   <script src="/finance.js?v=20260914-3" defer></script>
   <script src="/finance-client-email-only.js?v=20260914-3" defer></script>
@@ -30,7 +31,7 @@
     });
   </script>
 </head>
-<body>
+<body data-nav-id="finance">
   <header class="finance-header">
     <div>
       <a class="back-link" href="/">Inventory</a>
@@ -141,5 +142,7 @@
   </main>
 
   <div id="finance-toast" class="toast" hidden></div>
+  <script src="/navigation.js"></script>
+  <script src="/shared-navigation.js"></script>
 </body>
 </html>
