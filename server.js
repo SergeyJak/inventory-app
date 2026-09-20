@@ -153,6 +153,27 @@ function embeddedFinanceRows(subAccounts, hostSubscriptions) {
   return { income, expenses };
 }
 
+function mergeFinanceMigrationRows(kind, primaryRows, recoveryRows) {
+  const result = [];
+  const ids = new Set();
+  const invoiceNos = new Set();
+  const add = row => {
+    if (!row || row.voidedAt || !row.id) return;
+    const id = String(row.id);
+    if (ids.has(id)) return;
+    if (kind === 'income' && row.invoiceNo) {
+      const invoiceNo = String(row.invoiceNo).toLowerCase();
+      if (invoiceNos.has(invoiceNo)) return;
+      invoiceNos.add(invoiceNo);
+    }
+    ids.add(id);
+    result.push(row);
+  };
+  for (const row of Array.isArray(primaryRows) ? primaryRows : []) add(row);
+  for (const row of Array.isArray(recoveryRows) ? recoveryRows : []) add(row);
+  return result;
+}
+
 async function createFinanceMigrationBackups(subAccounts, hostSubscriptions) {
   const backupSubs = db.collection('migrationBackup_20260920_subAccounts');
   const backupHosts = db.collection('migrationBackup_20260920_hostSubscriptions');
@@ -189,15 +210,21 @@ async function migrateEmbeddedFinanceToStandalone() {
   const migrationId = 'standalone-finance-v1';
   if (await markerColl.findOne({ _id: migrationId })) return;
 
-  const [subAccounts, hostSubscriptions] = await Promise.all([
+  const recoveryIncomeCollection = 'financeIncome__inventory-app-pr-24';
+  const recoveryExpenseCollection = 'financeExpenses__inventory-app-pr-24';
+  const [subAccounts, hostSubscriptions, recoveryIncome, recoveryExpenses] = await Promise.all([
     db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
     db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection(recoveryIncomeCollection).find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection(recoveryExpenseCollection).find({}, { projection: { _id: 0 } }).toArray(),
   ]);
 
   const accountCountBefore = subAccounts.length;
   const hostCountBefore = hostSubscriptions.length;
   const backup = await createFinanceMigrationBackups(subAccounts, hostSubscriptions);
-  const { income, expenses } = embeddedFinanceRows(subAccounts, hostSubscriptions);
+  const embedded = embeddedFinanceRows(subAccounts, hostSubscriptions);
+  const income = mergeFinanceMigrationRows('income', embedded.income, recoveryIncome);
+  const expenses = mergeFinanceMigrationRows('expense', embedded.expenses, recoveryExpenses);
 
   const incomeColl = db.collection(COLL.financeIncome);
   const expenseColl = db.collection(COLL.financeExpenses);
@@ -232,9 +259,13 @@ async function migrateEmbeddedFinanceToStandalone() {
     expenseCount: migratedExpenses,
     backupSubCount: backup.backupSubCount,
     backupHostCount: backup.backupHostCount,
+    recoveryIncomeCount: recoveryIncome.length,
+    recoveryExpenseCount: recoveryExpenses.length,
+    recoveryIncomeCollection,
+    recoveryExpenseCollection,
   });
 
-  console.log(`[finance] standalone migration OK: ${accountCountAfter} accounts, ${hostCountAfter} hosts, ${migratedIncome} income, ${migratedExpenses} expenses`);
+  console.log(`[finance] standalone migration OK: ${accountCountAfter} accounts, ${hostCountAfter} hosts, ${migratedIncome} income, ${migratedExpenses} expenses; recovery source ${recoveryIncome.length} income / ${recoveryExpenses.length} expenses`);
 }
 
 // ── STORAGE ABSTRACTION ──────────────────────────────────────
