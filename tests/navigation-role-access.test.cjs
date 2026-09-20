@@ -134,3 +134,6 @@ assert.match(reportsSource, /<section class="visitor-page-title">/, 'Visitors an
 assert.doesNotMatch(sharedNavigation, /\}\}\s*\n\s*window\.mountSharedNavigation/, 'shared navigation wrapper must have valid closing braces');
 assert.doesNotMatch(reportsSource, /visitor-user/, 'Visitors analytics must not reference removed legacy user element');
 assert.doesNotMatch(reportsSource, /visitor-logout/, 'Visitors analytics must not reference removed legacy logout element');
+
+assert.match(appSource, /function renderAccounts\(\)[\s\S]*populateSubHostSelect\(\)/, 'Hosts dropdown must be populated whenever Accounts renders');
+assert.match(appSource, /function populateHostSelect\([\s\S]*loadHostSubscriptions\(\)/, 'Host dropdown must use the complete host subscription source');
