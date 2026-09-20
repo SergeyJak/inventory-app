@@ -267,8 +267,11 @@
       }
 
       const clientSelect = byId('income-client');
-      const customer = clientSelect?.options?.[clientSelect.selectedIndex]?.text?.trim() || '';
-      if (!customer || customer === '-') {
+      const selectedClient = clientSelect?.options?.[clientSelect.selectedIndex];
+      const customerEmail = selectedClient?.dataset?.email?.trim()
+        || selectedClient?.text?.trim()
+        || '';
+      if (!customerEmail || customerEmail === '-') {
         toast('Выбери аккаунт клиента', true);
         return;
       }
@@ -323,7 +326,7 @@
       textLv(doc, 'Klients', 20, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      customerLines(customer).forEach(line => {
+      customerLines(customerEmail).forEach(line => {
         textLv(doc, String(line), 20, y);
         y += 5;
       });
