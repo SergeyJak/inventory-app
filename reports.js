@@ -10,20 +10,11 @@ if (location.pathname === '/analytics') {
   document.body.classList.add('visitors-mode');
   document.body.dataset.navId = 'visitor-activity';
   document.body.innerHTML = `
-    <header class="visitor-header">
-      <div>
-        <a class="back-link" href="/">Inventory</a>
+    <main class="visitor-shell">
+      <section class="visitor-page-title">
         <h1>Посетители HeySmart</h1>
         <p>Реальная активность посетителей heysmart.lv из visitor analytics.</p>
-      </div>
-      <div class="header-actions">
-        <span id="visitor-user"></span>
-        <a href="/reports" class="header-link">Sales Analytics</a>
-        <button type="button" id="visitor-logout">Logout</button>
-      </div>
-    </header>
-
-    <main class="visitor-shell">
+      </section>
       <section class="visitor-toolbar panel">
         <div class="range-buttons" id="range-buttons" aria-label="Период">
           <button type="button" data-days="7">7 дней</button>
