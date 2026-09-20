@@ -30,6 +30,32 @@ console.log('mail-host-onboarding.test.cjs: OK');
 
 assert.match(app, /function generatedMailPassword\(/, 'mail password generation must be deterministic');
 assert.match(app, /Parole\.123456789!/, 'Host password must use the fixed Host password');
-assert.match(app, /Number\(digit\) \+ 2/, 'mail password must derive the next digits by adding two');
+assert.match(app, /lastDigit \+ 1/, 'mail password must append the next digit after the final account digit');
+assert.match(app, /lastDigit \+ 2/, 'mail password must append the second next digit after the final account digit');
 assert.match(app, /Username must end with at least 2 digits/, 'password generation must reject usernames without a numeric suffix');
 assert.match(html, /id="mail-host-renewal-row" style="display:none"/, 'Host renewal date must stay hidden for non-Host purpose');
+
+assert.equal((() => {
+  const match = app.match(/function generatedMailPassword\(usernameValue, purpose = 'mail'\) \{[\s\S]*?\n\}/);
+  assert.ok(match, 'generatedMailPassword source must exist');
+  const sandbox = {};
+  vm.createContext(sandbox);
+  vm.runInContext(match[0], sandbox);
+  return sandbox.generatedMailPassword('alstrix1056@heysmart.lv');
+})(), 'Parole.5678!', '1056 must generate Parole.5678!');
+
+assert.equal((() => {
+  const match = app.match(/function generatedMailPassword\(usernameValue, purpose = 'mail'\) \{[\s\S]*?\n\}/);
+  const sandbox = {};
+  vm.createContext(sandbox);
+  vm.runInContext(match[0], sandbox);
+  return sandbox.generatedMailPassword('alstrix1077@heysmart.lv');
+})(), 'Parole.7789!', '1077 must generate Parole.7789!');
+
+assert.equal((() => {
+  const match = app.match(/function generatedMailPassword\(usernameValue, purpose = 'mail'\) \{[\s\S]*?\n\}/);
+  const sandbox = {};
+  vm.createContext(sandbox);
+  vm.runInContext(match[0], sandbox);
+  return sandbox.generatedMailPassword('alstrix1089@heysmart.lv');
+})(), 'Parole.8901!', '1089 must wrap and generate Parole.8901!');
