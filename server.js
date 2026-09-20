@@ -3152,13 +3152,23 @@ async function financeLedgerData() {
       db.collection(financeCollectionName('financeIncome')).find({}, { projection: { _id: 0 } }).toArray(),
       db.collection(financeCollectionName('financeExpenses')).find({}, { projection: { _id: 0 } }).toArray(),
     ]);
-    if (income.length || expenses.length || isProductionRailwayEnvironment()) return { income, expenses };
+    if (isProductionRailwayEnvironment()) return { income, expenses };
 
     const [subAccounts, hostSubscriptions] = await Promise.all([
       db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
       db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
     ]);
-    return embeddedFinanceRows(subAccounts, hostSubscriptions);
+    const embedded = embeddedFinanceRows(subAccounts, hostSubscriptions);
+    const mergeById = (legacyRows, standaloneRows) => {
+      const byId = new Map();
+      for (const row of legacyRows) byId.set(String(row.id), row);
+      for (const row of standaloneRows) byId.set(String(row.id), row);
+      return [...byId.values()];
+    };
+    return {
+      income: mergeById(embedded.income, income),
+      expenses: mergeById(embedded.expenses, expenses),
+    };
   }
   return {
     income: JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8')),
