@@ -2537,7 +2537,10 @@ async function doImport() {
   }
   if (getRole() === 'viewer') document.body.classList.add('viewer-mode');
   window.InventoryNavigation?.render(getRole() || 'viewer');
-  setActiveNavigation('dashboard');
+  const requestedNavId = new URLSearchParams(location.search).get('nav');
+  const requestedItem = requestedNavId ? navigationItemById(requestedNavId) : null;
+  if (requestedItem) navigateTo(requestedItem);
+  else setActiveNavigation('dashboard');
   const uname = localStorage.getItem('inv_username');
   const headerUser = document.getElementById('header-user');
   if (headerUser) headerUser.textContent = uname || '';
