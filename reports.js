@@ -117,7 +117,6 @@ if (location.pathname === '/analytics') {
     search: '',
   };
 
-  document.getElementById('visitor-user').textContent = username ? `${username} · ${role || 'admin'}` : 'admin';
 
   function authHeaders() {
     return { Authorization: `Bearer ${token}` };
@@ -516,13 +515,6 @@ if (location.pathname === '/analytics') {
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
   document.getElementById('visitor-drawer-backdrop').addEventListener('click', closeDrawer);
   document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); });
-  document.getElementById('visitor-logout').addEventListener('click', () => {
-    localStorage.removeItem('inv_token');
-    localStorage.removeItem('inv_role');
-    localStorage.removeItem('inv_username');
-    location.href = '/login.html';
-  });
-
   setRange(30);
   loadAnalytics();
 } else {
