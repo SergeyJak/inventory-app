@@ -38,7 +38,6 @@ const viewerExpected = [
 
 const adminOnly = [
   'accounts',
-  'hosts',
   'mail-accounts',
   'visitor-activity',
   'assistant-questions',
@@ -123,15 +122,7 @@ assert.match(
 
 assert.doesNotMatch(html, /class="dash-sub-tabs"/i, 'legacy Dashboard sub-tabs must be removed');
 assert.doesNotMatch(html, /id="tab-visitor-activity"/i, 'legacy embedded Visitors screen must be removed');
-assert.doesNotMatch(html, /data-account-view="hosts"/i, 'Hosts must not remain an Accounts sub-tab');
-
-const hostsItem = adminItems.find(item => item.id === 'hosts');
-assert.ok(hostsItem, 'Hosts must exist as an admin navigation destination');
-assert.equal(hostsItem.tab, 'accounts', 'Hosts must reuse the Accounts business screen');
-assert.equal(hostsItem.accountView, 'hosts', 'Hosts destination must select the host view');
-
-const accountsItem = adminItems.find(item => item.id === 'accounts');
-assert.equal(accountsItem.accountView, 'subs', 'Accounts destination must open Subscribers by default');
+assert.match(html, /data-account-view="hosts"/i, 'Hosts must remain available inside Accounts');
 
 console.log('navigation-role-access.test.cjs: OK');
 
