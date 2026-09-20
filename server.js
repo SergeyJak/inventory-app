@@ -873,7 +873,7 @@ function requestHost(req) {
 }
 
 function isRailwayPreviewHost(host) {
-  return /^eshop-inventory-app-pr-\d+\.up\.railway\.app$/.test(String(host || ''));
+  return /^(?:eshop-|inventory-app-)?inventory-app-pr-\d+\.up\.railway\.app$/.test(String(host || ''));
 }
 
 function isCatalogHost(req) {
