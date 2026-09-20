@@ -9,6 +9,7 @@ const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 const navigationSource = fs.readFileSync(path.join(root, 'navigation.js'), 'utf8');
 const sharedNavigation = fs.readFileSync(path.join(root, 'shared-navigation.js'), 'utf8');
+const appSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const financeHtml = fs.readFileSync(path.join(root, 'finance.html'), 'utf8');
 const reportsHtml = fs.readFileSync(path.join(root, 'reports.html'), 'utf8');
 
@@ -74,7 +75,12 @@ assert.match(financeHtml, /shared-navigation\.js/, 'finance must load shared nav
 assert.match(reportsHtml, /shared-navigation\.js/, 'reports must load shared navigation');
 assert.match(financeHtml, /data-nav-id="finance"/, 'finance must identify its active navigation item');
 assert.match(reportsHtml, /data-nav-id="reports"/, 'reports must identify its active navigation item');
-assert.match(sharedNavigation, /\/\?nav=/, 'standalone navigation must link directly to Inventory destinations');
+assert.match(sharedNavigation, /\/#\//, 'standalone navigation must link directly to Inventory hash routes');
+assert.match(appSource, /history\.pushState\(/, 'inventory routing must write browser history');
+assert.match(appSource, /restoreNavigationFromUrl\(/, 'inventory routing must restore navigation from URL');
+assert.match(appSource, /window\.addEventListener\('popstate'/, 'Back/Forward must restore navigation');
+assert.match(appSource, /window\.addEventListener\('hashchange'/, 'hash changes must restore navigation');
+assert.match(appSource, /history\.replaceState\(\{ nav: 'dashboard' \}/, 'default route must be persisted on first load');
 
 assert.doesNotMatch(
   html,
