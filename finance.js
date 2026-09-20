@@ -17,6 +17,8 @@
     transactions: [],
     subAccounts: [],
     hostSubscriptions: [],
+    financeIncome: [],
+    financeExpenses: [],
     hardwareYear: new Date().getFullYear(),
     servicesYear: new Date().getFullYear(),
   };
@@ -86,21 +88,25 @@
   }
 
   function allIncomeRows() {
-    return state.subAccounts.flatMap(sub => (Array.isArray(sub.financePayments) ? sub.financePayments : []).map(payment => ({
-      ...payment,
-      kind: 'income',
-      ownerId: sub.id,
-      ownerLabel: clientLabel(sub),
-    })));
+    return state.financeIncome.map(payment => {
+      const sub = state.subAccounts.find(item => String(item.id) === String(payment.ownerId));
+      return {
+        ...payment,
+        kind: 'income',
+        ownerLabel: sub ? clientLabel(sub) : (payment.ownerNameSnapshot || payment.ownerEmailSnapshot || payment.ownerId || 'Client'),
+      };
+    });
   }
 
   function allExpenseRows() {
-    return state.hostSubscriptions.flatMap(host => (Array.isArray(host.financeExpenses) ? host.financeExpenses : []).map(expense => ({
-      ...expense,
-      kind: 'expense',
-      ownerId: host.id,
-      ownerLabel: hostLabel(host),
-    })));
+    return state.financeExpenses.map(expense => {
+      const host = state.hostSubscriptions.find(item => String(item.id) === String(expense.ownerId));
+      return {
+        ...expense,
+        kind: 'expense',
+        ownerLabel: host ? hostLabel(host) : (expense.ownerNameSnapshot || expense.ownerEmailSnapshot || expense.ownerId || 'Host'),
+      };
+    });
   }
 
   function serviceRows(year = state.servicesYear) {
@@ -385,11 +391,16 @@
 
   async function loadData() {
     try {
-      const data = await api('/api/data');
+      const [data, ledger] = await Promise.all([
+        api('/api/data'),
+        api('/api/finance/ledger'),
+      ]);
       state.products = data.products || [];
       state.transactions = data.transactions || [];
       state.subAccounts = data.subAccounts || [];
       state.hostSubscriptions = data.hostSubscriptions || [];
+      state.financeIncome = ledger.income || [];
+      state.financeExpenses = ledger.expenses || [];
       renderClientOptions();
       renderYearSelects();
       state.hardwareYear = Number(byId('hardware-year').value);
