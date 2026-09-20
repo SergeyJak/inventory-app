@@ -1729,6 +1729,61 @@ function buildMailUsername(value) {
   return clean ? `alstrix${clean}` : '';
 }
 
+function updateMailPurposeFields() {
+  const purpose = document.getElementById('mail-purpose')?.value || 'mail';
+  const renewalRow = document.getElementById('mail-host-renewal-row');
+  if (renewalRow) renewalRow.hidden = purpose !== 'host';
+}
+
+function findHostSubscriptionByEmail(email) {
+  const target = String(email || '').trim().toLowerCase();
+  return loadHostSubscriptions().find(host =>
+    String(host.hostMail || '').trim().toLowerCase() === target
+  ) || null;
+}
+
+function createHostFromMailbox(email, password, renewalDate = '') {
+  const existing = findHostSubscriptionByEmail(email);
+  if (existing) return { host: existing, created: false };
+
+  const hosts = [...loadHostSubscriptions()];
+  const host = {
+    id: genId(),
+    hostMail: String(email || '').trim(),
+    password: String(password || '').trim(),
+    status: 'active',
+    renewalDate: renewalDate || '',
+    linkedAccounts: [],
+  };
+  hosts.push(host);
+  saveHostSubscriptions(hosts);
+  populateSubHostSelect();
+  return { host, created: true };
+}
+
+function makeMailAccountHost(id) {
+  const account = mailAccountsCache.find(item => item._id === id);
+  if (!account) return showToast('Mail account not found', 'error');
+  if (findHostSubscriptionByEmail(account.email)) {
+    return showToast('This mailbox is already a host', 'info');
+  }
+
+  const password = prompt(`Host password for ${account.email}:`);
+  if (password === null) return;
+  if (!password.trim()) return showToast('Host password is required', 'error');
+
+  const renewalDate = prompt('Renewal date (yyyy-mm-dd), optional:', '');
+  if (renewalDate === null) return;
+  if (renewalDate && !/^\d{4}-\d{2}-\d{2}$/.test(renewalDate)) {
+    return showToast('Use date format yyyy-mm-dd', 'error');
+  }
+
+  createHostFromMailbox(account.email, password, renewalDate);
+  renderAccounts();
+  renderMailAccounts();
+  showToast('Host created from mailbox');
+}
+
 async function renderMailAccounts() {
   const tbody = document.getElementById('mail-accounts-tbody');
   if (!tbody) return;
@@ -1736,11 +1791,13 @@ async function renderMailAccounts() {
     await loadMailAccounts();
     const q = (document.getElementById('mail-accounts-search')?.value || '').trim().toLowerCase();
     const subs = loadSubAccounts();
+    const hosts = loadHostSubscriptions();
     const rows = mailAccountsCache
       .filter(account => !q || String(account.email || '').toLowerCase().includes(q))
       .map(account => ({
         account,
-        connectedSub: subs.find(sub => String(sub.email || '').toLowerCase() === String(account.email || '').toLowerCase())
+        connectedSub: subs.find(sub => String(sub.email || '').toLowerCase() === String(account.email || '').toLowerCase()),
+        hostRecord: hosts.find(host => String(host.hostMail || '').toLowerCase() === String(account.email || '').toLowerCase()),
       }))
       .sort((a, b) => {
         const aName = String(a.connectedSub?.name || a.account.email || '').toLowerCase();
@@ -1750,12 +1807,15 @@ async function renderMailAccounts() {
       })
       .map(account => {
         const connectedSub = account.connectedSub;
+        const hostRecord = account.hostRecord;
         account = account.account;
         const id = esc(account._id);
         const connectedHostSub = connectedSub && String(connectedSub.hostProvider || '').trim() ? connectedSub : null;
-        const hostMark = connectedHostSub
-          ? `<span class="mail-connected-check" title="Connected to ${esc(connectedHostSub.hostProvider)}">✓</span>`
-          : '<span style="color:#94a3b8">-</span>';
+        const hostMark = hostRecord
+          ? '<span class="mail-connected-check" title="This mailbox is a host">HOST</span>'
+          : connectedHostSub
+            ? `<span class="mail-connected-check" title="Connected to ${esc(connectedHostSub.hostProvider)}">✓</span>`
+            : '<span style="color:#94a3b8">-</span>';
         return `<tr>
           <td><strong>${esc(account.email)}</strong></td>
           <td>${esc(connectedSub?.name || '')}</td>
@@ -1766,6 +1826,7 @@ async function renderMailAccounts() {
           <td><button class="btn-edit" onclick="openMailAccount('${id}')">Open</button></td>
           <td><button class="btn-edit" onclick="connectMailAccount('${id}')">Connect</button></td>
           <td><span class="accounts-actions">
+            ${hostRecord ? '' : `<button class="btn-edit" onclick="makeMailAccountHost('${id}')">Make host</button>`}
             <button class="btn-edit" onclick="changeMailPassword('${id}')">Change pass</button>
             ${account.active
               ? `<button class="btn-delete" onclick="deactivateMailAccount('${id}')">Deactivate</button>`
@@ -1793,6 +1854,8 @@ async function createMailAccount() {
   const username = buildMailUsername(document.getElementById('mail-username').value);
   const password = document.getElementById('mail-password').value;
   const confirmPassword = document.getElementById('mail-confirm-password').value;
+  const purpose = document.getElementById('mail-purpose')?.value || 'mail';
+  const renewalDate = document.getElementById('mail-host-renewal-date')?.value || '';
   if (!username) return showToast('Username suffix is required', 'error');
   if (!password || password.length < 8) return showToast('Password must be at least 8 characters', 'error');
   if (password !== confirmPassword) return showToast('Passwords do not match', 'error');
@@ -1806,12 +1869,31 @@ async function createMailAccount() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    const createdEmail = data.account?.email || `${username}@heysmart.lv`;
     document.getElementById('mail-username').value = '';
     document.getElementById('mail-password').value = '';
     document.getElementById('mail-confirm-password').value = '';
+    document.getElementById('mail-host-renewal-date').value = '';
+    document.getElementById('mail-purpose').value = 'mail';
+    updateMailPurposeFields();
     renderMailCredentials(data);
+
+    if (purpose === 'host') {
+      const result = createHostFromMailbox(createdEmail, data.password || password, renewalDate);
+      renderAccounts();
+      showToast(result.created ? 'Mailbox and host created' : 'Mailbox created; host already existed');
+    }
+
     await renderMailAccounts();
-    showToast('Mail account created');
+
+    if (purpose === 'subscriber') {
+      const createdAccount = mailAccountsCache.find(item =>
+        String(item.email || '').toLowerCase() === String(createdEmail || '').toLowerCase()
+      );
+      if (createdAccount) connectMailAccount(createdAccount._id);
+    } else if (purpose !== 'host') {
+      showToast('Mail account created');
+    }
   } catch (e) {
     showToast('Mail account error: ' + e.message, 'error');
   } finally {
