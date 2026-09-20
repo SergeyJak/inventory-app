@@ -105,7 +105,7 @@ function mountSharedNavigation() {
     localStorage.removeItem('inv_username');
     location.href = '/login.html';
   });
-}}
+}
 
 window.mountSharedNavigation = mountSharedNavigation;
 mountSharedNavigation();
