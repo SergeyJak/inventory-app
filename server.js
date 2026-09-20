@@ -116,13 +116,47 @@ async function dbGetAll() {
   };
 }
 
+function mergeProtectedFinanceFields(key, incoming, existing) {
+  const protectedField = key === 'subAccounts'
+    ? 'financePayments'
+    : key === 'hostSubscriptions'
+      ? 'financeExpenses'
+      : null;
+  if (!protectedField) return incoming;
+
+  const existingById = new Map(
+    (Array.isArray(existing) ? existing : [])
+      .filter(item => item && item.id != null)
+      .map(item => [String(item.id), item])
+  );
+
+  return (Array.isArray(incoming) ? incoming : []).map(item => {
+    if (!item || item.id == null) return item;
+    const stored = existingById.get(String(item.id));
+    if (!stored || !Array.isArray(stored[protectedField])) return item;
+    return { ...item, [protectedField]: stored[protectedField] };
+  });
+}
+
 async function dbSave(key, data) {
   if (USE_MONGO) {
     const coll = db.collection(COLL[key]);
+    let safeData = Array.isArray(data) ? data : [];
+    if (key === 'subAccounts' || key === 'hostSubscriptions') {
+      const existing = await coll.find({}, { projection: { _id: 0 } }).toArray();
+      safeData = mergeProtectedFinanceFields(key, safeData, existing);
+    }
     await coll.deleteMany({});
-    if (data.length > 0) await coll.insertMany(data);
+    if (safeData.length > 0) await coll.insertMany(safeData);
   } else {
-    fs.writeFileSync(FILES[key], JSON.stringify(data, null, 2), 'utf8');
+    let safeData = Array.isArray(data) ? data : [];
+    if (key === 'subAccounts' || key === 'hostSubscriptions') {
+      const existing = fs.existsSync(FILES[key])
+        ? JSON.parse(fs.readFileSync(FILES[key], 'utf8'))
+        : [];
+      safeData = mergeProtectedFinanceFields(key, safeData, existing);
+    }
+    fs.writeFileSync(FILES[key], JSON.stringify(safeData, null, 2), 'utf8');
   }
 }
 
