@@ -18,7 +18,7 @@
 
   function destination(item) {
     if (item.href) return item.href;
-    return '/?nav=' + encodeURIComponent(item.id);
+    return '/#/' + encodeURIComponent(item.id);
   }
 
   function itemMarkup(item) {
@@ -50,7 +50,7 @@
   shell.innerHTML =
     '<header class="global-header">'
       + '<button class="global-menu-button" id="global-menu-button" type="button" aria-label="Открыть меню" aria-expanded="false">☰</button>'
-      + '<a class="global-brand" href="/?nav=dashboard">📦 Inventory</a>'
+      + '<a class="global-brand" href="/#/dashboard">📦 Inventory</a>'
       + '<div class="global-header-actions">'
         + '<span class="global-user">' + username + '</span>'
         + '<button class="global-logout" id="global-logout" type="button">→ Выйти</button>'
