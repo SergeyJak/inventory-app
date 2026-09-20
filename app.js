@@ -2591,6 +2591,8 @@ async function doImport() {
     history.replaceState({ nav: 'dashboard' }, '', location.pathname + '#/dashboard');
     applyNavigationItem(navigationItemById('dashboard'));
   }
+  document.body.classList.remove('app-routing-pending');
+
   const uname = localStorage.getItem('inv_username');
   const headerUser = document.getElementById('header-user');
   if (headerUser) headerUser.textContent = uname || '';
