@@ -310,7 +310,6 @@ function applyNavigationItem(item) {
   } else if (item.tab) {
     showTab(item.tab);
     if (item.tab === 'dashboard') selectDashboardView('main');
-    if (item.accountView) setAccountsView(item.accountView);
   } else {
     return false;
   }
