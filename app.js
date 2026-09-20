@@ -284,7 +284,6 @@ function showTab(tab) {
   if (tab === 'products')  renderProducts();
   if (tab === 'accounts')  renderAccounts();
   if (tab === 'mail-accounts') renderMailAccounts();
-  if (tab === 'visitor-activity') renderVisitorAnalytics();
   if (tab === 'assistant-questions') { renderAssistantQuestions(); loadAssistantReportHistory(); }
   if (tab === 'backups')   renderBackups();
   if (tab === 'sales')     populateProductSelect('sale-product');
@@ -311,6 +310,7 @@ function applyNavigationItem(item) {
   } else if (item.tab) {
     showTab(item.tab);
     if (item.tab === 'dashboard') selectDashboardView('main');
+    if (item.accountView) setAccountsView(item.accountView);
   } else {
     return false;
   }
@@ -374,13 +374,6 @@ window.addEventListener('hashchange', () => {
   if (!restoreNavigationFromUrl()) {
     applyNavigationItem(navigationItemById('dashboard'));
   }
-});
-
-document.querySelectorAll('.dash-tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const isAndrey = btn.dataset.dash === 'andrey';
-    navigateTo(navigationItemById(isAndrey ? 'andrey' : 'dashboard'));
-  });
 });
 
 // ========== TOAST ==========
