@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sales Analytics</title>
   <link rel="stylesheet" href="/reports.css" />
+  <link rel="stylesheet" href="/shared-navigation.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="/reports.js" defer></script>
   <style>
@@ -15,7 +16,7 @@
     @media (max-width: 820px) { .network-filter { width: 100%; margin-left: 0; } }
   </style>
 </head>
-<body>
+<body data-nav-id="reports">
   <header class="reports-header">
     <div>
       <a class="back-link" href="/">Inventory</a>
@@ -440,5 +441,7 @@
       });
     })();
   </script>
+  <script src="/navigation.js"></script>
+  <script src="/shared-navigation.js"></script>
 </body>
 </html>
