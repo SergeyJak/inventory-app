@@ -225,46 +225,61 @@ function renderProductRows(p, colCount) {
   }).join('');
 }
 
-// ========== TABS ==========
-const adminNav = document.getElementById('admin-nav');
-const navToggle = document.querySelector('.nav-toggle');
-const navGroups = Array.from(document.querySelectorAll('.nav-group'));
+// ========== NAVIGATION ==========
+const mobileNavPanel = document.getElementById('mobile-nav-panel');
+const mobileNavBackdrop = document.getElementById('mobile-nav-backdrop');
 
-function closeNavGroups(exceptGroup) {
-  navGroups.forEach(group => {
-    if (group === exceptGroup) return;
-    group.classList.remove('open');
-    group.querySelector('.nav-group-toggle')?.setAttribute('aria-expanded', 'false');
+function currentNavigationItems() {
+  if (!window.InventoryNavigation) return [];
+  return window.InventoryNavigation.forRole(getRole() || 'viewer').flatMap(group => group.items);
+}
+
+function navigationItemById(id) {
+  return currentNavigationItems().find(item => item.id === id) || null;
+}
+
+function setActiveNavigation(id) {
+  document.querySelectorAll('[data-nav-id]').forEach(item => {
+    item.classList.toggle('active', item.dataset.navId === id);
   });
 }
 
-function setNavGroupOpen(group, isOpen) {
-  closeNavGroups(isOpen ? group : null);
-  group.classList.toggle('open', isOpen);
-  group.querySelector('.nav-group-toggle')?.setAttribute('aria-expanded', String(isOpen));
-}
-
 function closeMobileNav() {
-  adminNav?.classList.remove('open');
-  navToggle?.setAttribute('aria-expanded', 'false');
+  mobileNavPanel?.classList.remove('open');
+  mobileNavPanel?.setAttribute('aria-hidden', 'true');
+  mobileNavBackdrop?.classList.remove('open');
+  if (mobileNavBackdrop) mobileNavBackdrop.hidden = true;
+  document.getElementById('mobile-more-button')?.setAttribute('aria-expanded', 'false');
 }
 
-function setActiveNavButton(btn) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const groupToggle = btn.closest('.nav-group')?.querySelector('.nav-group-toggle');
-  if (groupToggle) groupToggle.classList.add('active');
+function openMobileNav() {
+  if (mobileNavBackdrop) {
+    mobileNavBackdrop.hidden = false;
+    mobileNavBackdrop.classList.add('open');
+  }
+  mobileNavPanel?.classList.add('open');
+  mobileNavPanel?.setAttribute('aria-hidden', 'false');
+  document.getElementById('mobile-more-button')?.setAttribute('aria-expanded', 'true');
 }
 
-function getTopLevelNavItems() {
-  return Array.from(adminNav?.children || [])
-    .map(item => item.classList?.contains('nav-group') ? item.querySelector('.nav-group-toggle') : item)
-    .filter(item => item?.matches?.('.tab-btn:not([disabled])') && item.offsetParent !== null);
+function selectDashboardView(view) {
+  const isAndrey = view === 'andrey';
+  document.querySelectorAll('.dash-tab-btn').forEach(button => {
+    button.classList.toggle('active', button.dataset.dash === (isAndrey ? 'andrey' : 'main'));
+  });
+  const main = document.getElementById('dash-main');
+  const andrey = document.getElementById('dash-andrey');
+  if (main) main.style.display = isAndrey ? 'none' : 'block';
+  if (andrey) andrey.style.display = isAndrey ? 'block' : 'none';
+  if (isAndrey) renderAndrey();
+  else renderDashboard();
 }
 
 function showTab(tab) {
-  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+  const target = document.getElementById('tab-' + tab);
+  if (!target) return;
+  document.querySelectorAll('.tab-content').forEach(section => section.classList.remove('active'));
+  target.classList.add('active');
   if (tab === 'dashboard') renderDashboard();
   if (tab === 'products')  renderProducts();
   if (tab === 'accounts')  renderAccounts();
@@ -278,79 +293,50 @@ function showTab(tab) {
   if (tab === 'annual')    renderAnnual();
 }
 
-navToggle?.addEventListener('click', () => {
-  const isOpen = !adminNav.classList.contains('open');
-  adminNav.classList.toggle('open', isOpen);
-  navToggle.setAttribute('aria-expanded', String(isOpen));
-});
-
-document.querySelectorAll('.nav-group-toggle').forEach(toggle => {
-  toggle.addEventListener('click', () => {
-    const group = toggle.closest('.nav-group');
-    setNavGroupOpen(group, !group.classList.contains('open'));
-  });
-});
-
-document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    setActiveNavButton(btn);
-    showTab(btn.dataset.tab);
-    closeNavGroups();
-    closeMobileNav();
-  });
-});
+function navigateTo(item) {
+  if (!item) return;
+  if (item.href) {
+    location.href = item.href;
+    return;
+  }
+  if (item.dashboardView) {
+    showTab('dashboard');
+    selectDashboardView(item.dashboardView);
+  } else if (item.tab) {
+    showTab(item.tab);
+    if (item.tab === 'dashboard') selectDashboardView('main');
+  }
+  setActiveNavigation(item.id);
+  closeMobileNav();
+}
 
 document.addEventListener('click', event => {
-  if (!event.target.closest('.admin-nav') && !event.target.closest('.nav-toggle')) {
-    closeNavGroups();
+  const navLink = event.target.closest('[data-nav-id]');
+  if (navLink) {
+    event.preventDefault();
+    navigateTo(navigationItemById(navLink.dataset.navId));
+    return;
+  }
+
+  if (event.target.closest('#mobile-more-button')) {
+    openMobileNav();
+    return;
+  }
+
+  if (event.target.closest('#mobile-nav-close') || event.target === mobileNavBackdrop) {
     closeMobileNav();
   }
 });
 
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') {
-    closeNavGroups();
-    closeMobileNav();
-    return;
-  }
-
-  const topLevelItems = getTopLevelNavItems();
-  const topLevelIndex = topLevelItems.indexOf(document.activeElement);
-  if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && topLevelIndex !== -1) {
-    event.preventDefault();
-    closeNavGroups();
-    const direction = event.key === 'ArrowRight' ? 1 : -1;
-    const nextIndex = (topLevelIndex + direction + topLevelItems.length) % topLevelItems.length;
-    topLevelItems[nextIndex]?.focus();
-    return;
-  }
-
-  const activeGroup = event.target.closest('.nav-group');
-  if (!activeGroup) return;
-
-  const items = Array.from(activeGroup.querySelectorAll('.nav-dropdown .tab-btn:not([disabled])'));
-  const currentIndex = items.indexOf(document.activeElement);
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    setNavGroupOpen(activeGroup, true);
-    items[currentIndex + 1]?.focus() || items[0]?.focus();
-  }
-  if (event.key === 'ArrowUp') {
-    event.preventDefault();
-    setNavGroupOpen(activeGroup, true);
-    items[currentIndex - 1]?.focus() || items[items.length - 1]?.focus();
-  }
+  if (event.key === 'Escape') closeMobileNav();
 });
 
 document.querySelectorAll('.dash-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.dash-tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
     const isAndrey = btn.dataset.dash === 'andrey';
-    document.getElementById('dash-main').style.display   = isAndrey ? 'none' : 'block';
-    document.getElementById('dash-andrey').style.display = isAndrey ? 'block' : 'none';
-    if (isAndrey) renderAndrey();
-    else renderDashboard();
+    selectDashboardView(isAndrey ? 'andrey' : 'main');
+    setActiveNavigation(isAndrey ? 'andrey' : 'dashboard');
   });
 });
 
@@ -2550,6 +2536,8 @@ async function doImport() {
       + '</div>');
   }
   if (getRole() === 'viewer') document.body.classList.add('viewer-mode');
+  window.InventoryNavigation?.render(getRole() || 'viewer');
+  setActiveNavigation('dashboard');
   const uname = localStorage.getItem('inv_username');
   const headerUser = document.getElementById('header-user');
   if (headerUser) headerUser.textContent = uname || '';
