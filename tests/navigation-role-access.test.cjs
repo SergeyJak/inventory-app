@@ -13,7 +13,7 @@ function tabButton(tab) {
   );
   const match = html.match(re);
   assert.ok(match, 'Expected navigation button for tab: ' + tab);
-  return { classes: match[1].split(/\\s+/).filter(Boolean), source: match[0] };
+  return { classes: match[1].split(/\s+/).filter(Boolean), source: match[0] };
 }
 
 const sharedTabs = [
