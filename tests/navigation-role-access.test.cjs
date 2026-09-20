@@ -129,3 +129,6 @@ assert.match(
 console.log('navigation-role-access.test.cjs: OK');
 
 assert.match(reportsSource, /Chart\.getChart\(canvas\)\?\.destroy\(\)/, 'visitor charts must destroy the active canvas chart before redraw');
+
+assert.doesNotMatch(reportsSource, /<header class="visitor-header">/, 'Visitors analytics must not render its own legacy header');
+assert.match(reportsSource, /<section class="visitor-page-title">/, 'Visitors analytics must keep its page title inside shared shell content');
