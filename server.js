@@ -3532,7 +3532,7 @@ app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (re
   if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
     return res.status(403).json({ error: 'Protected collection: use dedicated API' });
   }
-  if (CRITICAL_DATA_KEYS.has(key) && !expectedFingerprint) {
+  if (USE_MONGO && CRITICAL_DATA_KEYS.has(key) && !expectedFingerprint) {
     return res.status(428).json({ error: 'Data version required. Reload and retry.' });
   }
   try {
