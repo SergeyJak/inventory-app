@@ -316,6 +316,18 @@
         <label>Confirm password</label>
         <input type="text" id="mail-confirm-password" placeholder="Confirm password" autocomplete="new-password" />
       </div>
+      <div class="form-row">
+        <label>Purpose</label>
+        <select id="mail-purpose" onchange="updateMailPurposeFields()">
+          <option value="mail">Mail only</option>
+          <option value="subscriber">Subscriber</option>
+          <option value="host">Host</option>
+        </select>
+      </div>
+      <div class="form-row" id="mail-host-renewal-row" hidden>
+        <label>Host renewal date</label>
+        <input type="date" id="mail-host-renewal-date" />
+      </div>
       <div class="form-actions">
         <button onclick="createMailAccount()" class="btn-primary" id="mail-create-btn">Create mailbox</button>
         <button onclick="testMailImap()" class="btn-secondary" id="mail-imap-test-btn">Test IMAP</button>
