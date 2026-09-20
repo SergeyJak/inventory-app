@@ -60,6 +60,8 @@ const FILES = {
   assistantQuestions: path.join(DATA_DIR, 'assistant-questions.json'),
   assistantImprovementReports: path.join(DATA_DIR, 'assistant-improvement-reports.json'),
   visitorAnalyticsEvents: path.join(DATA_DIR, 'visitor-analytics-events.json'),
+  financeIncome: path.join(DATA_DIR, 'finance-income.json'),
+  financeExpenses: path.join(DATA_DIR, 'finance-expenses.json'),
 };
 if (!USE_MONGO) {
   Object.values(FILES).forEach(f => {
@@ -79,6 +81,9 @@ const COLL = {
   assistantQuestions: 'assistantQuestions',
   assistantImprovementReports: 'assistantImprovementReports',
   visitorAnalyticsEvents: 'visitorAnalyticsEvents',
+  financeIncome: 'financeIncome',
+  financeExpenses: 'financeExpenses',
+  financeMigrations: 'financeMigrations',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
 const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
@@ -93,6 +98,131 @@ async function connectMongo() {
   await ensureAssistantQuestionIndexes(db);
   await ensureVisitorAnalyticsIndexes(db);
   console.log('✅  MongoDB connected');
+}
+
+function isProductionRailwayEnvironment() {
+  return String(process.env.RAILWAY_ENVIRONMENT_NAME || '').toLowerCase() === 'production';
+}
+
+function financeCollectionName(key) {
+  const base = COLL[key];
+  const envName = String(process.env.RAILWAY_ENVIRONMENT_NAME || '').trim();
+  if (envName && envName.toLowerCase() !== 'production') {
+    const suffix = envName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+    return `${base}__${suffix}`;
+  }
+  return base;
+}
+
+function embeddedFinanceRows(subAccounts, hostSubscriptions) {
+  const income = [];
+  for (const sub of Array.isArray(subAccounts) ? subAccounts : []) {
+    for (const payment of Array.isArray(sub.financePayments) ? sub.financePayments : []) {
+      income.push({
+        ...payment,
+        ownerId: sub.id,
+        ownerEmailSnapshot: sub.email || '',
+        ownerNameSnapshot: sub.name || '',
+      });
+    }
+  }
+
+  const expenses = [];
+  for (const host of Array.isArray(hostSubscriptions) ? hostSubscriptions : []) {
+    for (const expense of Array.isArray(host.financeExpenses) ? host.financeExpenses : []) {
+      expenses.push({
+        ...expense,
+        ownerId: host.id,
+        ownerEmailSnapshot: host.hostMail || host.email || '',
+        ownerNameSnapshot: host.name || '',
+      });
+    }
+  }
+  return { income, expenses };
+}
+
+async function createFinanceMigrationBackups(subAccounts, hostSubscriptions) {
+  const backupSubs = db.collection('migrationBackup_20260920_subAccounts');
+  const backupHosts = db.collection('migrationBackup_20260920_hostSubscriptions');
+
+  for (const row of subAccounts) {
+    await backupSubs.updateOne(
+      { id: row.id },
+      { $setOnInsert: { ...row, migrationBackupCreatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+  }
+  for (const row of hostSubscriptions) {
+    await backupHosts.updateOne(
+      { id: row.id },
+      { $setOnInsert: { ...row, migrationBackupCreatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+  }
+
+  const [backupSubCount, backupHostCount] = await Promise.all([
+    backupSubs.countDocuments({}),
+    backupHosts.countDocuments({}),
+  ]);
+  if (backupSubCount < subAccounts.length || backupHostCount < hostSubscriptions.length) {
+    throw new Error(`Finance migration backup verification failed: subs ${backupSubCount}/${subAccounts.length}, hosts ${backupHostCount}/${hostSubscriptions.length}`);
+  }
+  return { backupSubCount, backupHostCount };
+}
+
+async function migrateEmbeddedFinanceToStandalone() {
+  if (!USE_MONGO || !isProductionRailwayEnvironment()) return;
+
+  const markerColl = db.collection(COLL.financeMigrations);
+  const migrationId = 'standalone-finance-v1';
+  if (await markerColl.findOne({ _id: migrationId })) return;
+
+  const [subAccounts, hostSubscriptions] = await Promise.all([
+    db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
+  ]);
+
+  const accountCountBefore = subAccounts.length;
+  const hostCountBefore = hostSubscriptions.length;
+  const backup = await createFinanceMigrationBackups(subAccounts, hostSubscriptions);
+  const { income, expenses } = embeddedFinanceRows(subAccounts, hostSubscriptions);
+
+  const incomeColl = db.collection(COLL.financeIncome);
+  const expenseColl = db.collection(COLL.financeExpenses);
+
+  for (const row of income) {
+    await incomeColl.updateOne({ id: row.id }, { $setOnInsert: row }, { upsert: true });
+  }
+  for (const row of expenses) {
+    await expenseColl.updateOne({ id: row.id }, { $setOnInsert: row }, { upsert: true });
+  }
+
+  const [migratedIncome, migratedExpenses, accountCountAfter, hostCountAfter] = await Promise.all([
+    income.length ? incomeColl.countDocuments({ id: { $in: income.map(row => row.id) } }) : Promise.resolve(0),
+    expenses.length ? expenseColl.countDocuments({ id: { $in: expenses.map(row => row.id) } }) : Promise.resolve(0),
+    db.collection(COLL.subAccounts).countDocuments({}),
+    db.collection(COLL.hostSubscriptions).countDocuments({}),
+  ]);
+
+  if (migratedIncome !== income.length || migratedExpenses !== expenses.length) {
+    throw new Error(`Finance migration verification failed: income ${migratedIncome}/${income.length}, expenses ${migratedExpenses}/${expenses.length}`);
+  }
+  if (accountCountAfter !== accountCountBefore || hostCountAfter !== hostCountBefore) {
+    throw new Error(`Finance migration changed account counts: subs ${accountCountBefore}->${accountCountAfter}, hosts ${hostCountBefore}->${hostCountAfter}`);
+  }
+
+  await markerColl.insertOne({
+    _id: migrationId,
+    migratedAt: new Date().toISOString(),
+    accountCount: accountCountAfter,
+    hostCount: hostCountAfter,
+    incomeCount: migratedIncome,
+    expenseCount: migratedExpenses,
+    backupSubCount: backup.backupSubCount,
+    backupHostCount: backup.backupHostCount,
+  });
+
+  console.log(`[finance] standalone migration OK: ${accountCountAfter} accounts, ${hostCountAfter} hosts, ${migratedIncome} income, ${migratedExpenses} expenses`);
 }
 
 // ── STORAGE ABSTRACTION ──────────────────────────────────────
