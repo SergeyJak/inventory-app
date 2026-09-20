@@ -249,7 +249,7 @@ function closeMobileNav() {
   mobileNavPanel?.setAttribute('aria-hidden', 'true');
   mobileNavBackdrop?.classList.remove('open');
   if (mobileNavBackdrop) mobileNavBackdrop.hidden = true;
-  document.getElementById('mobile-more-button')?.setAttribute('aria-expanded', 'false');
+  document.getElementById('mobile-menu-button')?.setAttribute('aria-expanded', 'false');
 }
 
 function openMobileNav() {
@@ -259,7 +259,7 @@ function openMobileNav() {
   }
   mobileNavPanel?.classList.add('open');
   mobileNavPanel?.setAttribute('aria-hidden', 'false');
-  document.getElementById('mobile-more-button')?.setAttribute('aria-expanded', 'true');
+  document.getElementById('mobile-menu-button')?.setAttribute('aria-expanded', 'true');
 }
 
 function selectDashboardView(view) {
@@ -318,7 +318,7 @@ document.addEventListener('click', event => {
     return;
   }
 
-  if (event.target.closest('#mobile-more-button')) {
+  if (event.target.closest('#mobile-menu-button')) {
     openMobileNav();
     return;
   }
