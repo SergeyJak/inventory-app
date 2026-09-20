@@ -70,8 +70,9 @@ patch('index.html', source => {
 patch('finance.html', source => {
   let next = source;
   if (!next.includes('/finance-combo.js')) {
-    const anchor = '<script src="/finance-invoice.js?v=20260914-3&lv=4" defer></script>';
-    if (!next.includes(anchor)) throw new Error('Finance combo script anchor not found');
+    const anchorMatch = next.match(/<script src="\/finance-invoice\.js\?v=[^"]+" defer><\/script>/);
+    if (!anchorMatch) throw new Error('Finance combo script anchor not found');
+    const anchor = anchorMatch[0];
     next = next.replace(anchor, anchor + '\n  <script src="/finance-combo.js?v=20260914-1" defer></script>');
   }
   return next;

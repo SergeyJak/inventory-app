@@ -21,10 +21,13 @@ assert.match(source, /\['S', \[13, 153, 255\]\]/, 'invoice logo must start Smart
 assert.match(source, /\['t', \[151, 0, 255\]\]/, 'invoice logo must end Smart with approved violet');
 assert.match(source, /RĒĶINS/, 'invoice must contain Latvian title');
 assert.match(source, /Maksājuma mērķis/, 'invoice must preserve Latvian source text');
+assert.match(source, /Dokuments sagatavots elektroniski un ir derīgs bez paraksta\./, 'invoice must state that the electronic document is valid without a signature');
+assert.match(source, /Apmaksājot rēķinu, maksājuma mērķī norādiet rēķina numuru:/, 'invoice must instruct the payer to include the invoice number');
+assert.match(source, /selectedClient\?\.dataset\?\.email/, 'invoice must read recipient email from the selected option data-email attribute');
 
 assert.equal(html.includes('approvedLogo'), false, 'finance.html must not contain the stale inline image logo patch');
 assert.equal(html.includes('addImage('), false, 'finance.html must not reintroduce jsPDF addImage');
-assert.match(html, /finance-invoice\.js\?v=20260914-3&lv=4/, 'invoice script must use the latest cache-busted renderer');
+assert.match(html, /finance-invoice\.js\?v=20260920-2&lv=6/, 'invoice script must use the latest cache-busted renderer');
 assert.match(html, /this\.output\('blob'\)/, 'mobile save patch must use jsPDF blob output');
 assert.match(html, /URL\.createObjectURL\(blob\)/, 'mobile save patch must create a browser blob URL');
 
@@ -56,7 +59,7 @@ element('invoice-settings-form');
 element('invoice-number-btn');
 element('invoice-pdf-btn');
 element('income-form');
-element('income-client', { selectedIndex: 0, options: [{ text: 'customer@example.com' }] });
+element('income-client', { selectedIndex: 0, options: [{ text: 'Customer Name', dataset: { email: 'customer@example.com' } }] });
 element('income-type', { value: 'subscription' });
 element('income-date', { value: '2026-09-13' });
 element('income-amount', { value: '35' });
@@ -146,6 +149,11 @@ domReady();
   assert.ok(lineCalls.length >= 12, 'Latvian diacritics must be drawn as vector marks');
   assert.ok(textCalls.some(call => call.value === 'E'), 'RĒĶINS macron base letter must render');
   assert.ok(textCalls.some(call => call.value === 'K'), 'RĒĶINS comma base letter must render');
+  assert.ok(textCalls.some(call => call.value === 'D'), 'electronic document footer must render');
+  assert.ok(textCalls.some(call => call.value === ':'), 'payment-purpose footer must render the invoice reference line');
+  const renderedText = textCalls.map(call => call.value).join('');
+  assert.ok(renderedText.includes('customer@example.com'), 'PDF recipient must contain the selected account email');
+  assert.equal(renderedText.includes('Customer Name'), false, 'PDF recipient must not use the dropdown display name when data-email is available');
   assert.equal(savedPdf, 'HS-2026-001.pdf', 'invoice must be saved with its invoice number');
   console.log('finance-invoice.test.cjs: OK');
 })().catch(error => {

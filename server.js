@@ -60,6 +60,8 @@ const FILES = {
   assistantQuestions: path.join(DATA_DIR, 'assistant-questions.json'),
   assistantImprovementReports: path.join(DATA_DIR, 'assistant-improvement-reports.json'),
   visitorAnalyticsEvents: path.join(DATA_DIR, 'visitor-analytics-events.json'),
+  financeIncome: path.join(DATA_DIR, 'finance-income.json'),
+  financeExpenses: path.join(DATA_DIR, 'finance-expenses.json'),
 };
 if (!USE_MONGO) {
   Object.values(FILES).forEach(f => {
@@ -79,8 +81,13 @@ const COLL = {
   assistantQuestions: 'assistantQuestions',
   assistantImprovementReports: 'assistantImprovementReports',
   visitorAnalyticsEvents: 'visitorAnalyticsEvents',
+  financeIncome: 'financeIncome',
+  financeExpenses: 'financeExpenses',
+  financeAudit: 'financeAudit',
+  financeMigrations: 'financeMigrations',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
+const GENERIC_SAVE_BLOCKED_KEYS = new Set(['financeIncome', 'financeExpenses', 'financeAudit', 'financeMigrations']);
 const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
 const ASSISTANT_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 const ASSISTANT_WEAK_FAQ_NEGATIVE_RATE = 0.25;
@@ -93,6 +100,172 @@ async function connectMongo() {
   await ensureAssistantQuestionIndexes(db);
   await ensureVisitorAnalyticsIndexes(db);
   console.log('✅  MongoDB connected');
+}
+
+async function ensureFinanceIndexes() {
+  if (!USE_MONGO) return;
+  await Promise.all([
+    db.collection(financeCollectionName('financeIncome')).createIndex({ id: 1 }, { unique: true, name: 'uniq_finance_income_id' }),
+    db.collection(financeCollectionName('financeIncome')).createIndex({ invoiceNo: 1 }, { unique: true, sparse: true, name: 'uniq_finance_invoice_no' }),
+    db.collection(financeCollectionName('financeExpenses')).createIndex({ id: 1 }, { unique: true, name: 'uniq_finance_expense_id' }),
+    db.collection(financeCollectionName('financeAudit')).createIndex({ entryId: 1, createdAt: -1 }, { name: 'finance_audit_entry_time' }),
+  ]);
+}
+
+function isProductionRailwayEnvironment() {
+  return String(process.env.RAILWAY_ENVIRONMENT_NAME || '').toLowerCase() === 'production';
+}
+
+function financeCollectionName(key) {
+  const base = COLL[key];
+  const envName = String(process.env.RAILWAY_ENVIRONMENT_NAME || '').trim();
+  if (envName && envName.toLowerCase() !== 'production') {
+    const suffix = envName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+    return `${base}__${suffix}`;
+  }
+  return base;
+}
+
+function embeddedFinanceRows(subAccounts, hostSubscriptions) {
+  const income = [];
+  for (const sub of Array.isArray(subAccounts) ? subAccounts : []) {
+    for (const payment of Array.isArray(sub.financePayments) ? sub.financePayments : []) {
+      income.push({
+        ...payment,
+        ownerId: sub.id,
+        ownerEmailSnapshot: sub.email || '',
+        ownerNameSnapshot: sub.name || '',
+      });
+    }
+  }
+
+  const expenses = [];
+  for (const host of Array.isArray(hostSubscriptions) ? hostSubscriptions : []) {
+    for (const expense of Array.isArray(host.financeExpenses) ? host.financeExpenses : []) {
+      expenses.push({
+        ...expense,
+        ownerId: host.id,
+        ownerEmailSnapshot: host.hostMail || host.email || '',
+        ownerNameSnapshot: host.name || '',
+      });
+    }
+  }
+  return { income, expenses };
+}
+
+function mergeFinanceMigrationRows(kind, primaryRows, recoveryRows) {
+  const result = [];
+  const ids = new Set();
+  const invoiceNos = new Set();
+  const add = row => {
+    if (!row || row.voidedAt || !row.id) return;
+    const id = String(row.id);
+    if (ids.has(id)) return;
+    if (kind === 'income' && row.invoiceNo) {
+      const invoiceNo = String(row.invoiceNo).toLowerCase();
+      if (invoiceNos.has(invoiceNo)) return;
+      invoiceNos.add(invoiceNo);
+    }
+    ids.add(id);
+    result.push(row);
+  };
+  for (const row of Array.isArray(primaryRows) ? primaryRows : []) add(row);
+  for (const row of Array.isArray(recoveryRows) ? recoveryRows : []) add(row);
+  return result;
+}
+
+async function createFinanceMigrationBackups(subAccounts, hostSubscriptions) {
+  const backupSubs = db.collection('migrationBackup_20260920_subAccounts');
+  const backupHosts = db.collection('migrationBackup_20260920_hostSubscriptions');
+
+  for (const row of subAccounts) {
+    await backupSubs.updateOne(
+      { id: row.id },
+      { $setOnInsert: { ...row, migrationBackupCreatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+  }
+  for (const row of hostSubscriptions) {
+    await backupHosts.updateOne(
+      { id: row.id },
+      { $setOnInsert: { ...row, migrationBackupCreatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+  }
+
+  const [backupSubCount, backupHostCount] = await Promise.all([
+    backupSubs.countDocuments({}),
+    backupHosts.countDocuments({}),
+  ]);
+  if (backupSubCount < subAccounts.length || backupHostCount < hostSubscriptions.length) {
+    throw new Error(`Finance migration backup verification failed: subs ${backupSubCount}/${subAccounts.length}, hosts ${backupHostCount}/${hostSubscriptions.length}`);
+  }
+  return { backupSubCount, backupHostCount };
+}
+
+async function migrateEmbeddedFinanceToStandalone() {
+  if (!USE_MONGO || !isProductionRailwayEnvironment()) return;
+
+  const markerColl = db.collection(COLL.financeMigrations);
+  const migrationId = 'standalone-finance-v1';
+  if (await markerColl.findOne({ _id: migrationId })) return;
+
+  const recoveryIncomeCollection = 'financeIncome__inventory-app-pr-24';
+  const recoveryExpenseCollection = 'financeExpenses__inventory-app-pr-24';
+  const [subAccounts, hostSubscriptions, recoveryIncome, recoveryExpenses] = await Promise.all([
+    db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection(recoveryIncomeCollection).find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection(recoveryExpenseCollection).find({}, { projection: { _id: 0 } }).toArray(),
+  ]);
+
+  const accountCountBefore = subAccounts.length;
+  const hostCountBefore = hostSubscriptions.length;
+  const backup = await createFinanceMigrationBackups(subAccounts, hostSubscriptions);
+  const embedded = embeddedFinanceRows(subAccounts, hostSubscriptions);
+  const income = mergeFinanceMigrationRows('income', embedded.income, recoveryIncome);
+  const expenses = mergeFinanceMigrationRows('expense', embedded.expenses, recoveryExpenses);
+
+  const incomeColl = db.collection(COLL.financeIncome);
+  const expenseColl = db.collection(COLL.financeExpenses);
+
+  for (const row of income) {
+    await incomeColl.updateOne({ id: row.id }, { $setOnInsert: row }, { upsert: true });
+  }
+  for (const row of expenses) {
+    await expenseColl.updateOne({ id: row.id }, { $setOnInsert: row }, { upsert: true });
+  }
+
+  const [migratedIncome, migratedExpenses, accountCountAfter, hostCountAfter] = await Promise.all([
+    income.length ? incomeColl.countDocuments({ id: { $in: income.map(row => row.id) } }) : Promise.resolve(0),
+    expenses.length ? expenseColl.countDocuments({ id: { $in: expenses.map(row => row.id) } }) : Promise.resolve(0),
+    db.collection(COLL.subAccounts).countDocuments({}),
+    db.collection(COLL.hostSubscriptions).countDocuments({}),
+  ]);
+
+  if (migratedIncome !== income.length || migratedExpenses !== expenses.length) {
+    throw new Error(`Finance migration verification failed: income ${migratedIncome}/${income.length}, expenses ${migratedExpenses}/${expenses.length}`);
+  }
+  if (accountCountAfter !== accountCountBefore || hostCountAfter !== hostCountBefore) {
+    throw new Error(`Finance migration changed account counts: subs ${accountCountBefore}->${accountCountAfter}, hosts ${hostCountBefore}->${hostCountAfter}`);
+  }
+
+  await markerColl.insertOne({
+    _id: migrationId,
+    migratedAt: new Date().toISOString(),
+    accountCount: accountCountAfter,
+    hostCount: hostCountAfter,
+    incomeCount: migratedIncome,
+    expenseCount: migratedExpenses,
+    backupSubCount: backup.backupSubCount,
+    backupHostCount: backup.backupHostCount,
+    recoveryIncomeCount: recoveryIncome.length,
+    recoveryExpenseCount: recoveryExpenses.length,
+    recoveryIncomeCollection,
+    recoveryExpenseCollection,
+  });
+
+  console.log(`[finance] standalone migration OK: ${accountCountAfter} accounts, ${hostCountAfter} hosts, ${migratedIncome} income, ${migratedExpenses} expenses; recovery source ${recoveryIncome.length} income / ${recoveryExpenses.length} expenses`);
 }
 
 // ── STORAGE ABSTRACTION ──────────────────────────────────────
@@ -116,13 +289,62 @@ async function dbGetAll() {
   };
 }
 
+function mergeProtectedFinanceFields(key, incoming, existing) {
+  const protectedField = key === 'subAccounts'
+    ? 'financePayments'
+    : key === 'hostSubscriptions'
+      ? 'financeExpenses'
+      : null;
+  if (!protectedField) return incoming;
+
+  const existingRows = Array.isArray(existing) ? existing : [];
+  const existingById = new Map(
+    existingRows
+      .filter(item => item && item.id != null)
+      .map(item => [String(item.id), item])
+  );
+  const incomingIds = new Set();
+
+  const merged = (Array.isArray(incoming) ? incoming : []).map(item => {
+    if (!item || item.id == null) return item;
+    const id = String(item.id);
+    incomingIds.add(id);
+    const stored = existingById.get(id);
+    if (!stored || !Array.isArray(stored[protectedField])) return item;
+    return { ...item, [protectedField]: stored[protectedField] };
+  });
+
+  for (const stored of existingRows) {
+    if (!stored || stored.id == null || incomingIds.has(String(stored.id))) continue;
+    if (Array.isArray(stored[protectedField]) && stored[protectedField].length > 0) {
+      merged.push(stored);
+    }
+  }
+  return merged;
+}
+
 async function dbSave(key, data) {
+  if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
+    throw new Error(`Generic save forbidden for protected collection: ${key}`);
+  }
   if (USE_MONGO) {
     const coll = db.collection(COLL[key]);
+    let safeData = Array.isArray(data) ? data : [];
+    if (key === 'subAccounts' || key === 'hostSubscriptions') {
+      const existing = await coll.find({}, { projection: { _id: 0 } }).toArray();
+      safeData = mergeProtectedFinanceFields(key, safeData, existing);
+    }
     await coll.deleteMany({});
-    if (data.length > 0) await coll.insertMany(data);
+    if (safeData.length > 0) await coll.insertMany(safeData);
   } else {
-    fs.writeFileSync(FILES[key], JSON.stringify(data, null, 2), 'utf8');
+    let safeData = Array.isArray(data) ? data : [];
+    if (key === 'subAccounts' || key === 'hostSubscriptions') {
+      const existing = fs.existsSync(FILES[key])
+        ? JSON.parse(fs.readFileSync(FILES[key], 'utf8'))
+        : [];
+      safeData = mergeProtectedFinanceFields(key, safeData, existing);
+    }
+    fs.writeFileSync(FILES[key], JSON.stringify(safeData, null, 2), 'utf8');
   }
 }
 
@@ -2970,70 +3192,150 @@ function sanitizeFinanceEntry(raw, kind) {
   };
 }
 
-async function appendFinanceEntry(collectionKey, ownerId, field, entry) {
-  const cleanOwnerId = sanitizeAssistantText(ownerId, 100);
-  if (!cleanOwnerId) return { ok: false, reason: 'owner' };
+async function financeLedgerData() {
   if (USE_MONGO) {
-    const coll = db.collection(COLL[collectionKey]);
-    const owner = await coll.findOne({ id: cleanOwnerId }, { projection: { _id: 1 } });
-    if (!owner) return { ok: false, reason: 'owner' };
-    const duplicate = await coll.findOne({ [`${field}.id`]: entry.id }, { projection: { _id: 1 } });
-    if (duplicate) return { ok: false, reason: 'duplicate' };
-    if (field === 'financePayments' && entry.invoiceNo) {
-      const sameInvoice = await coll.findOne({ 'financePayments.invoiceNo': entry.invoiceNo }, { projection: { _id: 1 } });
-      if (sameInvoice) return { ok: false, reason: 'invoice' };
-    }
-    const result = await coll.updateOne({ id: cleanOwnerId }, { $push: { [field]: entry } });
-    return { ok: result.modifiedCount === 1 };
-  }
+    const [allIncome, allExpenses] = await Promise.all([
+      db.collection(financeCollectionName('financeIncome')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(financeCollectionName('financeExpenses')).find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+    const activeIncome = allIncome.filter(row => !row.voidedAt);
+    const activeExpenses = allExpenses.filter(row => !row.voidedAt);
+    if (isProductionRailwayEnvironment()) return { income: activeIncome, expenses: activeExpenses };
 
-  const fileKey = collectionKey;
-  const data = JSON.parse(fs.readFileSync(FILES[fileKey], 'utf8'));
-  const owner = data.find(item => String(item.id) === cleanOwnerId);
-  if (!owner) return { ok: false, reason: 'owner' };
-  if (data.some(item => (item[field] || []).some(row => row.id === entry.id))) return { ok: false, reason: 'duplicate' };
-  if (field === 'financePayments' && entry.invoiceNo &&
-      data.some(item => (item.financePayments || []).some(row => row.invoiceNo === entry.invoiceNo))) {
-    return { ok: false, reason: 'invoice' };
+    const [subAccounts, hostSubscriptions] = await Promise.all([
+      db.collection(COLL.subAccounts).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(COLL.hostSubscriptions).find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+    const embedded = embeddedFinanceRows(subAccounts, hostSubscriptions);
+    const mergeById = (legacyRows, allStandaloneRows) => {
+      const standaloneIds = new Set(allStandaloneRows.map(row => String(row.id)));
+      const rows = legacyRows.filter(row => !standaloneIds.has(String(row.id)));
+      rows.push(...allStandaloneRows.filter(row => !row.voidedAt));
+      return rows;
+    };
+    return {
+      income: mergeById(embedded.income, allIncome),
+      expenses: mergeById(embedded.expenses, allExpenses),
+    };
   }
-  owner[field] = Array.isArray(owner[field]) ? owner[field] : [];
-  owner[field].push(entry);
-  fs.writeFileSync(FILES[fileKey], JSON.stringify(data, null, 2), 'utf8');
-  return { ok: true };
+  return {
+    income: JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8')).filter(row => !row.voidedAt),
+    expenses: JSON.parse(fs.readFileSync(FILES.financeExpenses, 'utf8')).filter(row => !row.voidedAt),
+  };
 }
 
-async function removeFinanceEntry(collectionKey, ownerId, field, entryId) {
+async function findFinanceOwner(kind, ownerId) {
   const cleanOwnerId = sanitizeAssistantText(ownerId, 100);
-  const cleanEntryId = sanitizeAssistantText(entryId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
-  if (!cleanOwnerId || !cleanEntryId) return false;
+  if (!cleanOwnerId) return null;
   if (USE_MONGO) {
-    const result = await db.collection(COLL[collectionKey]).updateOne(
-      { id: cleanOwnerId },
-      { $pull: { [field]: { id: cleanEntryId } } },
-    );
-    return result.modifiedCount === 1;
+    const collection = kind === 'income' ? COLL.subAccounts : COLL.hostSubscriptions;
+    return db.collection(collection).findOne({ id: cleanOwnerId }, { projection: { _id: 0 } });
   }
-  const data = JSON.parse(fs.readFileSync(FILES[collectionKey], 'utf8'));
-  const owner = data.find(item => String(item.id) === cleanOwnerId);
-  if (!owner) return false;
-  const before = Array.isArray(owner[field]) ? owner[field].length : 0;
-  owner[field] = (owner[field] || []).filter(row => row.id !== cleanEntryId);
-  if (owner[field].length === before) return false;
-  fs.writeFileSync(FILES[collectionKey], JSON.stringify(data, null, 2), 'utf8');
+  const file = kind === 'income' ? FILES.subAccounts : FILES.hostSubscriptions;
+  return JSON.parse(fs.readFileSync(file, 'utf8')).find(item => String(item.id) === cleanOwnerId) || null;
+}
+
+async function writeFinanceAudit(action, kind, row, actor = '') {
+  if (!USE_MONGO) return;
+  try {
+    await db.collection(financeCollectionName('financeAudit')).insertOne({
+      action,
+      kind,
+      entryId: row.id,
+      ownerId: row.ownerId || '',
+      invoiceNo: row.invoiceNo || '',
+      documentNo: row.documentNo || '',
+      amount: Number(row.amount) || 0,
+      date: row.date || '',
+      actor: sanitizeAssistantText(actor, 100),
+      snapshot: row,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Finance audit write error:', error.message);
+  }
+}
+
+async function insertStandaloneFinance(kind, ownerId, entry, actor = '') {
+  const owner = await findFinanceOwner(kind, ownerId);
+  if (!owner) return { ok: false, reason: 'owner' };
+
+  const row = {
+    ...entry,
+    ownerId: owner.id,
+    ownerEmailSnapshot: kind === 'income' ? (owner.email || '') : (owner.hostMail || owner.email || ''),
+    ownerNameSnapshot: owner.name || '',
+  };
+
+  if (USE_MONGO) {
+    const collectionKey = kind === 'income' ? 'financeIncome' : 'financeExpenses';
+    const coll = db.collection(financeCollectionName(collectionKey));
+    if (await coll.findOne({ id: row.id }, { projection: { _id: 1 } })) return { ok: false, reason: 'duplicate' };
+    if (kind === 'income' && row.invoiceNo && await coll.findOne({ invoiceNo: row.invoiceNo }, { projection: { _id: 1 } })) {
+      return { ok: false, reason: 'invoice' };
+    }
+    const storedRow = { ...row, createdBy: sanitizeAssistantText(actor, 100) };
+    await coll.insertOne(storedRow);
+    await writeFinanceAudit('created', kind, storedRow, actor);
+    return { ok: true, row: storedRow };
+  }
+
+  const file = kind === 'income' ? FILES.financeIncome : FILES.financeExpenses;
+  const rows = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (rows.some(item => item.id === row.id)) return { ok: false, reason: 'duplicate' };
+  if (kind === 'income' && row.invoiceNo && rows.some(item => item.invoiceNo === row.invoiceNo)) return { ok: false, reason: 'invoice' };
+  rows.push(row);
+  fs.writeFileSync(file, JSON.stringify(rows, null, 2), 'utf8');
+  return { ok: true, row };
+}
+
+async function removeStandaloneFinance(kind, entryId, actor = '') {
+  const cleanEntryId = sanitizeAssistantText(entryId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!cleanEntryId) return false;
+  const voidedAt = new Date().toISOString();
+  if (USE_MONGO) {
+    const collectionKey = kind === 'income' ? 'financeIncome' : 'financeExpenses';
+    const coll = db.collection(financeCollectionName(collectionKey));
+    const row = await coll.findOne({ id: cleanEntryId, voidedAt: { $exists: false } }, { projection: { _id: 0 } });
+    if (!row) return false;
+    const result = await coll.updateOne(
+      { id: cleanEntryId, voidedAt: { $exists: false } },
+      { $set: { voidedAt, voidedBy: sanitizeAssistantText(actor, 100) } },
+    );
+    if (result.modifiedCount !== 1) return false;
+    await writeFinanceAudit('voided', kind, { ...row, voidedAt, voidedBy: sanitizeAssistantText(actor, 100) }, actor);
+    return true;
+  }
+  const file = kind === 'income' ? FILES.financeIncome : FILES.financeExpenses;
+  const rows = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const row = rows.find(item => item.id === cleanEntryId && !item.voidedAt);
+  if (!row) return false;
+  row.voidedAt = voidedAt;
+  row.voidedBy = sanitizeAssistantText(actor, 100);
+  fs.writeFileSync(file, JSON.stringify(rows, null, 2), 'utf8');
   return true;
 }
+
+app.get('/api/finance/ledger', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await financeLedgerData());
+  } catch (e) {
+    console.error('Finance ledger route error:', e.message);
+    sendGenericError(res);
+  }
+});
 
 app.post('/api/finance/income', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
   try {
     const payment = sanitizeFinanceEntry(req.body?.payment, 'income');
     if (!payment) return res.status(400).json({ error: 'Invalid finance payment' });
-    const result = await appendFinanceEntry('subAccounts', req.body?.ownerId, 'financePayments', payment);
+    const result = await insertStandaloneFinance('income', req.body?.ownerId, payment, req.user.username);
     if (!result.ok) {
       if (result.reason === 'invoice') return res.status(409).json({ error: 'Invoice number already exists' });
       if (result.reason === 'duplicate') return res.status(409).json({ error: 'Payment already exists' });
       return res.status(404).json({ error: 'Client not found' });
     }
-    res.json({ ok: true, payment });
+    res.json({ ok: true, payment: result.row });
   } catch (e) {
     console.error('Finance income route error:', e.message);
     sendGenericError(res);
@@ -3044,12 +3346,12 @@ app.post('/api/finance/expense', requireInventoryHost, requireAuth, requireAdmin
   try {
     const expense = sanitizeFinanceEntry(req.body?.expense, 'expense');
     if (!expense) return res.status(400).json({ error: 'Invalid finance expense' });
-    const result = await appendFinanceEntry('hostSubscriptions', req.body?.ownerId, 'financeExpenses', expense);
+    const result = await insertStandaloneFinance('expense', req.body?.ownerId, expense, req.user.username);
     if (!result.ok) {
       if (result.reason === 'duplicate') return res.status(409).json({ error: 'Expense already exists' });
       return res.status(404).json({ error: 'Host not found' });
     }
-    res.json({ ok: true, expense });
+    res.json({ ok: true, expense: result.row });
   } catch (e) {
     console.error('Finance expense route error:', e.message);
     sendGenericError(res);
@@ -3058,7 +3360,7 @@ app.post('/api/finance/expense', requireInventoryHost, requireAuth, requireAdmin
 
 app.delete('/api/finance/income/:ownerId/:entryId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
   try {
-    const ok = await removeFinanceEntry('subAccounts', req.params.ownerId, 'financePayments', req.params.entryId);
+    const ok = await removeStandaloneFinance('income', req.params.entryId, req.user.username);
     if (!ok) return res.status(404).json({ error: 'Payment not found' });
     res.json({ ok: true });
   } catch (e) {
@@ -3069,7 +3371,7 @@ app.delete('/api/finance/income/:ownerId/:entryId', requireInventoryHost, requir
 
 app.delete('/api/finance/expense/:ownerId/:entryId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
   try {
-    const ok = await removeFinanceEntry('hostSubscriptions', req.params.ownerId, 'financeExpenses', req.params.entryId);
+    const ok = await removeStandaloneFinance('expense', req.params.entryId, req.user.username);
     if (!ok) return res.status(404).json({ error: 'Expense not found' });
     res.json({ ok: true });
   } catch (e) {
@@ -3107,6 +3409,9 @@ app.get('/api/reports/sales', requireInventoryHost, requireAuth, async (req, res
 app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
   const { key, data } = req.body;
   if (!COLL[key]) return res.status(400).json({ error: 'Unknown key: ' + key });
+  if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
+    return res.status(403).json({ error: 'Protected collection: use dedicated API' });
+  }
   try {
     await dbSave(key, data);
     res.json({ ok: true });
@@ -3184,6 +3489,8 @@ app.use((err, req, res, next) => {
 async function start() {
   if (USE_MONGO) {
     await connectMongo();
+    await migrateEmbeddedFinanceToStandalone();
+    await ensureFinanceIndexes();
     await mail.ensureMailIndexes(db);
   } else {
     console.log('📁  Using local JSON files (no MONGODB_URI set)');

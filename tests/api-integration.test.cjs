@@ -204,19 +204,7 @@ async function run() {
   assert.equal(report.totals.profit, 46.5);
 
   const financeClients = [
-    {
-      id: 'client-001',
-      email: 'first@example.com',
-      financePayments: [{
-        id: 'payment-001',
-        type: 'subscription',
-        date: '2026-09-12',
-        amount: 35,
-        invoiceNo: 'HS-2026-001',
-        note: 'first invoice',
-        createdAt: '2026-09-12T10:00:00.000Z',
-      }],
-    },
+    { id: 'client-001', email: 'first@example.com' },
     { id: 'client-003', email: 'third@example.com' },
   ];
   response = await request('/api/save', {
@@ -225,6 +213,24 @@ async function run() {
     body: { key: 'subAccounts', data: financeClients },
   });
   assert.equal(response.status, 200);
+
+  response = await request('/api/finance/income', {
+    method: 'POST',
+    token: adminToken,
+    body: {
+      ownerId: 'client-001',
+      payment: {
+        id: 'payment-001',
+        type: 'subscription',
+        date: '2026-09-12',
+        amount: 35,
+        invoiceNo: 'HS-2026-001',
+        note: 'first invoice',
+        createdAt: '2026-09-12T10:00:00.000Z',
+      },
+    },
+  });
+  assert.equal(response.status, 200, 'first standalone finance income should succeed');
 
   response = await request('/api/finance/income', {
     method: 'POST',
@@ -244,12 +250,32 @@ async function run() {
   });
   assert.equal(response.status, 200, 'atomic finance income append should succeed');
 
-  response = await request('/api/data', { token: adminToken });
+  response = await request('/api/finance/ledger', { token: adminToken });
   const financeData = await json(response);
-  const firstClient = financeData.subAccounts.find(item => item.id === 'client-001');
-  const thirdClient = financeData.subAccounts.find(item => item.id === 'client-003');
-  assert.equal(firstClient.financePayments[0].invoiceNo, 'HS-2026-001', 'adding 003 must not erase existing 001');
-  assert.equal(thirdClient.financePayments[0].invoiceNo, 'HS-2026-003', 'new payment must be appended only to its owner');
+  assert.equal(
+    financeData.income.find(item => item.id === 'payment-001')?.invoiceNo,
+    'HS-2026-001',
+    'adding 003 must not erase existing 001'
+  );
+  assert.equal(
+    financeData.income.find(item => item.id === 'payment-003')?.invoiceNo,
+    'HS-2026-003',
+    'new payment must be stored in standalone Finance'
+  );
+  assert.equal(
+    financeData.income.find(item => item.id === 'payment-003')?.ownerId,
+    'client-003',
+    'standalone Finance must keep the account reference'
+  );
+
+  response = await request('/api/data', { token: adminToken });
+  const accountsAfterFinanceWrite = await json(response);
+  const thirdClient = accountsAfterFinanceWrite.subAccounts.find(item => item.id === 'client-003');
+  assert.equal(
+    Array.isArray(thirdClient.financePayments) ? thirdClient.financePayments.length : 0,
+    0,
+    'Finance writes must not mutate subAccounts'
+  );
 
   response = await request('/api/finance/income', {
     method: 'POST',
@@ -275,13 +301,33 @@ async function run() {
   });
   assert.equal(response.status, 200, 'atomic finance delete should succeed');
 
-  response = await request('/api/data', { token: adminToken });
+  response = await request('/api/finance/ledger', { token: adminToken });
   const afterFinanceDelete = await json(response);
   assert.equal(
-    afterFinanceDelete.subAccounts.find(item => item.id === 'client-001').financePayments[0].invoiceNo,
+    afterFinanceDelete.income.find(item => item.id === 'payment-001')?.invoiceNo,
     'HS-2026-001',
     'deleting 003 must not erase 001',
   );
+  assert.equal(
+    afterFinanceDelete.income.some(item => item.id === 'payment-003'),
+    false,
+    'deleted Finance entry must disappear from standalone ledger',
+  );
+
+  response = await request('/api/data', { token: adminToken });
+  const accountsAfterFinanceDelete = await json(response);
+  assert.equal(
+    Array.isArray(accountsAfterFinanceDelete.subAccounts.find(item => item.id === 'client-001').financePayments),
+    false,
+    'Finance delete must not mutate Accounts storage',
+  );
+
+  response = await request('/api/save', {
+    method: 'POST',
+    token: adminToken,
+    body: { key: 'financeIncome', data: [] },
+  });
+  assert.equal(response.status, 403, 'generic save must be forbidden for Finance collections');
 
   response = await request('/api/save', {
     method: 'POST',
