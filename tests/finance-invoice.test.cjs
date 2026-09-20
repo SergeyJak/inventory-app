@@ -27,7 +27,7 @@ assert.match(source, /selectedClient\?\.dataset\?\.email/, 'invoice must read re
 
 assert.equal(html.includes('approvedLogo'), false, 'finance.html must not contain the stale inline image logo patch');
 assert.equal(html.includes('addImage('), false, 'finance.html must not reintroduce jsPDF addImage');
-assert.match(html, /finance-invoice\.js\?v=20260920-1&lv=5/, 'invoice script must use the latest cache-busted renderer');
+assert.match(html, /finance-invoice\.js\?v=20260920-2&lv=6/, 'invoice script must use the latest cache-busted renderer');
 assert.match(html, /this\.output\('blob'\)/, 'mobile save patch must use jsPDF blob output');
 assert.match(html, /URL\.createObjectURL\(blob\)/, 'mobile save patch must create a browser blob URL');
 
