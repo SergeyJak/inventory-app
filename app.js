@@ -293,21 +293,53 @@ function showTab(tab) {
   if (tab === 'annual')    renderAnnual();
 }
 
-function navigateTo(item) {
-  if (!item) return;
-  if (item.href) {
-    location.href = item.href;
-    return;
-  }
+function routeForItem(item) {
+  return item && !item.href ? '#/' + item.id : '';
+}
+
+function routeItemFromLocation() {
+  const match = String(location.hash || '').match(/^#\/([^/?#]+)/);
+  const id = match ? decodeURIComponent(match[1]) : '';
+  return id ? navigationItemById(id) : null;
+}
+
+function applyNavigationItem(item) {
+  if (!item || item.href) return false;
   if (item.dashboardView) {
     showTab('dashboard');
     selectDashboardView(item.dashboardView);
   } else if (item.tab) {
     showTab(item.tab);
     if (item.tab === 'dashboard') selectDashboardView('main');
+  } else {
+    return false;
   }
   setActiveNavigation(item.id);
   closeMobileNav();
+  return true;
+}
+
+function navigateTo(item, options = {}) {
+  if (!item) return;
+  if (item.href) {
+    location.href = item.href;
+    return;
+  }
+
+  if (!options.fromHistory) {
+    const route = routeForItem(item);
+    if (route && location.hash !== route) {
+      history.pushState({ nav: item.id }, '', route);
+    }
+  }
+
+  applyNavigationItem(item);
+}
+
+function restoreNavigationFromUrl() {
+  const item = routeItemFromLocation();
+  if (item && applyNavigationItem(item)) return true;
+  return false;
 }
 
 document.addEventListener('click', event => {
@@ -332,11 +364,22 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeMobileNav();
 });
 
+window.addEventListener('popstate', () => {
+  if (!restoreNavigationFromUrl()) {
+    applyNavigationItem(navigationItemById('dashboard'));
+  }
+});
+
+window.addEventListener('hashchange', () => {
+  if (!restoreNavigationFromUrl()) {
+    applyNavigationItem(navigationItemById('dashboard'));
+  }
+});
+
 document.querySelectorAll('.dash-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const isAndrey = btn.dataset.dash === 'andrey';
-    selectDashboardView(isAndrey ? 'andrey' : 'main');
-    setActiveNavigation(isAndrey ? 'andrey' : 'dashboard');
+    navigateTo(navigationItemById(isAndrey ? 'andrey' : 'dashboard'));
   });
 });
 
@@ -2537,10 +2580,17 @@ async function doImport() {
   }
   if (getRole() === 'viewer') document.body.classList.add('viewer-mode');
   window.InventoryNavigation?.render(getRole() || 'viewer');
-  const requestedNavId = new URLSearchParams(location.search).get('nav');
-  const requestedItem = requestedNavId ? navigationItemById(requestedNavId) : null;
-  if (requestedItem) navigateTo(requestedItem);
-  else setActiveNavigation('dashboard');
+
+  const legacyNavId = new URLSearchParams(location.search).get('nav');
+  if (legacyNavId && navigationItemById(legacyNavId)) {
+    const cleanUrl = location.pathname + '#/' + encodeURIComponent(legacyNavId);
+    history.replaceState({ nav: legacyNavId }, '', cleanUrl);
+  }
+
+  if (!restoreNavigationFromUrl()) {
+    history.replaceState({ nav: 'dashboard' }, '', location.pathname + '#/dashboard');
+    applyNavigationItem(navigationItemById('dashboard'));
+  }
   const uname = localStorage.getItem('inv_username');
   const headerUser = document.getElementById('header-user');
   if (headerUser) headerUser.textContent = uname || '';
