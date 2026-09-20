@@ -81,6 +81,9 @@ assert.match(appSource, /restoreNavigationFromUrl\(/, 'inventory routing must re
 assert.match(appSource, /window\.addEventListener\('popstate'/, 'Back/Forward must restore navigation');
 assert.match(appSource, /window\.addEventListener\('hashchange'/, 'hash changes must restore navigation');
 assert.match(appSource, /history\.replaceState\(\{ nav: 'dashboard' \}/, 'default route must be persisted on first load');
+assert.match(html, /<body class="app-routing-pending">/, 'app must start hidden until route restoration');
+assert.match(css, /body\.app-routing-pending \.app-main[\s\S]*visibility:\s*hidden/, 'main content must stay hidden while routing is pending');
+assert.match(appSource, /classList\.remove\('app-routing-pending'\)/, 'app must reveal content after route restoration');
 
 assert.doesNotMatch(
   html,
