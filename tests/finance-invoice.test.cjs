@@ -21,6 +21,8 @@ assert.match(source, /\['S', \[13, 153, 255\]\]/, 'invoice logo must start Smart
 assert.match(source, /\['t', \[151, 0, 255\]\]/, 'invoice logo must end Smart with approved violet');
 assert.match(source, /RĒĶINS/, 'invoice must contain Latvian title');
 assert.match(source, /Maksājuma mērķis/, 'invoice must preserve Latvian source text');
+assert.match(source, /Dokuments sagatavots elektroniski un ir derīgs bez paraksta\./, 'invoice must state that the electronic document is valid without a signature');
+assert.match(source, /Apmaksājot rēķinu, maksājuma mērķī norādiet rēķina numuru:/, 'invoice must instruct the payer to include the invoice number');
 
 assert.equal(html.includes('approvedLogo'), false, 'finance.html must not contain the stale inline image logo patch');
 assert.equal(html.includes('addImage('), false, 'finance.html must not reintroduce jsPDF addImage');
@@ -146,6 +148,8 @@ domReady();
   assert.ok(lineCalls.length >= 12, 'Latvian diacritics must be drawn as vector marks');
   assert.ok(textCalls.some(call => call.value === 'E'), 'RĒĶINS macron base letter must render');
   assert.ok(textCalls.some(call => call.value === 'K'), 'RĒĶINS comma base letter must render');
+  assert.ok(textCalls.some(call => call.value === 'D'), 'electronic document footer must render');
+  assert.ok(textCalls.some(call => call.value === ':'), 'payment-purpose footer must render the invoice reference line');
   assert.equal(savedPdf, 'HS-2026-001.pdf', 'invoice must be saved with its invoice number');
   console.log('finance-invoice.test.cjs: OK');
 })().catch(error => {
