@@ -8,6 +8,9 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 const navigationSource = fs.readFileSync(path.join(root, 'navigation.js'), 'utf8');
+const sharedNavigation = fs.readFileSync(path.join(root, 'shared-navigation.js'), 'utf8');
+const financeHtml = fs.readFileSync(path.join(root, 'finance.html'), 'utf8');
+const reportsHtml = fs.readFileSync(path.join(root, 'reports.html'), 'utf8');
 
 const sandbox = { window: {} };
 vm.runInNewContext(navigationSource, sandbox, { filename: 'navigation.js' });
@@ -65,6 +68,13 @@ assert.match(
   /\['\/navigation\.js',\s*'navigation\.js'\]/,
   'server must expose navigation.js to inventory clients',
 );
+assert.match(server, /shared-navigation\.js/, 'server must expose shared navigation JS');
+assert.match(server, /shared-navigation\.css/, 'server must expose shared navigation CSS');
+assert.match(financeHtml, /shared-navigation\.js/, 'finance must load shared navigation');
+assert.match(reportsHtml, /shared-navigation\.js/, 'reports must load shared navigation');
+assert.match(financeHtml, /data-nav-id="finance"/, 'finance must identify its active navigation item');
+assert.match(reportsHtml, /data-nav-id="reports"/, 'reports must identify its active navigation item');
+assert.match(sharedNavigation, /\/\?nav=/, 'standalone navigation must link directly to Inventory destinations');
 
 assert.doesNotMatch(
   html,
