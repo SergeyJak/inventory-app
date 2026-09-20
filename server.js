@@ -3225,7 +3225,7 @@ async function writeFinanceAudit(action, kind, row, actor = '') {
   }
 }
 
-async function insertStandaloneFinance(kind, ownerId, entry) {
+async function insertStandaloneFinance(kind, ownerId, entry, actor = '') {
   const owner = await findFinanceOwner(kind, ownerId);
   if (!owner) return { ok: false, reason: 'owner' };
 
@@ -3243,9 +3243,10 @@ async function insertStandaloneFinance(kind, ownerId, entry) {
     if (kind === 'income' && row.invoiceNo && await coll.findOne({ invoiceNo: row.invoiceNo }, { projection: { _id: 1 } })) {
       return { ok: false, reason: 'invoice' };
     }
-    await coll.insertOne(row);
-    await writeFinanceAudit('created', kind, row);
-    return { ok: true, row };
+    const storedRow = { ...row, createdBy: sanitizeAssistantText(actor, 100) };
+    await coll.insertOne(storedRow);
+    await writeFinanceAudit('created', kind, storedRow, actor);
+    return { ok: true, row: storedRow };
   }
 
   const file = kind === 'income' ? FILES.financeIncome : FILES.financeExpenses;
@@ -3297,7 +3298,7 @@ app.post('/api/finance/income', requireInventoryHost, requireAuth, requireAdmin,
   try {
     const payment = sanitizeFinanceEntry(req.body?.payment, 'income');
     if (!payment) return res.status(400).json({ error: 'Invalid finance payment' });
-    const result = await insertStandaloneFinance('income', req.body?.ownerId, payment);
+    const result = await insertStandaloneFinance('income', req.body?.ownerId, payment, req.user.username);
     if (!result.ok) {
       if (result.reason === 'invoice') return res.status(409).json({ error: 'Invoice number already exists' });
       if (result.reason === 'duplicate') return res.status(409).json({ error: 'Payment already exists' });
@@ -3314,7 +3315,7 @@ app.post('/api/finance/expense', requireInventoryHost, requireAuth, requireAdmin
   try {
     const expense = sanitizeFinanceEntry(req.body?.expense, 'expense');
     if (!expense) return res.status(400).json({ error: 'Invalid finance expense' });
-    const result = await insertStandaloneFinance('expense', req.body?.ownerId, expense);
+    const result = await insertStandaloneFinance('expense', req.body?.ownerId, expense, req.user.username);
     if (!result.ok) {
       if (result.reason === 'duplicate') return res.status(409).json({ error: 'Expense already exists' });
       return res.status(404).json({ error: 'Host not found' });
