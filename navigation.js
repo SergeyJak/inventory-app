@@ -47,7 +47,7 @@ const NAVIGATION_GROUPS = [
     roles: ['admin'],
     items: [
       { id: 'assistant-questions', label: 'Ассистент', icon: '✦', tab: 'assistant-questions', roles: ['admin'] },
-      { id: 'visitor-activity', label: 'Посетители', icon: '◉', tab: 'visitor-activity', roles: ['admin'] },
+      { id: 'visitor-activity', label: 'Посетители', icon: '◉', href: '/analytics', roles: ['admin'] },
       { id: 'mail-accounts', label: 'Почта', icon: '✉', tab: 'mail-accounts', roles: ['admin'] },
     ],
   },
