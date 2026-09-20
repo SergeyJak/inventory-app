@@ -14,6 +14,10 @@ assert.match(server, /GENERIC_SAVE_BLOCKED_KEYS = new Set\(\['financeIncome', 'f
 assert.match(server, /Protected collection: use dedicated API/, 'generic API save must reject protected Finance collections');
 assert.match(server, /migrationBackup_20260920_subAccounts/, 'migration must back up subAccounts before copying finance data');
 assert.match(server, /migrationBackup_20260920_hostSubscriptions/, 'migration must back up hostSubscriptions before copying finance data');
+assert.match(server, /financeIncome__inventory-app-pr-24/, 'production migration must include the restored PR Finance income recovery source');
+assert.match(server, /financeExpenses__inventory-app-pr-24/, 'production migration must include the restored PR Finance expense recovery source');
+assert.match(server, /mergeFinanceMigrationRows\('income', embedded\.income, recoveryIncome\)/, 'migration must merge embedded and restored income rows');
+assert.match(server, /mergeFinanceMigrationRows\('expense', embedded\.expenses, recoveryExpenses\)/, 'migration must merge embedded and restored expense rows');
 assert.match(server, /if \(!USE_MONGO \|\| !isProductionRailwayEnvironment\(\)\) return;/, 'migration must run only in production Mongo');
 assert.match(server, /accountCountAfter !== accountCountBefore \|\| hostCountAfter !== hostCountBefore/, 'migration must verify account counts are unchanged');
 assert.match(server, /migratedIncome !== income\.length \|\| migratedExpenses !== expenses\.length/, 'migration must verify all finance rows were copied');
