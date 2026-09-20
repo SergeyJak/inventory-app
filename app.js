@@ -95,6 +95,44 @@ function _persist(key, data) {
   return next;
 }
 
+async function _persistInventoryMovement(products, transactions) {
+  const expectedProducts = _cacheMeta.products;
+  const expectedTransactions = _cacheMeta.transactions;
+  if (!expectedProducts || !expectedTransactions) {
+    showToast('Нет версии данных склада. Страница будет обновлена.', 'error');
+    setTimeout(() => location.reload(), 800);
+    return false;
+  }
+  try {
+    const res = await fetch('/api/inventory/movement', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        products,
+        transactions,
+        expectedFingerprints: {
+          products: expectedProducts,
+          transactions: expectedTransactions,
+        },
+      }),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(result.error || ('Ошибка сохранения HTTP ' + res.status), 'error');
+      if (res.status === 409 || res.status === 428) setTimeout(() => location.reload(), 800);
+      return false;
+    }
+    _cacheMeta.products = result.fingerprints?.products || _cacheMeta.products;
+    _cacheMeta.transactions = result.fingerprints?.transactions || _cacheMeta.transactions;
+    return true;
+  } catch (error) {
+    console.error('Inventory movement save error:', error);
+    showToast('Не удалось подтвердить запись продажи/остатка. Обновляю данные.', 'error');
+    setTimeout(() => location.reload(), 800);
+    return false;
+  }
+}
+
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -2220,7 +2258,7 @@ function updateSalePreview() {
   preview.innerHTML = `Выручка: <b>${fmt(total)}</b> &nbsp;|&nbsp; Себестоимость (FIFO): <b>${fmt(cost)}</b> &nbsp;|&nbsp; Прибыль: <b>${fmt(profit)}</b>`;
 }
 
-function recordSale() {
+async function recordSale() {
   const sel     = document.getElementById('sale-product');
   const qty     = parseInt(document.getElementById('sale-qty').value);
   const price   = parseFloat(document.getElementById('sale-price').value);
@@ -2236,10 +2274,9 @@ function recordSale() {
   const total     = qty * price;
   const costTotal = consumeFIFO(p, qty);
   const profit    = total - costTotal;
-  saveProducts(products);
   const txs = loadTransactions();
   txs.unshift({ id: genId(), type: 'sale', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal, profit, date: dateVal + 'T12:00:00' });
-  saveTransactions(txs);
+  if (!await _persistInventoryMovement(products, txs)) return;
   document.getElementById('sale-qty').value   = '';
   document.getElementById('sale-price').value = '';
   document.getElementById('sale-date').value  = '';
@@ -2250,7 +2287,7 @@ function recordSale() {
 }
 
 // ========== RESTOCK ==========
-function recordRestock() {
+async function recordRestock() {
   const sel     = document.getElementById('restock-product');
   const qty     = parseInt(document.getElementById('restock-qty').value);
   const price   = parseFloat(document.getElementById('restock-price').value);
@@ -2265,11 +2302,10 @@ function recordRestock() {
   p.lots = p.lots || [];
   p.lots.push({ qty, buyPrice: price, date: dateVal });
   delete p.refBuyPrice;
-  saveProducts(products);
   const total = qty * price;
   const txs = loadTransactions();
   txs.unshift({ id: genId(), type: 'restock', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal: 0, profit: 0, date: dateVal + 'T12:00:00' });
-  saveTransactions(txs);
+  if (!await _persistInventoryMovement(products, txs)) return;
   document.getElementById('restock-qty').value   = '';
   document.getElementById('restock-price').value = '';
   document.getElementById('restock-date').value  = '';
@@ -2302,7 +2338,7 @@ function renderHistory(filter) {
   }).join('');
 }
 
-function returnOneSaleItem(txId) {
+async function returnOneSaleItem(txId) {
   const txs = loadTransactions();
   const tx = txs.find(t => t.id === txId);
   if (!tx || tx.type !== 'sale') return;
@@ -2330,17 +2366,18 @@ function returnOneSaleItem(txId) {
   product.lots = product.lots || [];
   product.lots.push({ qty: 1, buyPrice: returnedCost, date: new Date().toISOString().slice(0, 10) });
 
+  let nextTransactions = txs;
   if (qty <= 1) {
-    saveTransactions(txs.filter(t => t.id !== txId));
+    nextTransactions = txs.filter(t => t.id !== txId);
   } else {
     tx.qty = qty - 1;
     tx.total = (Number(tx.total) || 0) - (Number(tx.price) || 0);
     tx.costTotal = (Number(tx.costTotal) || 0) - returnedCost;
     tx.profit = (Number(tx.total) || 0) - (Number(tx.costTotal) || 0);
-    saveTransactions(txs);
   }
 
-  saveProducts(products);
+  if (!await _persistInventoryMovement(products, nextTransactions)) return;
+  _cache.transactions = nextTransactions;
   renderHistory(document.getElementById('history-filter').value);
   renderDashboard();
   showToast('Returned 1 item to stock');
