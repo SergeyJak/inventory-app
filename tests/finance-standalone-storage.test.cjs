@@ -35,5 +35,8 @@ assert.match(finance, /financeExpenses:\s*\[\]/, 'Finance UI must keep expenses 
 assert.match(finance, /api\('\/api\/finance\/ledger'\)/, 'Finance UI must load the independent ledger');
 assert.match(finance, /state\.financeIncome\.map/, 'income rows must come from standalone Finance state');
 assert.match(finance, /state\.financeExpenses\.map/, 'expense rows must come from standalone Finance state');
+assert.match(finance, /function invoiceClientLabel\(sub\) \{\s*return sub\.email \|\| sub\.name \|\| sub\.tel \|\| sub\.id \|\| 'Client';\s*\}/, 'invoice recipient selector must prefer email over client name');
+assert.match(finance, /data-email="\$\{esc\(sub\.email \|\| ''\)\}"/, 'invoice recipient option must carry an explicit email value');
+assert.match(finance, /esc\(invoiceClientLabel\(sub\)\)/, 'invoice recipient dropdown must display the email-first label');
 
 console.log('finance-standalone-storage.test.cjs: OK');
