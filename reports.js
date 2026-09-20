@@ -8,6 +8,7 @@ if (location.pathname === '/analytics') {
 
   document.title = 'HeySmart Visitors';
   document.body.classList.add('visitors-mode');
+  document.body.dataset.navId = 'visitor-activity';
   document.body.innerHTML = `
     <header class="visitor-header">
       <div>
@@ -109,6 +110,7 @@ if (location.pathname === '/analytics') {
       <div class="drawer-content" id="drawer-content"></div>
     </aside>
   `;
+  window.mountSharedNavigation?.();
 
   const charts = { trend: null, country: null, device: null };
   const state = {
