@@ -713,6 +713,8 @@ const INVENTORY_PUBLIC_FILES = new Map([
   ['/reports.js', 'reports.js'],
   ['/app.js', 'app.js'],
   ['/navigation.js', 'navigation.js'],
+  ['/shared-navigation.js', 'shared-navigation.js'],
+  ['/shared-navigation.css', 'shared-navigation.css'],
   ['/style.css', 'style.css'],
   ['/favicon.ico', 'favicon.ico'],
 ]);
