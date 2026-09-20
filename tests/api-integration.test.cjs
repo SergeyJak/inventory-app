@@ -204,19 +204,7 @@ async function run() {
   assert.equal(report.totals.profit, 46.5);
 
   const financeClients = [
-    {
-      id: 'client-001',
-      email: 'first@example.com',
-      financePayments: [{
-        id: 'payment-001',
-        type: 'subscription',
-        date: '2026-09-12',
-        amount: 35,
-        invoiceNo: 'HS-2026-001',
-        note: 'first invoice',
-        createdAt: '2026-09-12T10:00:00.000Z',
-      }],
-    },
+    { id: 'client-001', email: 'first@example.com' },
     { id: 'client-003', email: 'third@example.com' },
   ];
   response = await request('/api/save', {
@@ -225,6 +213,24 @@ async function run() {
     body: { key: 'subAccounts', data: financeClients },
   });
   assert.equal(response.status, 200);
+
+  response = await request('/api/finance/income', {
+    method: 'POST',
+    token: adminToken,
+    body: {
+      ownerId: 'client-001',
+      payment: {
+        id: 'payment-001',
+        type: 'subscription',
+        date: '2026-09-12',
+        amount: 35,
+        invoiceNo: 'HS-2026-001',
+        note: 'first invoice',
+        createdAt: '2026-09-12T10:00:00.000Z',
+      },
+    },
+  });
+  assert.equal(response.status, 200, 'first standalone finance income should succeed');
 
   response = await request('/api/finance/income', {
     method: 'POST',
