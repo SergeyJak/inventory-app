@@ -1,5 +1,6 @@
 // ========== SHARED INTERNAL NAVIGATION SHELL ==========
-(function () {
+function mountSharedNavigation() {
+  if (document.querySelector('.global-shell')) return;
   const role = localStorage.getItem('inv_role') || 'viewer';
   const username = localStorage.getItem('inv_username') || '';
   const token = localStorage.getItem('inv_token');
@@ -104,4 +105,7 @@
     localStorage.removeItem('inv_username');
     location.href = '/login.html';
   });
-})();
+}}
+
+window.mountSharedNavigation = mountSharedNavigation;
+mountSharedNavigation();
