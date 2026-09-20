@@ -124,18 +124,30 @@ function mergeProtectedFinanceFields(key, incoming, existing) {
       : null;
   if (!protectedField) return incoming;
 
+  const existingRows = Array.isArray(existing) ? existing : [];
   const existingById = new Map(
-    (Array.isArray(existing) ? existing : [])
+    existingRows
       .filter(item => item && item.id != null)
       .map(item => [String(item.id), item])
   );
+  const incomingIds = new Set();
 
-  return (Array.isArray(incoming) ? incoming : []).map(item => {
+  const merged = (Array.isArray(incoming) ? incoming : []).map(item => {
     if (!item || item.id == null) return item;
-    const stored = existingById.get(String(item.id));
+    const id = String(item.id);
+    incomingIds.add(id);
+    const stored = existingById.get(id);
     if (!stored || !Array.isArray(stored[protectedField])) return item;
     return { ...item, [protectedField]: stored[protectedField] };
   });
+
+  for (const stored of existingRows) {
+    if (!stored || stored.id == null || incomingIds.has(String(stored.id))) continue;
+    if (Array.isArray(stored[protectedField]) && stored[protectedField].length > 0) {
+      merged.push(stored);
+    }
+  }
+  return merged;
 }
 
 async function dbSave(key, data) {
