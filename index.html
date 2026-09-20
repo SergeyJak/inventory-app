@@ -33,48 +33,21 @@
   <button onclick="document.getElementById('migrate-banner').style.display='none'" class="btn-secondary" style="padding:7px 14px;font-size:0.88rem">✖ Не надо</button>
 </div>
 
-<header>
+<header class="app-header">
   <h1>📦 Учёт товаров</h1>
-  <div style="display:flex;align-items:center;gap:12px">
-    <span id="header-user" style="color:#64748b;font-size:0.88rem;font-weight:500"></span>
-    <a href="/reports" class="btn-secondary" style="padding:5px 14px;font-size:0.83rem;text-decoration:none">Analytics</a>
-    <button onclick="logout()" class="btn-secondary" style="padding:5px 14px;font-size:0.83rem">&#x2192; Выйти</button>
+  <div class="app-header-actions">
+    <span id="header-user"></span>
+    <button onclick="logout()" class="btn-secondary app-logout">&#x2192; Выйти</button>
   </div>
 </header>
 
-<button class="nav-toggle" type="button" aria-controls="admin-nav" aria-expanded="false">Меню</button>
-<nav class="tabs admin-nav" id="admin-nav" aria-label="Admin navigation" role="menubar">
-  <button class="tab-btn active" type="button" data-tab="dashboard" role="menuitem">Дашборд</button>
-  <button class="tab-btn" type="button" data-tab="products" role="menuitem">Товары</button>
-  <button class="tab-btn" type="button" data-tab="sales" role="menuitem">Продажи</button>
+<div class="app-shell">
+  <aside class="app-sidebar" aria-label="Основная навигация">
+    <div class="app-sidebar-brand">Inventory</div>
+    <nav id="desktop-navigation" class="app-navigation"></nav>
+  </aside>
 
-  <div class="nav-group">
-    <button class="tab-btn nav-group-toggle" type="button" aria-haspopup="true" aria-expanded="false">Склад <span aria-hidden="true">v</span></button>
-    <div class="nav-dropdown" role="menu">
-      <button class="tab-btn" type="button" data-tab="restock" role="menuitem">Поступления</button>
-      <button class="tab-btn" type="button" data-tab="history" role="menuitem">История</button>
-    </div>
-  </div>
-
-  <div class="nav-group">
-    <button class="tab-btn nav-group-toggle" type="button" aria-haspopup="true" aria-expanded="false">Аналитика <span aria-hidden="true">v</span></button>
-    <div class="nav-dropdown" role="menu">
-      <button class="tab-btn" type="button" data-tab="annual" role="menuitem">Годовая отчётность</button>
-      <a class="tab-btn" href="/reports" role="menuitem">Analytics</a>
-    </div>
-  </div>
-
-  <div class="nav-group admin-only">
-    <button class="tab-btn nav-group-toggle admin-only" type="button" aria-haspopup="true" aria-expanded="false">Админ <span aria-hidden="true">v</span></button>
-    <div class="nav-dropdown" role="menu">
-      <button class="tab-btn admin-only" type="button" data-tab="accounts" role="menuitem">Аккаунты</button>
-      <button class="tab-btn admin-only" type="button" data-tab="mail-accounts" role="menuitem">Mail Accounts</button>
-      <button class="tab-btn admin-only" type="button" data-tab="visitor-activity" role="menuitem">Активность посетителей</button>
-      <button class="tab-btn admin-only" type="button" data-tab="assistant-questions" role="menuitem">Вопросы ассистента</button>
-      <button class="tab-btn admin-only" type="button" data-tab="backups" role="menuitem">Резервные копии</button>
-    </div>
-  </div>
-</nav>
+  <main class="app-main">
 
 <!-- ===== DASHBOARD ===== -->
 <section id="tab-dashboard" class="tab-content active">
@@ -494,9 +467,24 @@
   </table>
 </section>
 
+  </main>
+</div>
+
+<div class="mobile-nav-backdrop" id="mobile-nav-backdrop" hidden></div>
+<aside class="mobile-nav-panel" id="mobile-nav-panel" aria-label="Мобильное меню" aria-hidden="true">
+  <div class="mobile-nav-panel-head">
+    <strong>Навигация</strong>
+    <button type="button" class="mobile-nav-close" id="mobile-nav-close" aria-label="Закрыть меню">×</button>
+  </div>
+  <nav id="mobile-navigation-drawer" class="app-navigation"></nav>
+</aside>
+
+<nav class="mobile-bottom-nav" id="mobile-primary-navigation" aria-label="Быстрая навигация"></nav>
+
 <!-- TOAST -->
 <div id="toast"></div>
 
+<script src="navigation.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
