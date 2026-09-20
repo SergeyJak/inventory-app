@@ -65,8 +65,7 @@ Suggested groups:
 - History
 
 ### Subscriptions (admin only)
-- Accounts / Subscribers
-- Hosts
+- Accounts / Subscribers / Hosts
 
 ### Finance
 - Return to Andrey
@@ -121,7 +120,7 @@ A framework/router migration is not required.
 5. Add hash routing and route authorization.
 6. Move "Return to Andrey" out of Dashboard sub-tabs into navigation without changing its calculations.
 7. Remove duplicate Analytics entry.
-8. Split Accounts UI concepts so Hosts are a destination/entity while Active/New/Cancelled remain filters.
+8. Keep Hosts inside Accounts while Active/New/Cancelled remain account views/filters.
 9. Remove legacy top-nav/dropdown code after parity is proven.
 10. Run desktop and mobile regression tests before merge.
 
@@ -181,6 +180,6 @@ Do not introduce a frontend framework solely for navigation.
 - Finance, Sales Analytics and Visitors Analytics use the shared navigation shell.
 - Visitors points to the full `/analytics` dashboard; the legacy embedded Visitors tab is removed.
 - "Return to Andrey" is a first-class navigation destination; the legacy Dashboard sub-tabs are removed.
-- Hosts is a first-class admin navigation destination while Subscribers/New/Cancelled remain account status views.
+- Hosts remains inside Accounts because it is part of the subscriber assignment workflow.
 - Inventory uses hash routes with refresh persistence and browser Back/Forward support.
 - Mobile uses a header hamburger and left drawer; the bottom navigation prototype was removed.
