@@ -19,6 +19,7 @@
     hostSubscriptions: [],
     financeIncome: [],
     financeExpenses: [],
+    financeInvoices: [],
     hardwareYear: new Date().getFullYear(),
     servicesYear: new Date().getFullYear(),
   };
@@ -213,22 +214,50 @@
     byId('expense-host').innerHTML = '<option value="">Без привязки</option>' + hosts.map(host => `<option value="${esc(host.id)}">${esc(hostLabel(host))}</option>`).join('');
   }
 
-  function nextInvoiceNumber(year) {
-    const pattern = new RegExp(`^HS-${year}-(\\d+)$`, 'i');
-    const max = allIncomeRows().reduce((current, row) => {
-      const match = String(row.invoiceNo || '').match(pattern);
-      return match ? Math.max(current, Number(match[1]) || 0) : current;
-    }, 0);
-    return `HS-${year}-${String(max + 1).padStart(3, '0')}`;
+  function invoiceStatusLabel(status) {
+    if (status === 'CONFIRMED') return 'CONFIRMED';
+    if (status === 'VOID') return 'VOID';
+    return 'DRAFT';
   }
 
-  function refreshSuggestedInvoice() {
-    const date = byId('income-date').value || today();
-    const year = dateYear(date) || new Date().getFullYear();
-    byId('income-invoice').placeholder = nextInvoiceNumber(year);
+  function invoiceCustomerLabel(invoice) {
+    const fullName = [invoice.customerFirstName, invoice.customerLastName].filter(Boolean).join(' ');
+    return fullName || invoice.customerEmailSnapshot || invoice.customerAccountNameSnapshot || invoice.ownerId || 'Client';
   }
 
-  async function addIncome(event) {
+  function invoiceRows(year = state.servicesYear) {
+    return state.financeInvoices
+      .filter(invoice => dateYear(invoice.date) === Number(year))
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+
+  function renderInvoices() {
+    const rows = invoiceRows();
+    const caption = byId('invoice-list-caption');
+    if (caption) caption.textContent = `${rows.length} счетов за ${state.servicesYear}. DRAFT не входит в бухгалтерию до Confirm.`;
+    const tbody = byId('invoice-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = rows.length ? rows.map(invoice => {
+      const status = invoiceStatusLabel(invoice.status);
+      const draftActions = status === 'DRAFT'
+        ? `<button type="button" class="invoice-action confirm" data-invoice-action="confirm" data-invoice-id="${esc(invoice.id)}">Confirm</button>
+           <button type="button" class="invoice-action decline" data-invoice-action="decline" data-invoice-id="${esc(invoice.id)}">Decline</button>`
+        : '';
+      return `<tr>
+        <td>${esc(invoice.date || '')}</td>
+        <td>${esc(invoice.invoiceNo || '')}</td>
+        <td>${esc(invoiceCustomerLabel(invoice))}</td>
+        <td class="money-in">${money(invoice.amount)}</td>
+        <td><span class="invoice-status ${status.toLowerCase()}">${status}</span></td>
+        <td class="invoice-actions">
+          ${draftActions}
+          <button type="button" class="invoice-action pdf" data-invoice-action="pdf" data-invoice-id="${esc(invoice.id)}">PDF</button>
+        </td>
+      </tr>`;
+    }).join('') : '<tr class="empty-row"><td colspan="6">Счетов пока нет.</td></tr>';
+  }
+
+  async function issueInvoice(event) {
     event.preventDefault();
     const clientId = byId('income-client').value;
     const sub = state.subAccounts.find(item => String(item.id) === String(clientId));
@@ -236,27 +265,68 @@
     const amount = Number(byId('income-amount').value);
     const date = byId('income-date').value;
     if (!(amount > 0) || !validDate(date)) return toast('Проверь сумму и дату', true);
-    const payment = {
-      id: uid(),
-      type: byId('income-type').value,
-      date,
-      amount,
-      invoiceNo: byId('income-invoice').value.trim() || nextInvoiceNumber(dateYear(date)),
-      note: byId('income-note').value.trim(),
-      createdAt: new Date().toISOString(),
-    };
+
     try {
-      await api('/api/finance/income', {
+      const result = await api('/api/finance/invoices/draft', {
         method: 'POST',
-        body: JSON.stringify({ ownerId: sub.id, payment }),
+        body: JSON.stringify({
+          ownerId: sub.id,
+          type: byId('income-type').value,
+          date,
+          amount,
+          note: byId('income-note').value.trim(),
+          customerFirstName: byId('invoice-customer-first-name')?.value?.trim() || '',
+          customerLastName: byId('invoice-customer-last-name')?.value?.trim() || '',
+          customerPersonalCode: byId('invoice-customer-personal-code')?.value?.trim() || '',
+        }),
       });
-      byId('income-invoice').value = '';
       byId('income-note').value = '';
       await loadData();
-      toast(`Доход ${money(amount)} добавлен`);
+      toast(`Счёт ${result.invoice.invoiceNo} создан как DRAFT`);
+      if (typeof window.generateFinanceInvoicePdf === 'function') {
+        await window.generateFinanceInvoicePdf(result.invoice);
+      }
     } catch (error) {
       toast(error.message, true);
       await loadData();
+    }
+  }
+
+  async function invoiceAction(button) {
+    const id = button.dataset.invoiceId;
+    const action = button.dataset.invoiceAction;
+    const invoice = state.financeInvoices.find(item => String(item.id) === String(id));
+    if (!invoice) return;
+
+    if (action === 'pdf') {
+      if (typeof window.generateFinanceInvoicePdf !== 'function') return toast('PDF-модуль не готов', true);
+      await window.generateFinanceInvoicePdf(invoice);
+      return;
+    }
+
+    if (action === 'confirm') {
+      if (!confirm(`Подтвердить оплату по ${invoice.invoiceNo} и добавить ${money(invoice.amount)} в бухгалтерию?`)) return;
+      try {
+        await api(`/api/finance/invoices/${encodeURIComponent(id)}/confirm`, { method: 'POST' });
+        await loadData();
+        toast(`${invoice.invoiceNo} подтверждён и добавлен в бухгалтерию`);
+      } catch (error) {
+        toast(error.message, true);
+        await loadData();
+      }
+      return;
+    }
+
+    if (action === 'decline') {
+      if (!confirm(`Аннулировать ${invoice.invoiceNo}? Номер останется занятым.`)) return;
+      try {
+        await api(`/api/finance/invoices/${encodeURIComponent(id)}/decline`, { method: 'POST' });
+        await loadData();
+        toast(`${invoice.invoiceNo} аннулирован`);
+      } catch (error) {
+        toast(error.message, true);
+        await loadData();
+      }
     }
   }
 
@@ -381,14 +451,17 @@
       if (event.target.value === 'subscription') byId('income-amount').value = '35';
       if (event.target.value === 'setup') byId('income-amount').value = '25';
     });
-    byId('income-date').addEventListener('change', refreshSuggestedInvoice);
-    byId('income-form').addEventListener('submit', addIncome);
+    byId('income-form').addEventListener('submit', issueInvoice);
     byId('expense-form').addEventListener('submit', addExpense);
     byId('ledger-kind').addEventListener('change', renderLedger);
     byId('ledger-search').addEventListener('input', renderLedger);
     byId('ledger-tbody').addEventListener('click', event => {
       const button = event.target.closest('[data-delete-id]');
       if (button) deleteRow(button);
+    });
+    byId('invoice-tbody')?.addEventListener('click', event => {
+      const button = event.target.closest('[data-invoice-action]');
+      if (button) invoiceAction(button);
     });
     byId('export-csv').addEventListener('click', exportCsv);
   }
@@ -405,13 +478,14 @@
       state.hostSubscriptions = data.hostSubscriptions || [];
       state.financeIncome = ledger.income || [];
       state.financeExpenses = ledger.expenses || [];
+      state.financeInvoices = ledger.invoices || [];
       renderClientOptions();
       renderYearSelects();
       state.hardwareYear = Number(byId('hardware-year').value);
       state.servicesYear = Number(byId('services-year').value);
       renderHardware();
       renderServices();
-      refreshSuggestedInvoice();
+      renderInvoices();
     } catch (error) {
       toast(`Не удалось загрузить Finance: ${error.message}`, true);
     }
