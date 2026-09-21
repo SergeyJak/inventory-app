@@ -151,6 +151,7 @@
   function invoiceDescription(type) {
     if (type === 'subscription') return 'Abonēšanas pakalpojums';
     if (type === 'setup') return 'Viedierīces uzstādīšana un konfigurēšana';
+    if (type === 'setup_subscription') return 'Abonēšana + viedierīces uzstādīšana un konfigurēšana';
     return 'Pakalpojums';
   }
 
