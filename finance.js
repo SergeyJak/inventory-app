@@ -28,6 +28,7 @@
   const TYPE_LABELS = {
     subscription: 'Subscription',
     setup: 'Setup',
+    setup_subscription: 'Setup + Subscription',
     other: 'Other income',
     subscription_purchase: 'Subscription purchase',
     other_expense: 'Other expense',
