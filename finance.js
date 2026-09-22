@@ -125,7 +125,7 @@
 
   function serviceRows(year = state.servicesYear) {
     return [...allIncomeRows(), ...allExpenseRows()]
-      .filter(row => dateYear(row.date) === Number(year))
+      .filter(row => year == null || dateYear(row.date) === Number(year))
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   }
 
@@ -234,13 +234,13 @@
     return fullName || invoice.customerEmailSnapshot || invoice.customerAccountNameSnapshot || invoice.ownerId || 'Client';
   }
 
-  function invoiceRows(year = state.servicesYear) {
+  function invoiceRows(year = pageMode === 'invoices' ? null : state.servicesYear) {
     const from = byId('invoice-date-from')?.value || '';
     const to = byId('invoice-date-to')?.value || '';
     const number = (byId('invoice-number-filter')?.value || '').trim().toLowerCase();
     const statusFilter = byId('invoice-status-filter')?.value || 'all';
     return state.financeInvoices
-      .filter(invoice => dateYear(invoice.date) === Number(year))
+      .filter(invoice => year == null || dateYear(invoice.date) === Number(year))
       .filter(invoice => !from || String(invoice.date || '') >= from)
       .filter(invoice => !to || String(invoice.date || '') <= to)
       .filter(invoice => !number || String(invoice.invoiceNo || '').toLowerCase().includes(number))
@@ -255,7 +255,9 @@
     const start = (state.invoicePage - 1) * PAGE_SIZE;
     const visibleRows = rows.slice(start, start + PAGE_SIZE);
     const caption = byId('invoice-list-caption');
-    if (caption) caption.textContent = `${rows.length} счетов за ${state.servicesYear}. DRAFT не входит в бухгалтерию до Confirm.`;
+    if (caption) caption.textContent = pageMode === 'invoices'
+      ? `${rows.length} счетов. DRAFT не входит в бухгалтерию до Confirm.`
+      : `${rows.length} счетов за ${state.servicesYear}. DRAFT не входит в бухгалтерию до Confirm.`;
     const info = byId('invoice-page-info');
     if (info) info.textContent = `Страница ${state.invoicePage} из ${totalPages} · по ${PAGE_SIZE}`;
     const prev = byId('invoice-prev');
@@ -398,7 +400,7 @@
     const from = byId('ledger-date-from')?.value || '';
     const to = byId('ledger-date-to')?.value || '';
     const number = (byId('ledger-number-filter')?.value || '').trim().toLowerCase();
-    return serviceRows()
+    return serviceRows(pageMode === 'transactions' ? null : state.servicesYear)
       .filter(row => kind === 'all' || row.kind === kind)
       .filter(row => !from || String(row.date || '') >= from)
       .filter(row => !to || String(row.date || '') <= to)
@@ -416,7 +418,9 @@
     const start = (state.ledgerPage - 1) * PAGE_SIZE;
     const visibleRows = rows.slice(start, start + PAGE_SIZE);
     const caption = byId('ledger-caption');
-    if (caption) caption.textContent = `${rows.length} операций за ${state.servicesYear}`;
+    if (caption) caption.textContent = pageMode === 'transactions'
+      ? `${rows.length} операций`
+      : `${rows.length} операций за ${state.servicesYear}`;
     const info = byId('ledger-page-info');
     if (info) info.textContent = `Страница ${state.ledgerPage} из ${totalPages} · по ${PAGE_SIZE}`;
     const prev = byId('ledger-prev');
