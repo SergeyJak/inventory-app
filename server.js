@@ -3403,7 +3403,52 @@ function invoiceSequenceFromRows(rows, year) {
 
 async function currentInvoiceSequence(year) {
   if (USE_MONGO) {
-    const regex = '^HS-' + year + '-\\d+
+    const regex = '^HS-' + year + '-\\d+$';
+    const [incomeRows, invoiceRows] = await Promise.all([
+      db.collection(financeCollectionName('financeIncome')).find(
+        { invoiceNo: { $regex: regex, $options: 'i' } },
+        { projection: { _id: 0, invoiceNo: 1 } },
+      ).toArray(),
+      db.collection(financeCollectionName('financeInvoices')).find(
+        { invoiceNo: { $regex: regex, $options: 'i' } },
+        { projection: { _id: 0, invoiceNo: 1 } },
+      ).toArray(),
+    ]);
+
+    let max = Math.max(
+      invoiceSequenceFromRows(incomeRows, year),
+      invoiceSequenceFromRows(invoiceRows, year),
+    );
+
+    if (!isProductionRailwayEnvironment()) {
+      const [productionIncomeRows, productionInvoiceRows] = await Promise.all([
+        db.collection(COLL.financeIncome).find(
+          { invoiceNo: { $regex: regex, $options: 'i' } },
+          { projection: { _id: 0, invoiceNo: 1 } },
+        ).toArray(),
+        db.collection(COLL.financeInvoices).find(
+          { invoiceNo: { $regex: regex, $options: 'i' } },
+          { projection: { _id: 0, invoiceNo: 1 } },
+        ).toArray(),
+      ]);
+
+      max = Math.max(
+        max,
+        invoiceSequenceFromRows(productionIncomeRows, year),
+        invoiceSequenceFromRows(productionInvoiceRows, year),
+      );
+    }
+
+    return max;
+  }
+
+  const incomeRows = JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8'));
+  const invoiceRows = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+  return Math.max(
+    invoiceSequenceFromRows(incomeRows, year),
+    invoiceSequenceFromRows(invoiceRows, year),
+  );
+}
 
 async function allocateInvoiceNumber(year) {
   const numericYear = Number(year);
