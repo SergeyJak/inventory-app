@@ -3403,7 +3403,638 @@ function invoiceSequenceFromRows(rows, year) {
 
 async function currentInvoiceSequence(year) {
   if (USE_MONGO) {
-    const regex = '^HS-' + year + '-\\d+$';
+    const regex = '^HS-' + year + '-\\d+
+
+async function allocateInvoiceNumber(year) {
+  const numericYear = Number(year);
+  if (!Number.isInteger(numericYear) || numericYear < 2000 || numericYear > 2100) throw new Error('Invalid invoice year');
+  const floor = await currentInvoiceSequence(numericYear);
+  if (!USE_MONGO) return 'HS-' + numericYear + '-' + String(floor + 1).padStart(3, '0');
+
+  const coll = db.collection(financeCollectionName('financeInvoiceCounters'));
+  const key = String(numericYear);
+  try {
+    await coll.updateOne(
+      { _id: key },
+      { $max: { seq: floor }, $setOnInsert: { year: numericYear, createdAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+  }
+  const counter = await coll.findOneAndUpdate(
+    { _id: key },
+    { $inc: { seq: 1 }, $set: { updatedAt: new Date().toISOString() } },
+    { returnDocument: 'after' },
+  );
+  return 'HS-' + numericYear + '-' + String(counter.seq).padStart(3, '0');
+}
+
+async function financeInvoicesData() {
+  if (USE_MONGO) {
+    return db.collection(financeCollectionName('financeInvoices'))
+      .find({}, { projection: { _id: 0 } })
+      .sort({ date: -1, createdAt: -1 })
+      .toArray();
+  }
+  return JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+}
+
+async function createFinanceInvoiceDraft(ownerId, rawDraft, actor = '') {
+  const draft = sanitizeInvoiceDraft(rawDraft);
+  if (!draft) return { ok: false, reason: 'invalid' };
+  const owner = await findFinanceOwner('income', ownerId);
+  if (!owner) return { ok: false, reason: 'owner' };
+  const seller = await financeInvoiceSellerSnapshot();
+  if (!seller.sellerName || !seller.sellerIban) return { ok: false, reason: 'settings' };
+
+  const year = Number(draft.date.slice(0, 4));
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const invoiceNo = await allocateInvoiceNumber(year);
+    const row = {
+      id: crypto.randomUUID(),
+      invoiceNo,
+      status: 'DRAFT',
+      ownerId: owner.id,
+      type: draft.type,
+      date: draft.date,
+      amount: draft.amount,
+      note: draft.note,
+      customerEmailSnapshot: owner.email || '',
+      customerAccountNameSnapshot: owner.name || '',
+      customerFirstName: draft.customerFirstName,
+      customerLastName: draft.customerLastName,
+      customerPersonalCode: draft.customerPersonalCode,
+      sellerSnapshot: seller,
+      createdAt: new Date().toISOString(),
+      createdBy: sanitizeAssistantText(actor, 100),
+    };
+    try {
+      if (USE_MONGO) {
+        await db.collection(financeCollectionName('financeInvoices')).insertOne(row);
+      } else {
+        const rows = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+        if (rows.some(item => item.invoiceNo === invoiceNo)) continue;
+        rows.push(row);
+        fs.writeFileSync(FILES.financeInvoices, JSON.stringify(rows, null, 2), 'utf8');
+      }
+      await writeFinanceAudit('invoice_draft', 'invoice', row, actor);
+      return { ok: true, invoice: row };
+    } catch (error) {
+      if (error?.code === 11000) continue;
+      throw error;
+    }
+  }
+  return { ok: false, reason: 'number' };
+}
+
+async function confirmFinanceInvoice(invoiceId, actor = '') {
+  const cleanId = sanitizeAssistantText(invoiceId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!cleanId) return { ok: false, reason: 'missing' };
+  const confirmedAt = new Date().toISOString();
+  const createdBy = sanitizeAssistantText(actor, 100);
+  const paymentId = 'invoice-' + cleanId;
+
+  if (USE_MONGO) {
+    const invoices = db.collection(financeCollectionName('financeInvoices'));
+    const income = db.collection(financeCollectionName('financeIncome'));
+    const session = mongoClient.startSession();
+    let confirmedInvoice = null;
+    let payment = null;
+    try {
+      await session.withTransaction(async () => {
+        const invoice = await invoices.findOne({ id: cleanId, status: 'DRAFT' }, { session, projection: { _id: 0 } });
+        if (!invoice) throw Object.assign(new Error('Invoice is not draft'), { code: 'INVOICE_STATE' });
+        payment = {
+          id: paymentId,
+          type: invoice.type,
+          date: invoice.date,
+          amount: invoice.amount,
+          invoiceNo: invoice.invoiceNo,
+          note: invoice.note || '',
+          ownerId: invoice.ownerId,
+          ownerEmailSnapshot: invoice.customerEmailSnapshot || '',
+          ownerNameSnapshot: invoice.customerAccountNameSnapshot || '',
+          invoiceId: invoice.id,
+          createdAt: confirmedAt,
+          createdBy,
+        };
+        await income.insertOne(payment, { session });
+        confirmedInvoice = await invoices.findOneAndUpdate(
+          { id: cleanId, status: 'DRAFT' },
+          { $set: { status: 'CONFIRMED', confirmedAt, confirmedBy: createdBy, financeEntryId: paymentId } },
+          { session, returnDocument: 'after', projection: { _id: 0 } },
+        );
+        if (!confirmedInvoice) throw Object.assign(new Error('Invoice state changed'), { code: 'INVOICE_STATE' });
+      });
+    } catch (error) {
+      if (error?.code === 'INVOICE_STATE') return { ok: false, reason: 'state' };
+      if (error?.code === 11000) return { ok: false, reason: 'duplicate' };
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+    await writeFinanceAudit('invoice_confirmed', 'invoice', confirmedInvoice, actor);
+    await writeFinanceAudit('created', 'income', payment, actor);
+    return { ok: true, invoice: confirmedInvoice, payment };
+  }
+
+  const invoices = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+  const index = invoices.findIndex(item => item.id === cleanId && item.status === 'DRAFT');
+  if (index < 0) return { ok: false, reason: 'state' };
+  const invoice = invoices[index];
+  const incomeRows = JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8'));
+  if (incomeRows.some(item => item.invoiceNo === invoice.invoiceNo || item.id === paymentId)) return { ok: false, reason: 'duplicate' };
+  const payment = {
+    id: paymentId,
+    type: invoice.type,
+    date: invoice.date,
+    amount: invoice.amount,
+    invoiceNo: invoice.invoiceNo,
+    note: invoice.note || '',
+    ownerId: invoice.ownerId,
+    ownerEmailSnapshot: invoice.customerEmailSnapshot || '',
+    ownerNameSnapshot: invoice.customerAccountNameSnapshot || '',
+    invoiceId: invoice.id,
+    createdAt: confirmedAt,
+    createdBy,
+  };
+  incomeRows.push(payment);
+  invoices[index] = { ...invoice, status: 'CONFIRMED', confirmedAt, confirmedBy: createdBy, financeEntryId: paymentId };
+  fs.writeFileSync(FILES.financeIncome, JSON.stringify(incomeRows, null, 2), 'utf8');
+  fs.writeFileSync(FILES.financeInvoices, JSON.stringify(invoices, null, 2), 'utf8');
+  return { ok: true, invoice: invoices[index], payment };
+}
+
+async function declineFinanceInvoice(invoiceId, actor = '') {
+  const cleanId = sanitizeAssistantText(invoiceId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!cleanId) return { ok: false, reason: 'missing' };
+  const voidedAt = new Date().toISOString();
+  const voidedBy = sanitizeAssistantText(actor, 100);
+  if (USE_MONGO) {
+    const invoice = await db.collection(financeCollectionName('financeInvoices')).findOneAndUpdate(
+      { id: cleanId, status: 'DRAFT' },
+      { $set: { status: 'VOID', voidedAt, voidedBy } },
+      { returnDocument: 'after', projection: { _id: 0 } },
+    );
+    if (!invoice) return { ok: false, reason: 'state' };
+    await writeFinanceAudit('invoice_voided', 'invoice', invoice, actor);
+    return { ok: true, invoice };
+  }
+  const rows = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+  const index = rows.findIndex(item => item.id === cleanId && item.status === 'DRAFT');
+  if (index < 0) return { ok: false, reason: 'state' };
+  rows[index] = { ...rows[index], status: 'VOID', voidedAt, voidedBy };
+  fs.writeFileSync(FILES.financeInvoices, JSON.stringify(rows, null, 2), 'utf8');
+  return { ok: true, invoice: rows[index] };
+}
+
+async function financeLedgerData() {
+  if (USE_MONGO) {
+    const [allIncome, allExpenses, invoices] = await Promise.all([
+      db.collection(financeCollectionName('financeIncome')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(financeCollectionName('financeExpenses')).find({}, { projection: { _id: 0 } }).toArray(),
+      financeInvoicesData(),
+    ]);
+    const activeIncome = allIncome.filter(row => !row.voidedAt);
+    const activeExpenses = allExpenses.filter(row => !row.voidedAt);
+    if (isProductionRailwayEnvironment()) return { income: activeIncome, expenses: activeExpenses, invoices };
+
+    const [subAccounts, hostSubscriptions] = await Promise.all([
+      db.collection(dataCollectionName('subAccounts')).find({}, { projection: { _id: 0 } }).toArray(),
+      db.collection(dataCollectionName('hostSubscriptions')).find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+    const embedded = embeddedFinanceRows(subAccounts, hostSubscriptions);
+    const mergeById = (legacyRows, allStandaloneRows) => {
+      const standaloneIds = new Set(allStandaloneRows.map(row => String(row.id)));
+      const rows = legacyRows.filter(row => !standaloneIds.has(String(row.id)));
+      rows.push(...allStandaloneRows.filter(row => !row.voidedAt));
+      return rows;
+    };
+    return {
+      income: mergeById(embedded.income, allIncome),
+      expenses: mergeById(embedded.expenses, allExpenses),
+      invoices,
+    };
+  }
+  return {
+    income: JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8')).filter(row => !row.voidedAt),
+    expenses: JSON.parse(fs.readFileSync(FILES.financeExpenses, 'utf8')).filter(row => !row.voidedAt),
+    invoices: await financeInvoicesData(),
+  };
+}
+
+async function findFinanceOwner(kind, ownerId) {
+  const cleanOwnerId = sanitizeAssistantText(ownerId, 100);
+  if (!cleanOwnerId) return null;
+  if (USE_MONGO) {
+    const collectionKey = kind === 'income' ? 'subAccounts' : 'hostSubscriptions';
+    return db.collection(dataCollectionName(collectionKey)).findOne({ id: cleanOwnerId }, { projection: { _id: 0 } });
+  }
+  const file = kind === 'income' ? FILES.subAccounts : FILES.hostSubscriptions;
+  return JSON.parse(fs.readFileSync(file, 'utf8')).find(item => String(item.id) === cleanOwnerId) || null;
+}
+
+async function writeFinanceAudit(action, kind, row, actor = '') {
+  if (!USE_MONGO) return;
+  try {
+    await db.collection(financeCollectionName('financeAudit')).insertOne({
+      action,
+      kind,
+      entryId: row.id,
+      ownerId: row.ownerId || '',
+      invoiceNo: row.invoiceNo || '',
+      documentNo: row.documentNo || '',
+      amount: Number(row.amount) || 0,
+      date: row.date || '',
+      actor: sanitizeAssistantText(actor, 100),
+      snapshot: row,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Finance audit write error:', error.message);
+  }
+}
+
+async function insertStandaloneFinance(kind, ownerId, entry, actor = '') {
+  const owner = await findFinanceOwner(kind, ownerId);
+  if (!owner) return { ok: false, reason: 'owner' };
+
+  const row = {
+    ...entry,
+    ownerId: owner.id,
+    ownerEmailSnapshot: kind === 'income' ? (owner.email || '') : (owner.hostMail || owner.email || ''),
+    ownerNameSnapshot: owner.name || '',
+  };
+
+  if (USE_MONGO) {
+    const collectionKey = kind === 'income' ? 'financeIncome' : 'financeExpenses';
+    const coll = db.collection(financeCollectionName(collectionKey));
+    if (await coll.findOne({ id: row.id }, { projection: { _id: 1 } })) return { ok: false, reason: 'duplicate' };
+    if (kind === 'income' && row.invoiceNo && await coll.findOne({ invoiceNo: row.invoiceNo }, { projection: { _id: 1 } })) {
+      return { ok: false, reason: 'invoice' };
+    }
+    const storedRow = { ...row, createdBy: sanitizeAssistantText(actor, 100) };
+    await coll.insertOne(storedRow);
+    await writeFinanceAudit('created', kind, storedRow, actor);
+    return { ok: true, row: storedRow };
+  }
+
+  const file = kind === 'income' ? FILES.financeIncome : FILES.financeExpenses;
+  const rows = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (rows.some(item => item.id === row.id)) return { ok: false, reason: 'duplicate' };
+  if (kind === 'income' && row.invoiceNo && rows.some(item => item.invoiceNo === row.invoiceNo)) return { ok: false, reason: 'invoice' };
+  rows.push(row);
+  fs.writeFileSync(file, JSON.stringify(rows, null, 2), 'utf8');
+  return { ok: true, row };
+}
+
+async function removeStandaloneFinance(kind, entryId, actor = '') {
+  const cleanEntryId = sanitizeAssistantText(entryId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!cleanEntryId) return false;
+  const voidedAt = new Date().toISOString();
+  if (USE_MONGO) {
+    const collectionKey = kind === 'income' ? 'financeIncome' : 'financeExpenses';
+    const coll = db.collection(financeCollectionName(collectionKey));
+    const row = await coll.findOne({ id: cleanEntryId, voidedAt: { $exists: false } }, { projection: { _id: 0 } });
+    if (!row) return false;
+    const result = await coll.updateOne(
+      { id: cleanEntryId, voidedAt: { $exists: false } },
+      { $set: { voidedAt, voidedBy: sanitizeAssistantText(actor, 100) } },
+    );
+    if (result.modifiedCount !== 1) return false;
+    await writeFinanceAudit('voided', kind, { ...row, voidedAt, voidedBy: sanitizeAssistantText(actor, 100) }, actor);
+    return true;
+  }
+  const file = kind === 'income' ? FILES.financeIncome : FILES.financeExpenses;
+  const rows = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const row = rows.find(item => item.id === cleanEntryId && !item.voidedAt);
+  if (!row) return false;
+  row.voidedAt = voidedAt;
+  row.voidedBy = sanitizeAssistantText(actor, 100);
+  fs.writeFileSync(file, JSON.stringify(rows, null, 2), 'utf8');
+  return true;
+}
+
+app.get('/api/finance/ledger', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await financeLedgerData());
+  } catch (e) {
+    console.error('Finance ledger route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+
+app.post('/api/finance/invoices/draft', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await createFinanceInvoiceDraft(req.body?.ownerId, req.body, req.user.username);
+    if (!result.ok) {
+      if (result.reason === 'invalid') return res.status(400).json({ error: 'Проверь дату и сумму счёта' });
+      if (result.reason === 'owner') return res.status(404).json({ error: 'Клиент не найден' });
+      if (result.reason === 'settings') return res.status(400).json({ error: 'Сначала заполни реквизиты счёта' });
+      return res.status(409).json({ error: 'Не удалось зарезервировать уникальный номер счёта' });
+    }
+    res.status(201).json({ ok: true, invoice: result.invoice });
+  } catch (e) {
+    console.error('Finance invoice draft route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/finance/invoices/:invoiceId/confirm', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await confirmFinanceInvoice(req.params.invoiceId, req.user.username);
+    if (!result.ok) {
+      if (result.reason === 'duplicate') return res.status(409).json({ error: 'Этот номер уже есть в бухгалтерии' });
+      return res.status(409).json({ error: 'Счёт уже подтверждён или аннулирован' });
+    }
+    res.json({ ok: true, invoice: result.invoice, payment: result.payment });
+  } catch (e) {
+    console.error('Finance invoice confirm route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/finance/invoices/:invoiceId/decline', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await declineFinanceInvoice(req.params.invoiceId, req.user.username);
+    if (!result.ok) return res.status(409).json({ error: 'Счёт уже подтверждён или аннулирован' });
+    res.json({ ok: true, invoice: result.invoice });
+  } catch (e) {
+    console.error('Finance invoice decline route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/finance/income', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const payment = sanitizeFinanceEntry(req.body?.payment, 'income');
+    if (!payment) return res.status(400).json({ error: 'Invalid finance payment' });
+    const result = await insertStandaloneFinance('income', req.body?.ownerId, payment, req.user.username);
+    if (!result.ok) {
+      if (result.reason === 'invoice') return res.status(409).json({ error: 'Invoice number already exists' });
+      if (result.reason === 'duplicate') return res.status(409).json({ error: 'Payment already exists' });
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    res.json({ ok: true, payment: result.row });
+  } catch (e) {
+    console.error('Finance income route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/finance/expense', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const expense = sanitizeFinanceEntry(req.body?.expense, 'expense');
+    if (!expense) return res.status(400).json({ error: 'Invalid finance expense' });
+    const result = await insertStandaloneFinance('expense', req.body?.ownerId, expense, req.user.username);
+    if (!result.ok) {
+      if (result.reason === 'duplicate') return res.status(409).json({ error: 'Expense already exists' });
+      return res.status(404).json({ error: 'Host not found' });
+    }
+    res.json({ ok: true, expense: result.row });
+  } catch (e) {
+    console.error('Finance expense route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.delete('/api/finance/income/:ownerId/:entryId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const ok = await removeStandaloneFinance('income', req.params.entryId, req.user.username);
+    if (!ok) return res.status(404).json({ error: 'Payment not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Finance income delete error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.delete('/api/finance/expense/:ownerId/:entryId', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const ok = await removeStandaloneFinance('expense', req.params.entryId, req.user.username);
+    if (!ok) return res.status(404).json({ error: 'Expense not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Finance expense delete error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/data', requireInventoryHost, requireAuth, async (req, res) => {
+  try {
+    const data = await dbGetAll();
+    if (req.user.role !== 'admin') {
+      ADMIN_ONLY_KEYS.forEach(key => delete data[key]);
+    }
+    if (req.user.role === 'admin' && USE_MONGO) {
+      data._meta = await currentCriticalDataMeta();
+    }
+    res.json(data);
+  } catch (e) {
+    console.error('Data route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.get('/api/reports/sales', requireInventoryHost, requireAuth, async (req, res) => {
+  try {
+    const data = await dbGetAll();
+    res.json(buildSalesReport(data.transactions || [], {
+      groupBy: req.query.groupBy,
+      years: req.query.years,
+    }));
+  } catch (e) {
+    console.error('Sales report route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/inventory/movement', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  const products = Array.isArray(req.body?.products) ? req.body.products : null;
+  const transactions = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
+  const expectedProducts = String(req.body?.expectedFingerprints?.products || '');
+  const expectedTransactions = String(req.body?.expectedFingerprints?.transactions || '');
+  if (!products || !transactions) return res.status(400).json({ error: 'Products and transactions are required' });
+  if (USE_MONGO && (!expectedProducts || !expectedTransactions)) {
+    return res.status(428).json({ error: 'Data versions required. Reload and retry.' });
+  }
+
+  try {
+    validateCriticalDataset('products', products);
+    validateCriticalDataset('transactions', transactions);
+
+    if (!USE_MONGO) {
+      const productResult = await dbSave('products', products);
+      const transactionResult = await dbSave('transactions', transactions);
+      return res.json({
+        ok: true,
+        fingerprints: {
+          products: productResult.fingerprint,
+          transactions: transactionResult.fingerprint,
+        },
+      });
+    }
+
+    const productColl = db.collection(dataCollectionName('products'));
+    const transactionColl = db.collection(dataCollectionName('transactions'));
+    const [existingProducts, existingTransactions] = await Promise.all([
+      productColl.find({}, { projection: { _id: 0 } }).toArray(),
+      transactionColl.find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+
+    if (datasetFingerprint(existingProducts) !== expectedProducts ||
+        datasetFingerprint(existingTransactions) !== expectedTransactions) {
+      return res.status(409).json({ error: 'Inventory data changed in another session. Reload and retry.' });
+    }
+
+    await Promise.all([
+      createDataSnapshot('products', existingProducts, req.user.username),
+      createDataSnapshot('transactions', existingTransactions, req.user.username),
+    ]);
+
+    const session = mongoClient.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await productColl.deleteMany({}, { session });
+        if (products.length) await productColl.insertMany(products, { session });
+        await transactionColl.deleteMany({}, { session });
+        if (transactions.length) await transactionColl.insertMany(transactions, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    const [writtenProducts, writtenTransactions] = await Promise.all([
+      productColl.find({}, { projection: { _id: 0 } }).toArray(),
+      transactionColl.find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+    if (datasetFingerprint(writtenProducts) !== datasetFingerprint(products) ||
+        datasetFingerprint(writtenTransactions) !== datasetFingerprint(transactions)) {
+      throw new Error('Inventory movement post-write verification failed');
+    }
+
+    res.json({
+      ok: true,
+      fingerprints: {
+        products: datasetFingerprint(products),
+        transactions: datasetFingerprint(transactions),
+      },
+    });
+  } catch (e) {
+    console.error('Inventory movement save error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  const { key, data, expectedFingerprint } = req.body;
+  if (!COLL[key]) return res.status(400).json({ error: 'Unknown key: ' + key });
+  if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
+    return res.status(403).json({ error: 'Protected collection: use dedicated API' });
+  }
+  if (USE_MONGO && CRITICAL_DATA_KEYS.has(key) && !expectedFingerprint) {
+    return res.status(428).json({ error: 'Data version required. Reload and retry.' });
+  }
+  try {
+    const result = await dbSave(key, data, { expectedFingerprint, actor: req.user.username });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    if (e.code === 'STALE_DATA') return res.status(409).json({ error: 'Data changed in another session. Reload and retry.' });
+    if (e.code === 'MISSING_DATA_VERSION') return res.status(428).json({ error: 'Data version required. Reload and retry.' });
+    console.error('Save route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/backups/export', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const zip = await buildBackup(req.body?.sections);
+    const fileDate = new Date().toISOString().replace(/[:.]/g, '-');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="inventory-backup-${fileDate}.zip"`);
+    res.send(zip);
+  } catch (e) {
+    console.error('Backup export error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/backups/import/inspect', requireInventoryHost, requireAuth, requireAdmin, express.raw({ type: 'application/zip', limit: '20mb' }), (req, res) => {
+  try {
+    const inspected = inspectBackupBuffer(Buffer.from(req.body || []));
+    res.json({
+      manifest: inspected.manifest,
+      collections: inspected.collections,
+      restorableCollections: inspected.restorableCollections,
+      exportOnlyCollections: inspected.exportOnlyCollections,
+    });
+  } catch (e) {
+    console.error('Backup inspect error:', e.message);
+    res.status(400).json({ error: 'Invalid backup ZIP' });
+  }
+});
+
+app.post('/api/backups/import', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const backupBase64 = String(req.body?.backupBase64 || '');
+    if (!req.body?.confirm) return res.status(400).json({ error: 'Import confirmation required' });
+    if (!backupBase64) return res.status(400).json({ error: 'backupBase64 required' });
+    const result = await restoreBackup(Buffer.from(backupBase64, 'base64'), req.body?.sections);
+    res.json({ ok: true, restored: result.restored, manifest: result.manifest });
+  } catch (e) {
+    console.error('Backup import error:', e.message);
+    res.status(400).json({ error: 'Invalid backup import' });
+  }
+});
+
+// ── START ────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  next();
+});
+
+app.use((req, res, next) => {
+  if (isCatalogHost(req)) {
+    res.type('html');
+    return res.status(404).sendFile(path.join(__dirname, '404.html'));
+  }
+  next();
+});
+
+app.use((err, req, res, next) => {
+  console.error('Unhandled request error:', err.message);
+  if (res.headersSent) return next(err);
+  const status = err.status >= 400 && err.status < 500 ? err.status : 500;
+  if (req.path.startsWith('/api/')) return sendGenericError(res, status);
+  return res.status(status).send(status === 500 ? 'Internal server error' : 'Bad request');
+});
+
+async function start() {
+  if (USE_MONGO) {
+    await connectMongo();
+    await migrateEmbeddedFinanceToStandalone();
+    await ensureFinanceIndexes();
+    await seedPreviewCriticalData();
+    await ensureDataIntegrityIndexes();
+    await mail.ensureMailIndexes(db);
+  } else {
+    console.log('📁  Using local JSON files (no MONGODB_URI set)');
+  }
+  app.listen(PORT, () => {
+    console.log(`Inventory app running at http://localhost:${PORT}`);
+  });
+  if (USE_MONGO) mail.startMailPoller(db);
+}
+
+start().catch(err => {
+  console.error('❌  Failed to start:', err.message);
+  process.exit(1);
+});
+;
     const [incomeRows, invoiceRows] = await Promise.all([
       db.collection(financeCollectionName('financeIncome')).find(
         { invoiceNo: { $regex: regex, $options: 'i' } },
@@ -3414,7 +4045,28 @@ async function currentInvoiceSequence(year) {
         { projection: { _id: 0, invoiceNo: 1 } },
       ).toArray(),
     ]);
-    return Math.max(invoiceSequenceFromRows(incomeRows, year), invoiceSequenceFromRows(invoiceRows, year));
+    let max = Math.max(invoiceSequenceFromRows(incomeRows, year), invoiceSequenceFromRows(invoiceRows, year));
+
+    // PR previews use isolated Finance collections, but numbering must continue
+    // from the real production history so preview behavior matches production.
+    if (!isProductionRailwayEnvironment()) {
+      const [productionIncomeRows, productionInvoiceRows] = await Promise.all([
+        db.collection(COLL.financeIncome).find(
+          { invoiceNo: { $regex: regex, $options: 'i' } },
+          { projection: { _id: 0, invoiceNo: 1 } },
+        ).toArray(),
+        db.collection(COLL.financeInvoices).find(
+          { invoiceNo: { $regex: regex, $options: 'i' } },
+          { projection: { _id: 0, invoiceNo: 1 } },
+        ).toArray(),
+      ]);
+      max = Math.max(
+        max,
+        invoiceSequenceFromRows(productionIncomeRows, year),
+        invoiceSequenceFromRows(productionInvoiceRows, year),
+      );
+    }
+    return max;
   }
   const incomeRows = JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8'));
   const invoiceRows = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
