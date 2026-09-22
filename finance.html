@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/finance.css" />
   <link rel="stylesheet" href="/shared-navigation.css" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
-  <script src="/finance.js?v=20260921-1" defer></script>
+  <script src="/finance.js?v=20260922-1" defer></script>
   <script src="/finance-client-email-only.js?v=20260914-3" defer></script>
   <script src="/finance-invoice.js?v=20260921-1&lv=8" defer></script>
   <script>
@@ -123,28 +123,68 @@
         </section>
       </div>
 
-      <section class="panel">
+      <div class="history-links">
+        <a class="history-card" href="/finance/invoices">
+          <strong>Счета</strong>
+          <span>Отдельный журнал счетов с фильтрами, пагинацией и PDF.</span>
+        </a>
+        <a class="history-card" href="/finance/transactions">
+          <strong>Поступления и расходы</strong>
+          <span>Отдельный журнал реальных операций с фильтрами и пагинацией.</span>
+        </a>
+      </div>
+
+      <section id="finance-invoices-page" class="panel history-page" hidden>
         <div class="panel-head">
-          <div><h3>Счета</h3><p id="invoice-list-caption">DRAFT можно Confirm или Decline. PDF доступен всегда.</p></div>
+          <div>
+            <a class="back-link" href="/finance?view=services">← Назад в Finance</a>
+            <h3>Счета</h3>
+            <p id="invoice-list-caption">DRAFT можно Confirm или Decline. PDF доступен всегда.</p>
+          </div>
+        </div>
+        <div class="history-filters">
+          <label>С даты<input id="invoice-date-from" type="date" /></label>
+          <label>По дату<input id="invoice-date-to" type="date" /></label>
+          <label>№ счёта<input id="invoice-number-filter" type="search" placeholder="HS-2026-005" /></label>
+          <label>Статус<select id="invoice-status-filter"><option value="all">Все</option><option value="DRAFT">DRAFT</option><option value="CONFIRMED">CONFIRMED</option><option value="VOID">VOID</option></select></label>
+          <button type="button" class="btn-secondary" id="invoice-filter-reset">Сбросить</button>
         </div>
         <div class="table-wrap"><table>
           <thead><tr><th>Дата</th><th>№ счёта</th><th>Клиент</th><th>Сумма</th><th>Статус</th><th>Действия</th></tr></thead>
           <tbody id="invoice-tbody"></tbody>
         </table></div>
+        <div class="pagination" id="invoice-pagination">
+          <button type="button" class="btn-secondary" id="invoice-prev">← Назад</button>
+          <span id="invoice-page-info"></span>
+          <button type="button" class="btn-secondary" id="invoice-next">Вперёд →</button>
+        </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head ledger-head">
-          <div><h3>Операции</h3><p id="ledger-caption">Доходы и расходы за выбранный год.</p></div>
-          <div class="ledger-filters">
-            <select id="ledger-kind"><option value="all">Все</option><option value="income">Доходы</option><option value="expense">Расходы</option></select>
-            <input id="ledger-search" type="search" placeholder="Клиент, счёт, комментарий…" />
+      <section id="finance-transactions-page" class="panel history-page" hidden>
+        <div class="panel-head">
+          <div>
+            <a class="back-link" href="/finance?view=services">← Назад в Finance</a>
+            <h3>Поступления и расходы</h3>
+            <p id="ledger-caption">Реальные операции бухгалтерии.</p>
           </div>
+          <button type="button" class="btn-secondary" id="export-csv-history">Export CSV</button>
+        </div>
+        <div class="history-filters">
+          <label>С даты<input id="ledger-date-from" type="date" /></label>
+          <label>По дату<input id="ledger-date-to" type="date" /></label>
+          <label>№ счёта / документа<input id="ledger-number-filter" type="search" placeholder="HS-2026-005" /></label>
+          <label>Тип<select id="ledger-kind"><option value="all">Все</option><option value="income">Поступления</option><option value="expense">Расходы</option></select></label>
+          <button type="button" class="btn-secondary" id="ledger-filter-reset">Сбросить</button>
         </div>
         <div class="table-wrap"><table>
           <thead><tr><th>Дата</th><th>№</th><th>Тип</th><th>Клиент / Host</th><th>Доход</th><th>Расход</th><th>Комментарий</th><th></th></tr></thead>
           <tbody id="ledger-tbody"></tbody>
         </table></div>
+        <div class="pagination" id="ledger-pagination">
+          <button type="button" class="btn-secondary" id="ledger-prev">← Назад</button>
+          <span id="ledger-page-info"></span>
+          <button type="button" class="btn-secondary" id="ledger-next">Вперёд →</button>
+        </div>
       </section>
     </section>
   </main>
