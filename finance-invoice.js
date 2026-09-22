@@ -148,18 +148,10 @@
     }
   }
 
-  function reserveInvoiceNumber() {
-    const input = byId('income-invoice');
-    if (!input) return '';
-    const value = esc(input.value) || esc(input.placeholder);
-    input.value = value;
-    return value;
-  }
-
-  function invoiceDescription() {
-    const type = byId('income-type')?.value;
+  function invoiceDescription(type) {
     if (type === 'subscription') return 'Abonēšanas pakalpojums';
     if (type === 'setup') return 'Viedierīces uzstādīšana un konfigurēšana';
+    if (type === 'setup_subscription') return 'Abonēšana + viedierīces uzstādīšana un konfigurēšana';
     return 'Pakalpojums';
   }
 
@@ -247,25 +239,22 @@
     doc.setTextColor(0, 0, 0);
   }
 
-  function customerLines(customerEmail) {
-    const firstName = esc(byId('invoice-customer-first-name')?.value);
-    const lastName = esc(byId('invoice-customer-last-name')?.value);
-    const personalCode = esc(byId('invoice-customer-personal-code')?.value);
+  function customerLines(invoice) {
+    const firstName = esc(invoice?.customerFirstName);
+    const lastName = esc(invoice?.customerLastName);
+    const personalCode = esc(invoice?.customerPersonalCode);
     const fullName = [firstName, lastName].filter(Boolean).join(' ');
     return [
       fullName,
       personalCode ? `Personas kods: ${personalCode}` : '',
-      customerEmail,
+      esc(invoice?.customerEmailSnapshot),
     ].filter(Boolean);
   }
 
-  async function generatePdf() {
+  async function generatePdf(invoice) {
     try {
-      if (!hasSettings(settings)) await loadPersistentSettings();
-      if (!settings.sellerName || !settings.sellerIban) {
-        const panel = byId('invoice-settings-panel');
-        if (panel) panel.open = true;
-        toast('Сначала заполни имя и IBAN в реквизитах', true);
+      if (!invoice || !invoice.invoiceNo) {
+        toast('Счёт не найден', true);
         return;
       }
       if (!window.jspdf?.jsPDF) {
@@ -273,29 +262,20 @@
         return;
       }
 
-      const clientSelect = byId('income-client');
-      const selectedClient = clientSelect?.options?.[clientSelect.selectedIndex];
-      const customerEmail = selectedClient?.dataset?.email?.trim()
-        || selectedClient?.text?.trim()
-        || '';
-      if (!customerEmail || customerEmail === '-') {
-        toast('Выбери аккаунт клиента', true);
+      const seller = invoice.sellerSnapshot || {};
+      if (!seller.sellerName || !seller.sellerIban) {
+        toast('В сохранённом счёте нет реквизитов продавца', true);
         return;
       }
 
-      const amount = Number(byId('income-amount')?.value);
+      const amount = Number(invoice.amount);
       if (!(amount > 0)) {
-        toast('Укажи сумму', true);
+        toast('В сохранённом счёте некорректная сумма', true);
         return;
       }
 
-      const invoiceNo = reserveInvoiceNumber();
-      if (!invoiceNo) {
-        toast('Не удалось получить номер счёта', true);
-        return;
-      }
-
-      const date = byId('income-date')?.value || new Date().toISOString().slice(0, 10);
+      const invoiceNo = esc(invoice.invoiceNo);
+      const date = esc(invoice.date);
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
@@ -310,6 +290,14 @@
       doc.setFontSize(9);
       textLv(doc, `Datums: ${formatLatvianDate(date)}`, 190, 34, { align: 'right' });
 
+      if (invoice.status === 'VOID') {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(185, 28, 28);
+        textLv(doc, 'ANULĒTS', 190, 43, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+      }
+
       let y = 49;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
@@ -318,10 +306,10 @@
       y += 6;
 
       const sellerLines = [
-        settings.sellerName,
-        settings.sellerRegNo ? `Reģ. Nr.: ${settings.sellerRegNo}` : '',
-        settings.sellerAddress,
-        settings.sellerEmail,
+        seller.sellerName,
+        seller.sellerRegNo ? `Reģ. Nr.: ${seller.sellerRegNo}` : '',
+        seller.sellerAddress,
+        seller.sellerEmail,
       ].filter(Boolean);
       sellerLines.forEach(line => {
         textLv(doc, String(line), 20, y);
@@ -333,7 +321,7 @@
       textLv(doc, 'Klients', 20, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      customerLines(customerEmail).forEach(line => {
+      customerLines(invoice).forEach(line => {
         textLv(doc, String(line), 20, y);
         y += 5;
       });
@@ -347,7 +335,7 @@
 
       y += 12;
       doc.setFont('helvetica', 'normal');
-      textLv(doc, invoiceDescription(), 22, y);
+      textLv(doc, invoiceDescription(invoice.type), 22, y);
       textLv(doc, `${amount.toFixed(2)} EUR`, 165, y);
 
       y += 14;
@@ -363,10 +351,10 @@
       textLv(doc, 'Maksājuma rekvizīti', 20, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      textLv(doc, `IBAN: ${settings.sellerIban}`, 20, y);
-      if (settings.sellerBic) {
+      textLv(doc, `IBAN: ${seller.sellerIban}`, 20, y);
+      if (seller.sellerBic) {
         y += 5;
-        textLv(doc, `BIC/SWIFT: ${settings.sellerBic}`, 20, y);
+        textLv(doc, `BIC/SWIFT: ${seller.sellerBic}`, 20, y);
       }
       y += 5;
       textLv(doc, `Maksājuma mērķis: ${invoiceNo}`, 20, y);
@@ -394,11 +382,11 @@
     }
   }
 
+  window.generateFinanceInvoicePdf = generatePdf;
+
   window.addEventListener('DOMContentLoaded', () => {
     ensureCustomerFields();
     loadPersistentSettings();
-    byId('invoice-number-btn')?.addEventListener('click', reserveInvoiceNumber);
-    byId('invoice-pdf-btn')?.addEventListener('click', generatePdf);
     byId('invoice-settings-form')?.addEventListener('submit', saveSettings);
   });
 })();

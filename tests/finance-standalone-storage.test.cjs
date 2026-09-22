@@ -11,7 +11,7 @@ assert.match(server, /financeExpenses:\s*'financeExpenses'/, 'Finance expenses m
 assert.match(server, /financeAudit:\s*'financeAudit'/, 'Finance audit must have its own Mongo collection');
 assert.match(server, /financeMigrations:\s*'financeMigrations'/, 'Finance migration must have a marker collection');
 assert.match(server, /GENERIC_SAVE_BLOCKED_KEYS = new Set\(/, 'protected collection list must exist');
-for (const key of ['financeIncome', 'financeExpenses', 'financeAudit', 'financeMigrations']) {
+for (const key of ['financeIncome', 'financeExpenses', 'financeInvoices', 'financeInvoiceCounters', 'financeAudit', 'financeMigrations']) {
   assert.ok(server.includes(`'${key}'`), `generic save must be blocked for ${key}`);
 }
 assert.match(server, /Protected collection: use dedicated API/, 'generic API save must reject protected Finance collections');

@@ -62,6 +62,7 @@ const FILES = {
   visitorAnalyticsEvents: path.join(DATA_DIR, 'visitor-analytics-events.json'),
   financeIncome: path.join(DATA_DIR, 'finance-income.json'),
   financeExpenses: path.join(DATA_DIR, 'finance-expenses.json'),
+  financeInvoices: path.join(DATA_DIR, 'finance-invoices.json'),
 };
 if (!USE_MONGO) {
   Object.values(FILES).forEach(f => {
@@ -84,12 +85,14 @@ const COLL = {
   visitorAnalyticsEvents: 'visitorAnalyticsEvents',
   financeIncome: 'financeIncome',
   financeExpenses: 'financeExpenses',
+  financeInvoices: 'financeInvoices',
+  financeInvoiceCounters: 'financeInvoiceCounters',
   financeAudit: 'financeAudit',
   financeMigrations: 'financeMigrations',
   dataSnapshots: 'dataSnapshots',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
-const GENERIC_SAVE_BLOCKED_KEYS = new Set(['financeIncome', 'financeExpenses', 'financeAudit', 'financeMigrations', 'dataSnapshots']);
+const GENERIC_SAVE_BLOCKED_KEYS = new Set(['financeIncome', 'financeExpenses', 'financeInvoices', 'financeInvoiceCounters', 'financeAudit', 'financeMigrations', 'dataSnapshots']);
 const CRITICAL_DATA_KEYS = new Set(['products', 'transactions', 'andreyReturns', 'subAccounts', 'hostSubscriptions']);
 const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
 const ASSISTANT_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
@@ -111,6 +114,9 @@ async function ensureFinanceIndexes() {
     db.collection(financeCollectionName('financeIncome')).createIndex({ id: 1 }, { unique: true, name: 'uniq_finance_income_id' }),
     db.collection(financeCollectionName('financeIncome')).createIndex({ invoiceNo: 1 }, { unique: true, sparse: true, name: 'uniq_finance_invoice_no' }),
     db.collection(financeCollectionName('financeExpenses')).createIndex({ id: 1 }, { unique: true, name: 'uniq_finance_expense_id' }),
+    db.collection(financeCollectionName('financeInvoices')).createIndex({ id: 1 }, { unique: true, name: 'uniq_finance_invoice_id' }),
+    db.collection(financeCollectionName('financeInvoices')).createIndex({ invoiceNo: 1 }, { unique: true, name: 'uniq_finance_draft_invoice_no' }),
+    db.collection(financeCollectionName('financeInvoices')).createIndex({ status: 1, date: -1 }, { name: 'finance_invoice_status_date' }),
     db.collection(financeCollectionName('financeAudit')).createIndex({ entryId: 1, createdAt: -1 }, { name: 'finance_audit_entry_time' }),
   ]);
 }
@@ -3344,15 +3350,300 @@ function sanitizeFinanceEntry(raw, kind) {
   };
 }
 
+
+function sanitizeInvoiceSettings(raw) {
+  const value = raw && typeof raw === 'object' ? raw : {};
+  return {
+    sellerName: sanitizeAssistantText(value.sellerName, 120),
+    sellerRegNo: sanitizeAssistantText(value.sellerRegNo, 40),
+    sellerAddress: sanitizeAssistantText(value.sellerAddress, 180),
+    sellerIban: sanitizeAssistantText(value.sellerIban, 40),
+    sellerBic: sanitizeAssistantText(value.sellerBic, 20),
+    sellerEmail: sanitizeAssistantText(value.sellerEmail, 120),
+  };
+}
+
+function sanitizeInvoiceDraft(raw) {
+  const value = raw && typeof raw === 'object' ? raw : {};
+  const type = sanitizeAssistantText(value.type, 60);
+  const date = sanitizeAssistantText(value.date, 10);
+  const amount = Number(value.amount);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !(amount > 0)) return null;
+  return {
+    type,
+    date,
+    amount,
+    note: sanitizeAssistantText(value.note, 500),
+    customerFirstName: sanitizeAssistantText(value.customerFirstName, 80),
+    customerLastName: sanitizeAssistantText(value.customerLastName, 80),
+    customerPersonalCode: sanitizeAssistantText(value.customerPersonalCode, 30),
+  };
+}
+
+async function financeInvoiceSellerSnapshot() {
+  if (USE_MONGO) {
+    const host = await db.collection(dataCollectionName('hostSubscriptions')).findOne(
+      { financeInvoiceSettings: { $exists: true } },
+      { projection: { _id: 0, financeInvoiceSettings: 1 } },
+    );
+    return sanitizeInvoiceSettings(host?.financeInvoiceSettings || {});
+  }
+  const hosts = JSON.parse(fs.readFileSync(FILES.hostSubscriptions, 'utf8'));
+  const host = hosts.find(item => item?.financeInvoiceSettings);
+  return sanitizeInvoiceSettings(host?.financeInvoiceSettings || {});
+}
+
+function invoiceSequenceFromRows(rows, year) {
+  const pattern = new RegExp('^HS-' + year + '-(\\d+)$', 'i');
+  return (Array.isArray(rows) ? rows : []).reduce((max, row) => {
+    const match = String(row?.invoiceNo || '').match(pattern);
+    return match ? Math.max(max, Number(match[1]) || 0) : max;
+  }, 0);
+}
+
+async function currentInvoiceSequence(year) {
+  if (USE_MONGO) {
+    const regex = '^HS-' + year + '-\\d+$';
+    const [incomeRows, invoiceRows] = await Promise.all([
+      db.collection(financeCollectionName('financeIncome')).find(
+        { invoiceNo: { $regex: regex, $options: 'i' } },
+        { projection: { _id: 0, invoiceNo: 1 } },
+      ).toArray(),
+      db.collection(financeCollectionName('financeInvoices')).find(
+        { invoiceNo: { $regex: regex, $options: 'i' } },
+        { projection: { _id: 0, invoiceNo: 1 } },
+      ).toArray(),
+    ]);
+
+    let max = Math.max(
+      invoiceSequenceFromRows(incomeRows, year),
+      invoiceSequenceFromRows(invoiceRows, year),
+    );
+
+    if (!isProductionRailwayEnvironment()) {
+      const [productionIncomeRows, productionInvoiceRows] = await Promise.all([
+        db.collection(COLL.financeIncome).find(
+          { invoiceNo: { $regex: regex, $options: 'i' } },
+          { projection: { _id: 0, invoiceNo: 1 } },
+        ).toArray(),
+        db.collection(COLL.financeInvoices).find(
+          { invoiceNo: { $regex: regex, $options: 'i' } },
+          { projection: { _id: 0, invoiceNo: 1 } },
+        ).toArray(),
+      ]);
+
+      max = Math.max(
+        max,
+        invoiceSequenceFromRows(productionIncomeRows, year),
+        invoiceSequenceFromRows(productionInvoiceRows, year),
+      );
+    }
+
+    return max;
+  }
+
+  const incomeRows = JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8'));
+  const invoiceRows = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+  return Math.max(
+    invoiceSequenceFromRows(incomeRows, year),
+    invoiceSequenceFromRows(invoiceRows, year),
+  );
+}
+
+async function allocateInvoiceNumber(year) {
+  const numericYear = Number(year);
+  if (!Number.isInteger(numericYear) || numericYear < 2000 || numericYear > 2100) throw new Error('Invalid invoice year');
+  const floor = await currentInvoiceSequence(numericYear);
+  if (!USE_MONGO) return 'HS-' + numericYear + '-' + String(floor + 1).padStart(3, '0');
+
+  const coll = db.collection(financeCollectionName('financeInvoiceCounters'));
+  const key = String(numericYear);
+  try {
+    await coll.updateOne(
+      { _id: key },
+      { $max: { seq: floor }, $setOnInsert: { year: numericYear, createdAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+  }
+  const counter = await coll.findOneAndUpdate(
+    { _id: key },
+    { $inc: { seq: 1 }, $set: { updatedAt: new Date().toISOString() } },
+    { returnDocument: 'after' },
+  );
+  return 'HS-' + numericYear + '-' + String(counter.seq).padStart(3, '0');
+}
+
+async function financeInvoicesData() {
+  if (USE_MONGO) {
+    return db.collection(financeCollectionName('financeInvoices'))
+      .find({}, { projection: { _id: 0 } })
+      .sort({ date: -1, createdAt: -1 })
+      .toArray();
+  }
+  return JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+}
+
+async function createFinanceInvoiceDraft(ownerId, rawDraft, actor = '') {
+  const draft = sanitizeInvoiceDraft(rawDraft);
+  if (!draft) return { ok: false, reason: 'invalid' };
+  const owner = await findFinanceOwner('income', ownerId);
+  if (!owner) return { ok: false, reason: 'owner' };
+  const seller = await financeInvoiceSellerSnapshot();
+  if (!seller.sellerName || !seller.sellerIban) return { ok: false, reason: 'settings' };
+
+  const year = Number(draft.date.slice(0, 4));
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const invoiceNo = await allocateInvoiceNumber(year);
+    const row = {
+      id: crypto.randomUUID(),
+      invoiceNo,
+      status: 'DRAFT',
+      ownerId: owner.id,
+      type: draft.type,
+      date: draft.date,
+      amount: draft.amount,
+      note: draft.note,
+      customerEmailSnapshot: owner.email || '',
+      customerAccountNameSnapshot: owner.name || '',
+      customerFirstName: draft.customerFirstName,
+      customerLastName: draft.customerLastName,
+      customerPersonalCode: draft.customerPersonalCode,
+      sellerSnapshot: seller,
+      createdAt: new Date().toISOString(),
+      createdBy: sanitizeAssistantText(actor, 100),
+    };
+    try {
+      if (USE_MONGO) {
+        await db.collection(financeCollectionName('financeInvoices')).insertOne(row);
+      } else {
+        const rows = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+        if (rows.some(item => item.invoiceNo === invoiceNo)) continue;
+        rows.push(row);
+        fs.writeFileSync(FILES.financeInvoices, JSON.stringify(rows, null, 2), 'utf8');
+      }
+      await writeFinanceAudit('invoice_draft', 'invoice', row, actor);
+      return { ok: true, invoice: row };
+    } catch (error) {
+      if (error?.code === 11000) continue;
+      throw error;
+    }
+  }
+  return { ok: false, reason: 'number' };
+}
+
+async function confirmFinanceInvoice(invoiceId, actor = '') {
+  const cleanId = sanitizeAssistantText(invoiceId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!cleanId) return { ok: false, reason: 'missing' };
+  const confirmedAt = new Date().toISOString();
+  const createdBy = sanitizeAssistantText(actor, 100);
+  const paymentId = 'invoice-' + cleanId;
+
+  if (USE_MONGO) {
+    const invoices = db.collection(financeCollectionName('financeInvoices'));
+    const income = db.collection(financeCollectionName('financeIncome'));
+    const session = mongoClient.startSession();
+    let confirmedInvoice = null;
+    let payment = null;
+    try {
+      await session.withTransaction(async () => {
+        const invoice = await invoices.findOne({ id: cleanId, status: 'DRAFT' }, { session, projection: { _id: 0 } });
+        if (!invoice) throw Object.assign(new Error('Invoice is not draft'), { code: 'INVOICE_STATE' });
+        payment = {
+          id: paymentId,
+          type: invoice.type,
+          date: invoice.date,
+          amount: invoice.amount,
+          invoiceNo: invoice.invoiceNo,
+          note: invoice.note || '',
+          ownerId: invoice.ownerId,
+          ownerEmailSnapshot: invoice.customerEmailSnapshot || '',
+          ownerNameSnapshot: invoice.customerAccountNameSnapshot || '',
+          invoiceId: invoice.id,
+          createdAt: confirmedAt,
+          createdBy,
+        };
+        await income.insertOne(payment, { session });
+        confirmedInvoice = await invoices.findOneAndUpdate(
+          { id: cleanId, status: 'DRAFT' },
+          { $set: { status: 'CONFIRMED', confirmedAt, confirmedBy: createdBy, financeEntryId: paymentId } },
+          { session, returnDocument: 'after', projection: { _id: 0 } },
+        );
+        if (!confirmedInvoice) throw Object.assign(new Error('Invoice state changed'), { code: 'INVOICE_STATE' });
+      });
+    } catch (error) {
+      if (error?.code === 'INVOICE_STATE') return { ok: false, reason: 'state' };
+      if (error?.code === 11000) return { ok: false, reason: 'duplicate' };
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+    await writeFinanceAudit('invoice_confirmed', 'invoice', confirmedInvoice, actor);
+    await writeFinanceAudit('created', 'income', payment, actor);
+    return { ok: true, invoice: confirmedInvoice, payment };
+  }
+
+  const invoices = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+  const index = invoices.findIndex(item => item.id === cleanId && item.status === 'DRAFT');
+  if (index < 0) return { ok: false, reason: 'state' };
+  const invoice = invoices[index];
+  const incomeRows = JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8'));
+  if (incomeRows.some(item => item.invoiceNo === invoice.invoiceNo || item.id === paymentId)) return { ok: false, reason: 'duplicate' };
+  const payment = {
+    id: paymentId,
+    type: invoice.type,
+    date: invoice.date,
+    amount: invoice.amount,
+    invoiceNo: invoice.invoiceNo,
+    note: invoice.note || '',
+    ownerId: invoice.ownerId,
+    ownerEmailSnapshot: invoice.customerEmailSnapshot || '',
+    ownerNameSnapshot: invoice.customerAccountNameSnapshot || '',
+    invoiceId: invoice.id,
+    createdAt: confirmedAt,
+    createdBy,
+  };
+  incomeRows.push(payment);
+  invoices[index] = { ...invoice, status: 'CONFIRMED', confirmedAt, confirmedBy: createdBy, financeEntryId: paymentId };
+  fs.writeFileSync(FILES.financeIncome, JSON.stringify(incomeRows, null, 2), 'utf8');
+  fs.writeFileSync(FILES.financeInvoices, JSON.stringify(invoices, null, 2), 'utf8');
+  return { ok: true, invoice: invoices[index], payment };
+}
+
+async function declineFinanceInvoice(invoiceId, actor = '') {
+  const cleanId = sanitizeAssistantText(invoiceId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!cleanId) return { ok: false, reason: 'missing' };
+  const voidedAt = new Date().toISOString();
+  const voidedBy = sanitizeAssistantText(actor, 100);
+  if (USE_MONGO) {
+    const invoice = await db.collection(financeCollectionName('financeInvoices')).findOneAndUpdate(
+      { id: cleanId, status: 'DRAFT' },
+      { $set: { status: 'VOID', voidedAt, voidedBy } },
+      { returnDocument: 'after', projection: { _id: 0 } },
+    );
+    if (!invoice) return { ok: false, reason: 'state' };
+    await writeFinanceAudit('invoice_voided', 'invoice', invoice, actor);
+    return { ok: true, invoice };
+  }
+  const rows = JSON.parse(fs.readFileSync(FILES.financeInvoices, 'utf8'));
+  const index = rows.findIndex(item => item.id === cleanId && item.status === 'DRAFT');
+  if (index < 0) return { ok: false, reason: 'state' };
+  rows[index] = { ...rows[index], status: 'VOID', voidedAt, voidedBy };
+  fs.writeFileSync(FILES.financeInvoices, JSON.stringify(rows, null, 2), 'utf8');
+  return { ok: true, invoice: rows[index] };
+}
+
 async function financeLedgerData() {
   if (USE_MONGO) {
-    const [allIncome, allExpenses] = await Promise.all([
+    const [allIncome, allExpenses, invoices] = await Promise.all([
       db.collection(financeCollectionName('financeIncome')).find({}, { projection: { _id: 0 } }).toArray(),
       db.collection(financeCollectionName('financeExpenses')).find({}, { projection: { _id: 0 } }).toArray(),
+      financeInvoicesData(),
     ]);
     const activeIncome = allIncome.filter(row => !row.voidedAt);
     const activeExpenses = allExpenses.filter(row => !row.voidedAt);
-    if (isProductionRailwayEnvironment()) return { income: activeIncome, expenses: activeExpenses };
+    if (isProductionRailwayEnvironment()) return { income: activeIncome, expenses: activeExpenses, invoices };
 
     const [subAccounts, hostSubscriptions] = await Promise.all([
       db.collection(dataCollectionName('subAccounts')).find({}, { projection: { _id: 0 } }).toArray(),
@@ -3368,11 +3659,13 @@ async function financeLedgerData() {
     return {
       income: mergeById(embedded.income, allIncome),
       expenses: mergeById(embedded.expenses, allExpenses),
+      invoices,
     };
   }
   return {
     income: JSON.parse(fs.readFileSync(FILES.financeIncome, 'utf8')).filter(row => !row.voidedAt),
     expenses: JSON.parse(fs.readFileSync(FILES.financeExpenses, 'utf8')).filter(row => !row.voidedAt),
+    invoices: await financeInvoicesData(),
   };
 }
 
@@ -3473,6 +3766,48 @@ app.get('/api/finance/ledger', requireInventoryHost, requireAuth, requireAdmin, 
     res.json(await financeLedgerData());
   } catch (e) {
     console.error('Finance ledger route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+
+app.post('/api/finance/invoices/draft', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await createFinanceInvoiceDraft(req.body?.ownerId, req.body, req.user.username);
+    if (!result.ok) {
+      if (result.reason === 'invalid') return res.status(400).json({ error: 'Проверь дату и сумму счёта' });
+      if (result.reason === 'owner') return res.status(404).json({ error: 'Клиент не найден' });
+      if (result.reason === 'settings') return res.status(400).json({ error: 'Сначала заполни реквизиты счёта' });
+      return res.status(409).json({ error: 'Не удалось зарезервировать уникальный номер счёта' });
+    }
+    res.status(201).json({ ok: true, invoice: result.invoice });
+  } catch (e) {
+    console.error('Finance invoice draft route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/finance/invoices/:invoiceId/confirm', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await confirmFinanceInvoice(req.params.invoiceId, req.user.username);
+    if (!result.ok) {
+      if (result.reason === 'duplicate') return res.status(409).json({ error: 'Этот номер уже есть в бухгалтерии' });
+      return res.status(409).json({ error: 'Счёт уже подтверждён или аннулирован' });
+    }
+    res.json({ ok: true, invoice: result.invoice, payment: result.payment });
+  } catch (e) {
+    console.error('Finance invoice confirm route error:', e.message);
+    sendGenericError(res);
+  }
+});
+
+app.post('/api/finance/invoices/:invoiceId/decline', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await declineFinanceInvoice(req.params.invoiceId, req.user.username);
+    if (!result.ok) return res.status(409).json({ error: 'Счёт уже подтверждён или аннулирован' });
+    res.json({ ok: true, invoice: result.invoice });
+  } catch (e) {
+    console.error('Finance invoice decline route error:', e.message);
     sendGenericError(res);
   }
 });

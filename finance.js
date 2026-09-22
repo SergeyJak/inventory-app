@@ -2,6 +2,9 @@
   const token = localStorage.getItem('inv_token');
   const role = localStorage.getItem('inv_role');
   const username = localStorage.getItem('inv_username');
+  const PAGE_SIZE = 25;
+  const initialParams = new URLSearchParams(location.search);
+  const initialHistoryView = initialParams.get('history') === 'ledger' ? 'ledger' : 'invoices';
 
   if (!token) {
     location.href = '/login.html';
@@ -19,14 +22,19 @@
     hostSubscriptions: [],
     financeIncome: [],
     financeExpenses: [],
+    financeInvoices: [],
     hardwareYear: new Date().getFullYear(),
     servicesYear: new Date().getFullYear(),
+    invoicePage: 1,
+    ledgerPage: 1,
+    historyView: initialHistoryView,
   };
 
   const MONTHS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
   const TYPE_LABELS = {
     subscription: 'Subscription',
     setup: 'Setup',
+    setup_subscription: 'Setup + Subscription',
     other: 'Other income',
     subscription_purchase: 'Subscription purchase',
     other_expense: 'Other expense',
@@ -115,7 +123,7 @@
 
   function serviceRows(year = state.servicesYear) {
     return [...allIncomeRows(), ...allExpenseRows()]
-      .filter(row => dateYear(row.date) === Number(year))
+      .filter(row => year == null || dateYear(row.date) === Number(year))
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   }
 
@@ -213,22 +221,69 @@
     byId('expense-host').innerHTML = '<option value="">Без привязки</option>' + hosts.map(host => `<option value="${esc(host.id)}">${esc(hostLabel(host))}</option>`).join('');
   }
 
-  function nextInvoiceNumber(year) {
-    const pattern = new RegExp(`^HS-${year}-(\\d+)$`, 'i');
-    const max = allIncomeRows().reduce((current, row) => {
-      const match = String(row.invoiceNo || '').match(pattern);
-      return match ? Math.max(current, Number(match[1]) || 0) : current;
-    }, 0);
-    return `HS-${year}-${String(max + 1).padStart(3, '0')}`;
+  function invoiceStatusLabel(status) {
+    if (status === 'CONFIRMED') return 'CONFIRMED';
+    if (status === 'VOID') return 'VOID';
+    return 'DRAFT';
   }
 
-  function refreshSuggestedInvoice() {
-    const date = byId('income-date').value || today();
-    const year = dateYear(date) || new Date().getFullYear();
-    byId('income-invoice').placeholder = nextInvoiceNumber(year);
+  function invoiceCustomerLabel(invoice) {
+    const fullName = [invoice.customerFirstName, invoice.customerLastName].filter(Boolean).join(' ');
+    return fullName || invoice.customerEmailSnapshot || invoice.customerAccountNameSnapshot || invoice.ownerId || 'Client';
   }
 
-  async function addIncome(event) {
+  function invoiceRows(year = null) {
+    const from = byId('invoice-date-from')?.value || '';
+    const to = byId('invoice-date-to')?.value || '';
+    const number = (byId('invoice-number-filter')?.value || '').trim().toLowerCase();
+    const statusFilter = byId('invoice-status-filter')?.value || 'all';
+    return state.financeInvoices
+      .filter(invoice => year == null || dateYear(invoice.date) === Number(year))
+      .filter(invoice => !from || String(invoice.date || '') >= from)
+      .filter(invoice => !to || String(invoice.date || '') <= to)
+      .filter(invoice => !number || String(invoice.invoiceNo || '').toLowerCase().includes(number))
+      .filter(invoice => statusFilter === 'all' || invoiceStatusLabel(invoice.status) === statusFilter)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+
+  function renderInvoices() {
+    const rows = invoiceRows();
+    const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    state.invoicePage = Math.min(Math.max(1, state.invoicePage), totalPages);
+    const start = (state.invoicePage - 1) * PAGE_SIZE;
+    const visibleRows = rows.slice(start, start + PAGE_SIZE);
+    const caption = byId('invoice-list-caption');
+    if (caption) caption.textContent = `${rows.length} счетов. DRAFT не входит в бухгалтерию до Confirm.`;
+    const info = byId('invoice-page-info');
+    if (info) info.textContent = `Страница ${state.invoicePage} из ${totalPages} · по ${PAGE_SIZE}`;
+    const prev = byId('invoice-prev');
+    const next = byId('invoice-next');
+    if (prev) prev.disabled = state.invoicePage <= 1;
+    if (next) next.disabled = state.invoicePage >= totalPages;
+
+    const tbody = byId('invoice-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = visibleRows.length ? visibleRows.map(invoice => {
+      const status = invoiceStatusLabel(invoice.status);
+      const draftActions = status === 'DRAFT'
+        ? `<button type="button" class="invoice-action confirm" data-invoice-action="confirm" data-invoice-id="${esc(invoice.id)}">Confirm</button>
+           <button type="button" class="invoice-action decline" data-invoice-action="decline" data-invoice-id="${esc(invoice.id)}">Decline</button>`
+        : '';
+      return `<tr>
+        <td>${esc(invoice.date || '')}</td>
+        <td>${esc(invoice.invoiceNo || '')}</td>
+        <td>${esc(invoiceCustomerLabel(invoice))}</td>
+        <td class="money-in">${money(invoice.amount)}</td>
+        <td><span class="invoice-status ${status.toLowerCase()}">${status}</span></td>
+        <td class="invoice-actions">
+          ${draftActions}
+          <button type="button" class="invoice-action pdf" data-invoice-action="pdf" data-invoice-id="${esc(invoice.id)}">PDF</button>
+        </td>
+      </tr>`;
+    }).join('') : '<tr class="empty-row"><td colspan="6">По фильтрам счетов нет.</td></tr>';
+  }
+
+  async function issueInvoice(event) {
     event.preventDefault();
     const clientId = byId('income-client').value;
     const sub = state.subAccounts.find(item => String(item.id) === String(clientId));
@@ -236,27 +291,68 @@
     const amount = Number(byId('income-amount').value);
     const date = byId('income-date').value;
     if (!(amount > 0) || !validDate(date)) return toast('Проверь сумму и дату', true);
-    const payment = {
-      id: uid(),
-      type: byId('income-type').value,
-      date,
-      amount,
-      invoiceNo: byId('income-invoice').value.trim() || nextInvoiceNumber(dateYear(date)),
-      note: byId('income-note').value.trim(),
-      createdAt: new Date().toISOString(),
-    };
+
     try {
-      await api('/api/finance/income', {
+      const result = await api('/api/finance/invoices/draft', {
         method: 'POST',
-        body: JSON.stringify({ ownerId: sub.id, payment }),
+        body: JSON.stringify({
+          ownerId: sub.id,
+          type: byId('income-type').value,
+          date,
+          amount,
+          note: byId('income-note').value.trim(),
+          customerFirstName: byId('invoice-customer-first-name')?.value?.trim() || '',
+          customerLastName: byId('invoice-customer-last-name')?.value?.trim() || '',
+          customerPersonalCode: byId('invoice-customer-personal-code')?.value?.trim() || '',
+        }),
       });
-      byId('income-invoice').value = '';
       byId('income-note').value = '';
       await loadData();
-      toast(`Доход ${money(amount)} добавлен`);
+      toast(`Счёт ${result.invoice.invoiceNo} создан как DRAFT`);
+      if (typeof window.generateFinanceInvoicePdf === 'function') {
+        await window.generateFinanceInvoicePdf(result.invoice);
+      }
     } catch (error) {
       toast(error.message, true);
       await loadData();
+    }
+  }
+
+  async function invoiceAction(button) {
+    const id = button.dataset.invoiceId;
+    const action = button.dataset.invoiceAction;
+    const invoice = state.financeInvoices.find(item => String(item.id) === String(id));
+    if (!invoice) return;
+
+    if (action === 'pdf') {
+      if (typeof window.generateFinanceInvoicePdf !== 'function') return toast('PDF-модуль не готов', true);
+      await window.generateFinanceInvoicePdf(invoice);
+      return;
+    }
+
+    if (action === 'confirm') {
+      if (!confirm(`Подтвердить оплату по ${invoice.invoiceNo} и добавить ${money(invoice.amount)} в бухгалтерию?`)) return;
+      try {
+        await api(`/api/finance/invoices/${encodeURIComponent(id)}/confirm`, { method: 'POST' });
+        await loadData();
+        toast(`${invoice.invoiceNo} подтверждён и добавлен в бухгалтерию`);
+      } catch (error) {
+        toast(error.message, true);
+        await loadData();
+      }
+      return;
+    }
+
+    if (action === 'decline') {
+      if (!confirm(`Аннулировать ${invoice.invoiceNo}? Номер останется занятым.`)) return;
+      try {
+        await api(`/api/finance/invoices/${encodeURIComponent(id)}/decline`, { method: 'POST' });
+        await loadData();
+        toast(`${invoice.invoiceNo} аннулирован`);
+      } catch (error) {
+        toast(error.message, true);
+        await loadData();
+      }
     }
   }
 
@@ -295,16 +391,40 @@
     }
   }
 
-  function rowSearchText(row) {
-    return [row.date,row.invoiceNo,row.documentNo,row.type,row.ownerLabel,row.note].join(' ').toLowerCase();
+  function filteredLedgerRows() {
+    const kind = byId('ledger-kind')?.value || 'all';
+    const from = byId('ledger-date-from')?.value || '';
+    const to = byId('ledger-date-to')?.value || '';
+    const number = (byId('ledger-number-filter')?.value || '').trim().toLowerCase();
+    return serviceRows(null)
+      .filter(row => kind === 'all' || row.kind === kind)
+      .filter(row => !from || String(row.date || '') >= from)
+      .filter(row => !to || String(row.date || '') <= to)
+      .filter(row => {
+        if (!number) return true;
+        const value = row.kind === 'income' ? row.invoiceNo : row.documentNo;
+        return String(value || '').toLowerCase().includes(number);
+      });
   }
 
   function renderLedger() {
-    const kind = byId('ledger-kind').value;
-    const query = byId('ledger-search').value.trim().toLowerCase();
-    const rows = serviceRows().filter(row => (kind === 'all' || row.kind === kind) && (!query || rowSearchText(row).includes(query)));
-    byId('ledger-caption').textContent = `${rows.length} операций за ${state.servicesYear}`;
-    byId('ledger-tbody').innerHTML = rows.length ? rows.map(row => {
+    const rows = filteredLedgerRows();
+    const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    state.ledgerPage = Math.min(Math.max(1, state.ledgerPage), totalPages);
+    const start = (state.ledgerPage - 1) * PAGE_SIZE;
+    const visibleRows = rows.slice(start, start + PAGE_SIZE);
+    const caption = byId('ledger-caption');
+    if (caption) caption.textContent = `${rows.length} операций`;
+    const info = byId('ledger-page-info');
+    if (info) info.textContent = `Страница ${state.ledgerPage} из ${totalPages} · по ${PAGE_SIZE}`;
+    const prev = byId('ledger-prev');
+    const next = byId('ledger-next');
+    if (prev) prev.disabled = state.ledgerPage <= 1;
+    if (next) next.disabled = state.ledgerPage >= totalPages;
+
+    const tbody = byId('ledger-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = visibleRows.length ? visibleRows.map(row => {
       const number = row.kind === 'income' ? row.invoiceNo : row.documentNo;
       return `<tr>
         <td>${esc(row.date || '')}</td>
@@ -316,7 +436,7 @@
         <td>${esc(row.note || '')}</td>
         <td><button type="button" class="row-delete" data-delete-id="${esc(row.id)}" data-delete-kind="${row.kind}" data-owner-id="${esc(row.ownerId)}">Удалить</button></td>
       </tr>`;
-    }).join('') : '<tr class="empty-row"><td colspan="8">Операций пока нет.</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="8">По фильтрам операций нет.</td></tr>';
   }
 
   async function deleteRow(button) {
@@ -339,8 +459,8 @@
     return `"${String(value ?? '').replace(/"/g,'""')}"`;
   }
 
-  function exportCsv() {
-    const rows = serviceRows();
+  function exportCsv(filtered = false) {
+    const rows = filtered ? filteredLedgerRows() : serviceRows();
     const lines = [['Date','Number','Kind','Type','Client/Host','Income','Expense','Note'].map(csvCell).join(',')];
     rows.forEach(row => lines.push([
       row.date,
@@ -374,6 +494,13 @@
     document.querySelectorAll('.finance-tab').forEach(button => button.addEventListener('click', () => {
       document.querySelectorAll('.finance-tab').forEach(item => item.classList.toggle('active', item === button));
       document.querySelectorAll('.finance-view').forEach(view => view.classList.toggle('active', view.id === `finance-${button.dataset.view}`));
+      const params = new URLSearchParams(location.search);
+      if (button.dataset.view === 'services') params.set('view', 'services');
+      else params.delete('view');
+      history.replaceState(null, '', `${location.pathname}${params.toString() ? `?${params}` : ''}`);
+    }));
+    document.querySelectorAll('.history-tab').forEach(button => button.addEventListener('click', () => {
+      setHistoryView(button.dataset.history, true);
     }));
     byId('hardware-year').addEventListener('change', event => { state.hardwareYear = Number(event.target.value); renderHardware(); });
     byId('services-year').addEventListener('change', event => { state.servicesYear = Number(event.target.value); renderServices(); });
@@ -381,16 +508,73 @@
       if (event.target.value === 'subscription') byId('income-amount').value = '35';
       if (event.target.value === 'setup') byId('income-amount').value = '25';
     });
-    byId('income-date').addEventListener('change', refreshSuggestedInvoice);
-    byId('income-form').addEventListener('submit', addIncome);
+    byId('income-form').addEventListener('submit', issueInvoice);
     byId('expense-form').addEventListener('submit', addExpense);
-    byId('ledger-kind').addEventListener('change', renderLedger);
-    byId('ledger-search').addEventListener('input', renderLedger);
-    byId('ledger-tbody').addEventListener('click', event => {
+    const resetInvoicePage = () => { state.invoicePage = 1; renderInvoices(); };
+    const resetLedgerPage = () => { state.ledgerPage = 1; renderLedger(); };
+    ['invoice-date-from','invoice-date-to','invoice-number-filter','invoice-status-filter'].forEach(id => {
+      byId(id)?.addEventListener(id.includes('number') ? 'input' : 'change', resetInvoicePage);
+    });
+    byId('invoice-filter-reset')?.addEventListener('click', () => {
+      ['invoice-date-from','invoice-date-to','invoice-number-filter'].forEach(id => { if (byId(id)) byId(id).value = ''; });
+      if (byId('invoice-status-filter')) byId('invoice-status-filter').value = 'all';
+      resetInvoicePage();
+    });
+    byId('invoice-prev')?.addEventListener('click', () => { if (state.invoicePage > 1) { state.invoicePage -= 1; renderInvoices(); } });
+    byId('invoice-next')?.addEventListener('click', () => { state.invoicePage += 1; renderInvoices(); });
+
+    ['ledger-date-from','ledger-date-to','ledger-number-filter','ledger-kind'].forEach(id => {
+      byId(id)?.addEventListener(id.includes('number') ? 'input' : 'change', resetLedgerPage);
+    });
+    byId('ledger-filter-reset')?.addEventListener('click', () => {
+      ['ledger-date-from','ledger-date-to','ledger-number-filter'].forEach(id => { if (byId(id)) byId(id).value = ''; });
+      if (byId('ledger-kind')) byId('ledger-kind').value = 'all';
+      resetLedgerPage();
+    });
+    byId('ledger-prev')?.addEventListener('click', () => { if (state.ledgerPage > 1) { state.ledgerPage -= 1; renderLedger(); } });
+    byId('ledger-next')?.addEventListener('click', () => { state.ledgerPage += 1; renderLedger(); });
+
+    byId('ledger-tbody')?.addEventListener('click', event => {
       const button = event.target.closest('[data-delete-id]');
       if (button) deleteRow(button);
     });
-    byId('export-csv').addEventListener('click', exportCsv);
+    byId('invoice-tbody')?.addEventListener('click', event => {
+      const button = event.target.closest('[data-invoice-action]');
+      if (button) invoiceAction(button);
+    });
+    byId('export-csv')?.addEventListener('click', () => exportCsv(false));
+    byId('export-csv-history')?.addEventListener('click', () => exportCsv(true));
+  }
+
+  function setHistoryView(view, updateUrl = false) {
+    const next = view === 'ledger' ? 'ledger' : 'invoices';
+    state.historyView = next;
+    document.querySelectorAll('.history-tab').forEach(button => {
+      button.classList.toggle('active', button.dataset.history === next);
+    });
+    document.querySelectorAll('.history-view').forEach(section => {
+      section.classList.toggle('active', section.id === `history-${next}`);
+    });
+    if (updateUrl) {
+      const params = new URLSearchParams(location.search);
+      params.set('view', 'services');
+      params.set('history', next);
+      history.replaceState(null, '', `${location.pathname}?${params}`);
+    }
+  }
+
+  function applyInitialView() {
+    const params = new URLSearchParams(location.search);
+    const servicesActive = params.get('view') === 'services' || params.has('history');
+    if (servicesActive) {
+      document.querySelectorAll('.finance-tab').forEach(button => {
+        button.classList.toggle('active', button.dataset.view === 'services');
+      });
+      document.querySelectorAll('.finance-view').forEach(view => {
+        view.classList.toggle('active', view.id === 'finance-services');
+      });
+    }
+    setHistoryView(state.historyView, false);
   }
 
   async function loadData() {
@@ -405,13 +589,15 @@
       state.hostSubscriptions = data.hostSubscriptions || [];
       state.financeIncome = ledger.income || [];
       state.financeExpenses = ledger.expenses || [];
+      state.financeInvoices = ledger.invoices || [];
       renderClientOptions();
       renderYearSelects();
       state.hardwareYear = Number(byId('hardware-year').value);
       state.servicesYear = Number(byId('services-year').value);
       renderHardware();
       renderServices();
-      refreshSuggestedInvoice();
+      renderInvoices();
+      applyInitialView();
     } catch (error) {
       toast(`Не удалось загрузить Finance: ${error.message}`, true);
     }
@@ -420,5 +606,6 @@
   byId('income-date').value = today();
   byId('expense-date').value = today();
   bind();
+  applyInitialView();
   loadData();
 })();

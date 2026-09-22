@@ -7,9 +7,9 @@
   <link rel="stylesheet" href="/finance.css" />
   <link rel="stylesheet" href="/shared-navigation.css" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
-  <script src="/finance.js?v=20260920-4" defer></script>
+  <script src="/finance.js?v=20260922-2" defer></script>
   <script src="/finance-client-email-only.js?v=20260914-3" defer></script>
-  <script src="/finance-invoice.js?v=20260920-3&lv=7" defer></script>
+  <script src="/finance-invoice.js?v=20260921-1&lv=8" defer></script>
   <script>
     window.addEventListener('DOMContentLoaded', () => {
       const jsPDF = window.jspdf?.jsPDF;
@@ -98,16 +98,14 @@
 
       <div class="forms-grid">
         <section class="panel form-panel">
-          <div class="panel-head"><div><h3>Добавить доход</h3><p>Подписка, настройка или другой сервис.</p></div></div>
+          <div class="panel-head"><div><h3>Выписать счёт</h3><p>Сначала создаётся DRAFT. В бухгалтерию доход попадёт только после Confirm.</p></div></div>
           <form id="income-form">
             <label>Клиент<select id="income-client" required></select></label>
             <label>Тип<select id="income-type"><option value="subscription">Subscription</option><option value="setup">Setup</option><option value="other">Other</option></select></label>
             <label>Дата<input id="income-date" type="date" required /></label>
             <label>Сумма, €<input id="income-amount" type="number" min="0.01" step="0.01" value="35" required /></label>
-            <label>№ счёта<input id="income-invoice" type="text" placeholder="HS-2026-001" /></label>
-            <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><button type="button" class="btn-secondary" id="invoice-number-btn">Получить №</button><button type="button" class="btn-secondary" id="invoice-pdf-btn">PDF-счёт</button></div>
             <label class="wide">Комментарий<input id="income-note" type="text" maxlength="160" placeholder="Например: продление на год" /></label>
-            <button type="submit" class="btn-primary wide">Добавить доход</button>
+            <button type="submit" class="btn-primary wide">Выписать счёт</button>
           </form>
         </section>
 
@@ -125,18 +123,60 @@
         </section>
       </div>
 
-      <section class="panel">
-        <div class="panel-head ledger-head">
-          <div><h3>Операции</h3><p id="ledger-caption">Доходы и расходы за выбранный год.</p></div>
-          <div class="ledger-filters">
-            <select id="ledger-kind"><option value="all">Все</option><option value="income">Доходы</option><option value="expense">Расходы</option></select>
-            <input id="ledger-search" type="search" placeholder="Клиент, счёт, комментарий…" />
+      <section class="panel history-shell">
+        <div class="panel-head history-head">
+          <div>
+            <h3>История</h3>
+            <p>Счета и реальные операции в одном месте.</p>
+          </div>
+          <nav class="history-tabs" aria-label="Finance history">
+            <button type="button" class="history-tab active" data-history="invoices">Счета</button>
+            <button type="button" class="history-tab" data-history="ledger">Бухгалтерия</button>
+          </nav>
+        </div>
+
+        <div id="history-invoices" class="history-view active">
+          <div class="history-filters">
+            <label>С даты<input id="invoice-date-from" type="date" /></label>
+            <label>По дату<input id="invoice-date-to" type="date" /></label>
+            <label>№ счёта<input id="invoice-number-filter" type="search" placeholder="HS-2026-005" /></label>
+            <label>Статус<select id="invoice-status-filter"><option value="all">Все</option><option value="DRAFT">DRAFT</option><option value="CONFIRMED">CONFIRMED</option><option value="VOID">VOID</option></select></label>
+            <button type="button" class="btn-secondary" id="invoice-filter-reset">Сбросить</button>
+          </div>
+          <p class="history-caption" id="invoice-list-caption">DRAFT можно Confirm или Decline. PDF доступен всегда.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Дата</th><th>№ счёта</th><th>Клиент</th><th>Сумма</th><th>Статус</th><th>Действия</th></tr></thead>
+            <tbody id="invoice-tbody"></tbody>
+          </table></div>
+          <div class="pagination" id="invoice-pagination">
+            <button type="button" class="btn-secondary" id="invoice-prev">← Назад</button>
+            <span id="invoice-page-info"></span>
+            <button type="button" class="btn-secondary" id="invoice-next">Вперёд →</button>
           </div>
         </div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>Дата</th><th>№</th><th>Тип</th><th>Клиент / Host</th><th>Доход</th><th>Расход</th><th>Комментарий</th><th></th></tr></thead>
-          <tbody id="ledger-tbody"></tbody>
-        </table></div>
+
+        <div id="history-ledger" class="history-view">
+          <div class="history-filters">
+            <label>С даты<input id="ledger-date-from" type="date" /></label>
+            <label>По дату<input id="ledger-date-to" type="date" /></label>
+            <label>№ счёта / документа<input id="ledger-number-filter" type="search" placeholder="HS-2026-005" /></label>
+            <label>Тип<select id="ledger-kind"><option value="all">Все</option><option value="income">Поступления</option><option value="expense">Расходы</option></select></label>
+            <button type="button" class="btn-secondary" id="ledger-filter-reset">Сбросить</button>
+          </div>
+          <div class="history-caption-row">
+            <p class="history-caption" id="ledger-caption">Реальные операции бухгалтерии.</p>
+            <button type="button" class="btn-secondary" id="export-csv-history">Export CSV</button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Дата</th><th>№</th><th>Тип</th><th>Клиент / Host</th><th>Доход</th><th>Расход</th><th>Комментарий</th><th></th></tr></thead>
+            <tbody id="ledger-tbody"></tbody>
+          </table></div>
+          <div class="pagination" id="ledger-pagination">
+            <button type="button" class="btn-secondary" id="ledger-prev">← Назад</button>
+            <span id="ledger-page-info"></span>
+            <button type="button" class="btn-secondary" id="ledger-next">Вперёд →</button>
+          </div>
+        </div>
       </section>
     </section>
   </main>
