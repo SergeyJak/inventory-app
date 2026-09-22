@@ -9,7 +9,7 @@
   "scripts": {
     "prestart": "node scripts/bootstrap-geolite2.js && node scripts/ensure-yandex-plus-category.js && node scripts/restore-yandex-plus-hq-image.js && node scripts/enable-finance-routes.js && node scripts/bust-assistant-loader-cache.js",
     "start": "node server.js",
-    "test": "node tests/navigation-role-access.test.cjs && node tests/mail-host-onboarding.test.cjs && node tests/assistant-engine-v2.test.cjs && node tests/finance-invoice.test.cjs && node tests/finance-invoice-workflow.test.cjs && node tests/finance-data-protection.test.cjs && node tests/finance-standalone-storage.test.cjs && node tests/mongo-data-integrity.test.cjs && node tests/account-view-routing.test.cjs && node tests/finance-combo.test.cjs",
+    "test": "node tests/navigation-role-access.test.cjs && node tests/mail-host-onboarding.test.cjs && node tests/assistant-engine-v2.test.cjs && node tests/finance-invoice.test.cjs && node tests/finance-invoice-workflow.test.cjs && node tests/finance-history-pages.test.cjs && node tests/finance-data-protection.test.cjs && node tests/finance-standalone-storage.test.cjs && node tests/mongo-data-integrity.test.cjs && node tests/account-view-routing.test.cjs && node tests/finance-combo.test.cjs",
     "test:navigation": "node tests/navigation-role-access.test.cjs",
     "test:assistant": "node tests/assistant-engine-v2.test.cjs",
     "test:assistant-analytics": "node tests/assistant-analytics.test.cjs",
