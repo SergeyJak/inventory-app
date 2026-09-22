@@ -16,6 +16,8 @@ assert.match(server, /uniq_finance_draft_invoice_no/, 'invoice numbers must be u
 assert.match(server, /async function allocateInvoiceNumber\(year\)/, 'server must allocate invoice numbers');
 assert.match(server, /\$inc:\s*\{ seq: 1 \}/, 'Mongo counter increment must be atomic');
 assert.match(server, /currentInvoiceSequence\(numericYear\)/, 'counter must start above historical invoice numbers');
+assert.match(server, /db\.collection\(COLL\.financeIncome\)/, 'preview numbering must also read production income numbers');
+assert.match(server, /db\.collection\(COLL\.financeInvoices\)/, 'preview numbering must also read production invoice numbers');
 assert.match(server, /status:\s*'DRAFT'/, 'new invoices must start as DRAFT');
 assert.match(server, /status:\s*'CONFIRMED'/, 'confirm must transition the invoice');
 assert.match(server, /status:\s*'VOID'/, 'decline must void rather than delete the invoice');
