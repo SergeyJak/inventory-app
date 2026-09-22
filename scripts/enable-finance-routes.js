@@ -21,6 +21,8 @@ patch('server.js', source => {
   const routes = [
     ["['/finance', 'finance.html']", "  ['/finance', 'finance.html'],"],
     ["['/finance.html', 'finance.html']", "  ['/finance.html', 'finance.html'],"],
+    ["['/finance/invoices', 'finance.html']", "  ['/finance/invoices', 'finance.html'],"],
+    ["['/finance/transactions', 'finance.html']", "  ['/finance/transactions', 'finance.html'],"],
     ["['/finance.css', 'finance.css']", "  ['/finance.css', 'finance.css'],"],
     ["['/finance.js', 'finance.js']", "  ['/finance.js', 'finance.js'],"],
     ["['/finance-client-email-only.js', 'finance-client-email-only.js']", "  ['/finance-client-email-only.js', 'finance-client-email-only.js'],"],
