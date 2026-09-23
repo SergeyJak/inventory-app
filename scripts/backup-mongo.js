@@ -14,7 +14,8 @@ const {
 
 const DB_NAME = process.env.MONGO_BACKUP_DB || 'inventory';
 const BACKUP_DIR = process.env.BACKUP_DIR || '/data/backups';
-const RESTORE_TEST_PREFIX = 'inventory_backup_restore_test_';
+const RESTORE_TEST_PREFIX = 'hs_restore_test_';
+const MAX_DB_NAME_BYTES = 38;
 
 function isPreviewCollection(name) {
   return /__inventory-app-pr-|__pr-/i.test(name);
@@ -27,10 +28,22 @@ function assertSafeRestoreTarget(name) {
   if (name === DB_NAME || name === 'inventory' || name.length <= RESTORE_TEST_PREFIX.length) {
     throw new Error('Production restore target rejected: ' + name);
   }
-  if (!/^inventory_backup_restore_test_[A-Za-z0-9_-]+$/.test(name)) {
+  if (!/^hs_restore_test_[A-Za-z0-9_-]+$/.test(name)) {
     throw new Error('Restore-test target contains unsafe characters: ' + name);
   }
+  if (Buffer.byteLength(name, 'utf8') > MAX_DB_NAME_BYTES) {
+    throw new Error('Restore-test target exceeds Atlas database-name limit: ' + name);
+  }
   return true;
+}
+
+function createRestoreTestDbName() {
+  const name = RESTORE_TEST_PREFIX
+    + Date.now().toString(36)
+    + '_'
+    + crypto.randomBytes(3).toString('hex');
+  assertSafeRestoreTarget(name);
+  return name;
 }
 
 async function readProductionCollections(db) {
@@ -66,8 +79,7 @@ function applyRetention() {
 
 async function restoreTest(client, archivePath) {
   const archive = decodeArchive(fs.readFileSync(archivePath));
-  const tempName = RESTORE_TEST_PREFIX + Date.now() + '_' + crypto.randomBytes(3).toString('hex');
-  assertSafeRestoreTarget(tempName);
+  const tempName = createRestoreTestDbName();
   const tempDb = client.db(tempName);
 
   try {
@@ -164,9 +176,12 @@ if (require.main === module) {
 }
 
 module.exports = {
+  MAX_DB_NAME_BYTES,
+  RESTORE_TEST_PREFIX,
   applyRetention,
   assertSafeRestoreTarget,
   createBackup,
+  createRestoreTestDbName,
   isPreviewCollection,
   readProductionCollections,
   restoreTest,
