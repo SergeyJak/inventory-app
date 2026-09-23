@@ -1,8 +1,8 @@
 const path = require('path');
 const { spawn } = require('child_process');
 
-function spawnNode(script) {
-  return spawn(process.execPath, [path.join(__dirname, '..', script)], {
+function spawnNode(script, args = []) {
+  return spawn(process.execPath, [path.join(__dirname, '..', script), ...args], {
     env: process.env,
     stdio: 'inherit',
   });
@@ -10,13 +10,31 @@ function spawnNode(script) {
 
 const server = spawnNode('server.js');
 const backupsEnabled = String(process.env.ENABLE_AUTOMATED_BACKUPS || '').toLowerCase() === 'true';
+const oneShotRestoreTest = String(process.env.RUN_BACKUP_RESTORE_TEST_ON_START || '').toLowerCase() === 'true';
 let scheduler = backupsEnabled ? spawnNode('scripts/backup-scheduler.js') : null;
+let restoreTest = null;
 let shuttingDown = false;
 
 if (backupsEnabled) {
   console.log('[start] automated backups enabled');
 } else {
   console.log('[start] automated backups disabled for this service');
+}
+
+if (oneShotRestoreTest) {
+  console.log('[start] one-shot guarded restore test requested');
+  setTimeout(() => {
+    if (shuttingDown) return;
+    restoreTest = spawnNode('scripts/backup-mongo.js', ['--restore-test']);
+    restoreTest.on('exit', code => {
+      if (code === 0) {
+        console.log('[start] one-shot guarded restore test completed successfully');
+      } else {
+        console.error('[start] one-shot guarded restore test failed with code ' + code);
+      }
+      restoreTest = null;
+    });
+  }, 5000).unref();
 }
 
 function stopChild(child) {
@@ -28,6 +46,7 @@ function shutdown(signal, code = 0) {
   shuttingDown = true;
   stopChild(server);
   stopChild(scheduler);
+  stopChild(restoreTest);
   if (signal) console.log('[start] received ' + signal);
   setTimeout(() => process.exit(code), 250).unref();
 }
