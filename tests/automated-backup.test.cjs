@@ -10,7 +10,7 @@ const {
   retentionPlan,
   writeArchiveAtomic,
 } = require('../scripts/mongo-backup-lib');
-const { isPreviewCollection } = require('../scripts/backup-mongo');
+const { assertSafeRestoreTarget, isPreviewCollection } = require('../scripts/backup-mongo');
 
 (function archiveRoundTrip() {
   const id = new ObjectId();
@@ -72,6 +72,20 @@ const { isPreviewCollection } = require('../scripts/backup-mongo');
   assert.strictEqual(isPreviewCollection('financeIncome__pr-44'), true);
   assert.strictEqual(isPreviewCollection('products'), false);
   assert.strictEqual(isPreviewCollection('migrationBackup_20260920_subAccounts'), false);
+})();
+
+(function restoreTargetGuard() {
+  assert.strictEqual(assertSafeRestoreTarget('inventory_backup_restore_test_123_abc'), true);
+  for (const unsafe of [
+    'inventory',
+    'production',
+    '',
+    'inventory_backup_restore_test_',
+    'inventory_backup_restore_test_../inventory',
+    'inventory_backup_restore_test_$bad',
+  ]) {
+    assert.throws(() => assertSafeRestoreTarget(unsafe), /restore target|Restore-test target|Production restore/i);
+  }
 })();
 
 console.log('automated backup regression passed');
