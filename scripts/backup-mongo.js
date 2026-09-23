@@ -20,6 +20,19 @@ function isPreviewCollection(name) {
   return /__inventory-app-pr-|__pr-/i.test(name);
 }
 
+function assertSafeRestoreTarget(name) {
+  if (typeof name !== 'string' || !name.startsWith(RESTORE_TEST_PREFIX)) {
+    throw new Error('Unsafe restore target rejected: ' + String(name));
+  }
+  if (name === DB_NAME || name === 'inventory' || name.length <= RESTORE_TEST_PREFIX.length) {
+    throw new Error('Production restore target rejected: ' + name);
+  }
+  if (!/^inventory_backup_restore_test_[A-Za-z0-9_-]+$/.test(name)) {
+    throw new Error('Restore-test target contains unsafe characters: ' + name);
+  }
+  return true;
+}
+
 async function readProductionCollections(db) {
   const listed = await db.listCollections({}, { nameOnly: true }).toArray();
   const names = listed
@@ -54,9 +67,11 @@ function applyRetention() {
 async function restoreTest(client, archivePath) {
   const archive = decodeArchive(fs.readFileSync(archivePath));
   const tempName = RESTORE_TEST_PREFIX + Date.now() + '_' + crypto.randomBytes(3).toString('hex');
+  assertSafeRestoreTarget(tempName);
   const tempDb = client.db(tempName);
 
   try {
+    console.log('[backup] restore target verified safe: ' + tempName + '; production DB untouched');
     for (const collection of archive.collections) {
       if (collection.documents.length > 0) {
         await tempDb.collection(collection.name).insertMany(collection.documents, { ordered: true });
@@ -70,6 +85,7 @@ async function restoreTest(client, archivePath) {
     }
     return { ok: true, database: tempName, collections: archive.collections.length };
   } finally {
+    assertSafeRestoreTarget(tempName);
     await tempDb.dropDatabase().catch(() => {});
   }
 }
@@ -149,6 +165,7 @@ if (require.main === module) {
 
 module.exports = {
   applyRetention,
+  assertSafeRestoreTarget,
   createBackup,
   isPreviewCollection,
   readProductionCollections,
