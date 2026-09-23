@@ -42,6 +42,11 @@ jobs:
           node --check scripts/enable-yandex-plus-storefront.js
           node --check scripts/restore-yandex-plus-hq-image.js
           node --check scripts/replace-yandex-plus-image.js
+          node --check scripts/mongo-backup-lib.js
+          node --check scripts/backup-mongo.js
+          node --check scripts/backup-scheduler.js
+          node --check scripts/start-with-backup.js
+          node --check tests/automated-backup.test.cjs
           node --check tests/api-integration.test.cjs
           node --check tests/yandex-plus-image.test.cjs
           node --check tests/e2e/static-server.cjs
@@ -49,6 +54,9 @@ jobs:
 
       - name: Core tests
         run: npm test
+
+      - name: Backup tests
+        run: npm run test:backup
 
       - name: Knowledge Base tests
         run: node tests/knowledge-base.test.cjs
