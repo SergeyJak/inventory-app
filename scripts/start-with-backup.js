@@ -9,8 +9,15 @@ function spawnNode(script) {
 }
 
 const server = spawnNode('server.js');
-let scheduler = spawnNode('scripts/backup-scheduler.js');
+const backupsEnabled = String(process.env.ENABLE_AUTOMATED_BACKUPS || '').toLowerCase() === 'true';
+let scheduler = backupsEnabled ? spawnNode('scripts/backup-scheduler.js') : null;
 let shuttingDown = false;
+
+if (backupsEnabled) {
+  console.log('[start] automated backups enabled');
+} else {
+  console.log('[start] automated backups disabled for this service');
+}
 
 function stopChild(child) {
   if (child && !child.killed) child.kill('SIGTERM');
@@ -31,13 +38,21 @@ server.on('exit', code => {
   shutdown(null, Number.isInteger(code) ? code : 1);
 });
 
-scheduler.on('exit', code => {
-  if (shuttingDown) return;
-  console.error('[start] backup scheduler exited with code ' + code + '; restarting');
-  setTimeout(() => {
-    if (!shuttingDown) scheduler = spawnNode('scripts/backup-scheduler.js');
-  }, 5000).unref();
-});
+function watchScheduler(child) {
+  if (!child) return;
+  child.on('exit', code => {
+    if (shuttingDown || !backupsEnabled) return;
+    console.error('[start] backup scheduler exited with code ' + code + '; restarting');
+    setTimeout(() => {
+      if (!shuttingDown && backupsEnabled) {
+        scheduler = spawnNode('scripts/backup-scheduler.js');
+        watchScheduler(scheduler);
+      }
+    }, 5000).unref();
+  });
+}
+
+watchScheduler(scheduler);
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
