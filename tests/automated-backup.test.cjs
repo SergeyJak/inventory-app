@@ -10,7 +10,13 @@ const {
   retentionPlan,
   writeArchiveAtomic,
 } = require('../scripts/mongo-backup-lib');
-const { assertSafeRestoreTarget, isPreviewCollection } = require('../scripts/backup-mongo');
+const {
+  MAX_DB_NAME_BYTES,
+  RESTORE_TEST_PREFIX,
+  assertSafeRestoreTarget,
+  createRestoreTestDbName,
+  isPreviewCollection,
+} = require('../scripts/backup-mongo');
 
 (function archiveRoundTrip() {
   const id = new ObjectId();
@@ -75,14 +81,19 @@ const { assertSafeRestoreTarget, isPreviewCollection } = require('../scripts/bac
 })();
 
 (function restoreTargetGuard() {
-  assert.strictEqual(assertSafeRestoreTarget('inventory_backup_restore_test_123_abc'), true);
+  const generated = createRestoreTestDbName();
+  assert(generated.startsWith(RESTORE_TEST_PREFIX));
+  assert(Buffer.byteLength(generated, 'utf8') <= MAX_DB_NAME_BYTES);
+  assert.strictEqual(assertSafeRestoreTarget(generated), true);
+
   for (const unsafe of [
     'inventory',
     'production',
     '',
-    'inventory_backup_restore_test_',
-    'inventory_backup_restore_test_../inventory',
-    'inventory_backup_restore_test_$bad',
+    RESTORE_TEST_PREFIX,
+    RESTORE_TEST_PREFIX + '../inventory',
+    RESTORE_TEST_PREFIX + '$bad',
+    RESTORE_TEST_PREFIX + 'x'.repeat(50),
   ]) {
     assert.throws(() => assertSafeRestoreTarget(unsafe), /restore target|Restore-test target|Production restore/i);
   }
