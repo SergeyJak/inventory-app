@@ -22,6 +22,46 @@ Before implementing any new feature, verify:
 
 ---
 
+## Infrastructure & Data Protection (CROSS-CUTTING)
+
+Production data protection is mandatory and may be implemented independently of the sequential product phases below.
+
+### Backup Roadmap
+
+- [x] Keep MongoDB Atlas on the Free tier while production data remains comfortably within its limits.
+- [x] Keep the existing admin export/import flow as the fast, human-operated backup layer.
+- [x] Use the existing Railway persistent volume mounted at `/data` for automated backups.
+- [ ] Add a daily full backup of the production `inventory` database to `/data/backups`.
+- [ ] Store BSON-compatible Extended JSON in a gzip-compressed archive with per-collection SHA-256 checksums.
+- [ ] Write backups atomically so an interrupted backup never replaces a valid archive.
+- [ ] Retain 7 daily, 4 weekly, and 3 monthly recovery points.
+- [ ] Validate every newly created archive before marking it successful.
+- [ ] Run a periodic restore test into an isolated temporary database and verify collection counts/checksums.
+- [ ] Exclude Railway PR/preview collections from production backups.
+- [ ] Add backup health logging and expose the latest successful backup timestamp/size.
+- [ ] Add an alert path for a missed or failed backup.
+- [ ] Add a second off-platform/object-storage copy when production data size or business impact justifies it.
+- [ ] Re-evaluate MongoDB Flex/Dedicated when storage, performance, recovery-point requirements, or operational risk outgrow the Free tier.
+
+### Recovery Targets
+
+- Daily automated recovery point while on the current Free-tier architecture.
+- Manual admin export remains available for targeted operational recovery.
+- A backup is not considered healthy until its archive integrity has been verified.
+- Restore procedures must be testable without touching the production database.
+- Production and PR/preview data must never be mixed during backup or restore.
+
+### Definition of Done
+
+- A valid compressed backup is created automatically every day.
+- Backups survive application redeploys because they are stored on the persistent Railway volume.
+- Retention runs automatically and never deletes the newest valid recovery point.
+- A restore test can recreate the backup in an isolated temporary database and clean it up afterwards.
+- Automated backup tests run in CI.
+- Backup failures are visible in logs and do not crash the customer-facing application.
+
+---
+
 ## Phase 1 - SEO & Content (CURRENT PHASE)
 
 Highest priority.
@@ -143,10 +183,12 @@ Highest priority.
 
 ## Working Rules
 
-The roadmap is sequential.
+The product roadmap is sequential.
 
-Never start a new phase until the current one is substantially complete unless explicitly instructed.
+Never start a new product phase until the current one is substantially complete unless explicitly instructed.
+
+Cross-cutting production safety work, including backup, recovery, security, and data-integrity fixes, may interrupt the sequential product phases.
 
 Every completed task should be marked with a checkbox.
 
-Every future implementation must reference the roadmap phase it belongs to.
+Every future implementation must reference the roadmap phase or cross-cutting track it belongs to.
