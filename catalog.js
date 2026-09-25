@@ -2,10 +2,12 @@
 const content = document.getElementById('catalog-content');
 const showroom = document.getElementById('showroom');
 const modelDetails = document.getElementById('model-details');
+const modelExtras = document.getElementById('model-extras');
 const modelSwitcher = document.getElementById('model-switcher');
 const colorGallery = document.getElementById('color-gallery');
 const quickChoose = document.querySelector('.quick-choose');
 const detailsGrid = document.getElementById('details-grid');
+const detailsExtrasGrid = document.getElementById('details-extras-grid');
 const heroImage = document.getElementById('hero-image');
 const anglePrev = document.getElementById('angle-prev');
 const angleNext = document.getElementById('angle-next');
@@ -969,6 +971,9 @@ function render() {
     <div class="detail-item"><span class="detail-icon">${detailIcon(index)}</span><span>${detail}</span></div>
       `).join('')}
     </div>
+  `;
+
+  detailsExtrasGrid.innerHTML = `
     <div class="compare-block" aria-label="${dict('sections.choose.title')}">
       <div class="compare-head">
         <h3>${dict('sections.choose.title')}</h3>
@@ -1063,6 +1068,7 @@ function showCatalog(nextModels) {
   if (!models.length) {
     content.hidden = true;
     modelDetails.hidden = true;
+    modelExtras.hidden = true;
     modelSwitcher.innerHTML = '';
     colorGallery.innerHTML = '';
     setState(dict('state.empty'));
@@ -1085,6 +1091,7 @@ function showCatalog(nextModels) {
   }
   content.hidden = false;
   modelDetails.hidden = false;
+  modelExtras.hidden = false;
   setState('');
   render();
   return true;
@@ -1137,7 +1144,7 @@ colorGallery.addEventListener('click', event => {
   trackVisitorEvent('color_change', { modelId: model?.id || '', color: photo?.colorKey || '' });
 });
 
-detailsGrid.addEventListener('click', event => {
+detailsExtrasGrid.addEventListener('click', event => {
   const btn = event.target.closest('[data-compare-model]');
   if (!btn) return;
   selectModel(Number(btn.dataset.compareModel));
