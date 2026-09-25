@@ -967,7 +967,7 @@ function render() {
   detailsGrid.innerHTML = `
     ${sectionsHtml}
     <div class="detail-list">
-      ${modelText(model, 'details').map((detail, index) => `
+      ${modelText(model, 'details').slice(0, 3).map((detail, index) => `
     <div class="detail-item"><span class="detail-icon">${detailIcon(index)}</span><span>${detail}</span></div>
       `).join('')}
     </div>
