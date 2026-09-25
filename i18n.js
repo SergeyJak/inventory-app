@@ -137,7 +137,7 @@ window.catalogTranslations = {
           ['Умный дом', 'Используйте Алису для управления совместимыми устройствами умного дома: освещением, розетками, датчиками и другой техникой без необходимости брать телефон в руки.'],
           ['LED-дисплей', 'На передней панели отображаются часы, таймеры, погода, уровень громкости и другая полезная информация, делая взаимодействие со Станцией ещё удобнее.'],
         ],
-        details: ['Алиса нового поколения', 'LED-дисплей', 'Голосовое управление', 'Музыка и подкасты', 'Управление умным домом', 'Несколько цветовых вариантов'],
+        details: ['Алиса нового поколения', 'LED-дисплей', 'Несколько цветовых вариантов'],
         fits: ['Спальня', 'Кухня', 'Детская', 'Рабочий стол'],
         badge: 'доступная',
         compare: ['Первое знакомство', 'Компактная', 'LED-дисплей', 'Спальня, кухня, детская'],
@@ -319,7 +319,7 @@ window.catalogTranslations = {
           ['Viedā māja', 'Ar Alisi var vadīt saderīgas viedās mājas ierīces: gaismas, rozetes, sensorus un citu tehniku.'],
           ['LED displejs', 'Priekšpusē redzams pulkstenis, taimeri, laikapstākļi, skaļums un cita noderīga informācija.'],
         ],
-        details: ['Jaunās paaudzes Alise', 'LED displejs', 'Balss vadība', 'Mūzika un podkāsti', 'Viedās mājas vadība', 'Vairākas krāsas'],
+        details: ['Jaunās paaudzes Alise', 'LED displejs', 'Vairākas krāsas'],
         fits: ['Guļamistaba', 'Virtuve', 'Bērnistaba', 'Darba galds'], badge: 'pieejama', compare: ['Pirmais skaļrunis', 'Kompakta', 'LED displejs', 'Guļamistaba un virtuve'],
       },
       mini3: {
@@ -483,7 +483,7 @@ window.catalogTranslations = {
           ['Smart home', 'Use Alice to control compatible smart home devices: lights, sockets, sensors and other equipment.'],
           ['LED display', 'The front panel shows time, timers, weather, volume and other useful information.'],
         ],
-        details: ['New generation Alice', 'LED display', 'Voice control', 'Music and podcasts', 'Smart home control', 'Several colors'],
+        details: ['New generation Alice', 'LED display', 'Several colors'],
         fits: ['Bedroom', 'Kitchen', 'Child’s room', 'Desk'], badge: 'accessible', compare: ['First speaker', 'Compact', 'LED display', 'Bedroom and kitchen'],
       },
       mini3: {
