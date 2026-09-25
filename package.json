@@ -7,7 +7,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "prestart": "node scripts/bootstrap-geolite2.js && node scripts/ensure-yandex-plus-category.js && node scripts/restore-yandex-plus-hq-image.js && node scripts/enable-finance-routes.js && node scripts/bust-assistant-loader-cache.js",
+    "prestart": "node scripts/bootstrap-geolite2.js && node scripts/ensure-yandex-plus-category.js && node scripts/restore-yandex-plus-hq-image.js && node scripts/enable-yandex-plus-storefront.js && node scripts/enable-finance-routes.js && node scripts/bust-assistant-loader-cache.js",
     "start": "node scripts/start-with-backup.js",
     "backup:mongo": "node scripts/backup-mongo.js",
     "backup:restore-test": "node scripts/backup-mongo.js --restore-test",
