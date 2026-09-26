@@ -444,6 +444,23 @@
       <nav class="color-gallery" id="color-gallery" aria-label="Colors"></nav>
     </section>
 
+    <details class="model-details model-details-collapsible" id="model-details" hidden>
+      <summary class="model-details-toggle">
+        <span>
+          <span class="eyebrow" data-i18n="common.aboutModel">О модели</span>
+          <strong data-i18n="common.moreAboutModel">Подробнее о модели</strong>
+        </span>
+        <span class="model-details-chevron" aria-hidden="true"></span>
+      </summary>
+      <div class="model-details-content">
+        <div class="details-head">
+          <h2 id="details-title"></h2>
+          <p id="details-summary"></p>
+        </div>
+        <div class="details-grid" id="details-grid" aria-label="Описание модели"></div>
+      </div>
+    </details>
+
     <section class="quick-choose" aria-labelledby="quick-choose-title">
       <div class="quick-choose-head">
         <p class="eyebrow" data-i18n="sections.quickChoose.kicker">Быстрый выбор</p>
@@ -486,6 +503,18 @@
           </ul>
           <em data-i18n="sections.quickChoose.pro.final">Выбирайте, если важна автоматизация.</em>
         </article>
+        <article class="quick-card" role="button" tabindex="0" data-quick-model="midi" aria-pressed="false">
+          <img class="quick-product" src="/images/catalog/midi/black/01.png" alt="" width="180" height="140" loading="lazy" decoding="async" />
+          <h3><a href="__PRODUCT_MIDI_URL__">Midi</a></h3>
+          <strong data-i18n="sections.quickChoose.midi.recommend">Для большой комнаты</strong>
+          <p data-i18n="sections.quickChoose.midi.lead">Модель для тех, кому уже мало компактной колонки: более мощный звук для гостиной, музыки, фильмов и семейных сценариев.</p>
+          <ul>
+            <li data-i18n="sections.quickChoose.midi.point1">Мощнее компактных моделей.</li>
+            <li data-i18n="sections.quickChoose.midi.point2">Подходит для гостиной и фильмов.</li>
+            <li data-i18n="sections.quickChoose.midi.point3">Хороша для музыки и семейного использования.</li>
+          </ul>
+          <em data-i18n="sections.quickChoose.midi.final">Выбирайте, если нужен более серьёзный звук дома.</em>
+        </article>
         <article class="quick-card" role="button" tabindex="0" data-quick-model="street" aria-pressed="false">
           <img class="quick-product" src="/images/catalog/street/green/01.webp" alt="" width="180" height="140" loading="lazy" decoding="async" />
           <h3><a href="__PRODUCT_STREET_URL__">Street</a></h3>
@@ -499,6 +528,10 @@
           <em data-i18n="sections.quickChoose.street.final">Выбирайте, если колонка должна быть мобильной.</em>
         </article>
       </div>
+    </section>
+
+    <section class="model-details model-details-extra" id="model-extras" hidden>
+      <div class="details-grid" id="details-extras-grid" aria-label="Сравнение и покупка"></div>
     </section>
 
     <section class="local-info" aria-labelledby="local-info-title">
@@ -523,14 +556,6 @@
       </div>
     </section>
 
-    <section class="model-details" id="model-details" hidden>
-      <div class="details-head">
-        <p class="eyebrow" data-i18n="common.aboutModel"></p>
-        <h2 id="details-title"></h2>
-        <p id="details-summary"></p>
-      </div>
-      <div class="details-grid" id="details-grid" aria-label="Описание модели"></div>
-    </section>
   </main>
 
   <div class="overlay" id="overlay" hidden></div>

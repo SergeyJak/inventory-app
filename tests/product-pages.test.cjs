@@ -140,7 +140,7 @@ function testClientSelection(script) {
   const modelDefinitions = script.slice(script.indexOf('const PHOTO_MODELS ='), script.indexOf('\nlet ', script.indexOf('const PHOTO_MODELS =')));
   const context = vm.createContext({ URLSearchParams, window: { location: { search: '', hash: '' }, requestAnimationFrame: fn => fn() }, scrolls: 0 });
   vm.runInContext(`${modelDefinitions}\nlet models = []; let activeModel = 0; let activeColor = 0; let activeAngle = 0; let hasAppliedInitialUrlSelection = false; let hasScrolledToHashSelection = false;
-    const content = {}, modelDetails = {}, modelSwitcher = {}, colorGallery = {};
+    const content = {}, modelDetails = {}, modelExtras = {}, modelSwitcher = {}, colorGallery = {};
     const showroom = { scrollIntoView(options) { if (options.behavior === 'smooth') scrolls++; } };
     function render() {} function setState() {} function dict() {}
     ${['normalize', 'matchesModel', 'matchesPhoto', 'buildModels', 'currentSelection', 'applyUrlSelection', 'showCatalog', 'catalogLocaleHref', 'pickModel'].map(source).join('\n')}`, context);

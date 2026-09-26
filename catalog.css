@@ -46,7 +46,7 @@ button {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   gap: 20px;
-  padding: 24px clamp(18px, 5vw, 72px) 84px;
+  padding: 24px clamp(18px, 5vw, 72px) 40px;
   background:
     radial-gradient(circle at 70% 46%, var(--glow, rgba(65, 178, 255, .18)), transparent 26%),
     radial-gradient(circle at 55% 78%, rgba(0, 0, 0, .055), transparent 25%),
@@ -1237,6 +1237,71 @@ p {
   background: #fff;
 }
 
+.model-details-collapsible {
+  padding-top: clamp(28px, 4vw, 48px);
+  padding-bottom: clamp(28px, 4vw, 48px);
+}
+
+.model-details-toggle {
+  width: min(100%, 980px);
+  min-height: 96px;
+  margin: 0 auto;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(17, 17, 20, .08);
+  border-radius: 26px;
+  background: linear-gradient(145deg, #fff, #f7f8fa);
+  box-shadow: 0 12px 30px rgba(10, 18, 28, .045);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.model-details-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.model-details-toggle > span:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.model-details-toggle .eyebrow {
+  margin: 0;
+}
+
+.model-details-toggle strong {
+  color: #111114;
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.05;
+  letter-spacing: -.045em;
+}
+
+.model-details-chevron {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-right: 2px solid #111114;
+  border-bottom: 2px solid #111114;
+  transform: rotate(45deg) translate(-3px, -3px);
+  transition: transform .2s ease;
+}
+
+.model-details-collapsible[open] .model-details-chevron {
+  transform: rotate(225deg) translate(-3px, -3px);
+}
+
+.model-details-content {
+  padding-top: clamp(42px, 6vw, 72px);
+}
+
+.model-details-extra {
+  padding-top: 0;
+}
+
 .details-head {
   max-width: 920px;
   margin: 0 auto clamp(34px, 5vw, 64px);
@@ -1297,8 +1362,8 @@ p {
 
 .detail-list {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .fit-list {
@@ -1324,11 +1389,13 @@ p {
 }
 
 .detail-item {
-  min-height: 118px;
+  min-height: 92px;
   display: grid;
-  place-items: center;
-  gap: 16px;
-  padding: 24px;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  justify-items: start;
+  gap: 14px;
+  padding: 20px;
   border-radius: 28px;
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, .9), transparent 58%),
@@ -1343,17 +1410,11 @@ p {
   animation: detailRise 280ms ease both;
 }
 
-.detail-item:nth-child(1),
-.detail-item:nth-child(2) {
-  grid-column: span 2;
-  min-height: 138px;
-  font-size: 19px;
-}
-
-.detail-item:nth-child(n+3) {
-  grid-column: span 1;
-  padding: 18px;
-  font-size: 15px;
+.detail-item:nth-child(n) {
+  grid-column: auto;
+  min-height: 92px;
+  padding: 20px;
+  font-size: 16px;
 }
 
 .detail-item:nth-child(2) {
@@ -1680,7 +1741,8 @@ p {
 
 @media (max-width: 900px) {
   .showroom {
-    padding: 20px 14px 84px;
+    min-height: auto;
+    padding: 20px 14px 22px;
     gap: 14px;
   }
 
@@ -1824,7 +1886,7 @@ p {
   }
 
   .quick-choose {
-    padding: 62px 16px;
+    padding: 62px 16px 22px;
   }
 
   .quick-choose-head {
@@ -1923,6 +1985,34 @@ p {
     padding: 68px 16px;
   }
 
+  .model-details-extra {
+    padding: 0 16px 36px;
+  }
+
+  .model-details-extra .compare-block {
+    margin-top: 18px;
+    padding-top: 18px;
+  }
+
+  .model-details-collapsible {
+    padding-top: 12px;
+    padding-bottom: 28px;
+  }
+
+  .model-details-toggle {
+    min-height: 78px;
+    padding: 18px 20px;
+    border-radius: 22px;
+  }
+
+  .model-details-toggle strong {
+    font-size: 22px;
+  }
+
+  .model-details-content {
+    padding-top: 34px;
+  }
+
   .details-head {
     text-align: left;
     margin-bottom: 28px;
@@ -1959,19 +2049,19 @@ p {
   }
 
   .detail-item {
-    min-height: 86px;
-    border-radius: 22px;
-    grid-template-columns: 32px 1fr;
+    min-height: 70px;
+    border-radius: 20px;
+    grid-template-columns: 28px 1fr;
     grid-column: auto !important;
     justify-items: start;
     text-align: left;
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .detail-item:nth-child(n) {
-    min-height: 86px;
-    padding: 20px;
-    font-size: 16px;
+    min-height: 70px;
+    padding: 16px 18px;
+    font-size: 15px;
   }
 
   .compare-block {

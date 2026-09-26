@@ -68,19 +68,29 @@ test.describe('HeySmart storefront safety net', () => {
     expect(decodeURIComponent(href || '')).toContain('45 €');
   });
 
-  test('Yandex Plus offer stays between showroom and quick choice', async ({ page }) => {
+  test('selected model details stay directly below the showroom', async ({ page }) => {
     const order = await page.evaluate(() => {
       const showroom = document.querySelector('#showroom');
+      const details = document.querySelector('#model-details');
       const offer = document.querySelector('#yandex-plus-offer');
       const quickChoose = document.querySelector('.quick-choose');
-      if (!showroom || !offer || !quickChoose) return null;
+      const extras = document.querySelector('#model-extras');
+      if (!showroom || !details || !offer || !quickChoose || !extras) return null;
+      const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
       return {
-        showroomBeforeOffer: Boolean(showroom.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING),
-        offerBeforeQuickChoose: Boolean(offer.compareDocumentPosition(quickChoose) & Node.DOCUMENT_POSITION_FOLLOWING),
+        showroomBeforeDetails: before(showroom, details),
+        detailsBeforeOffer: before(details, offer),
+        offerBeforeQuickChoose: before(offer, quickChoose),
+        quickChooseBeforeExtras: before(quickChoose, extras),
       };
     });
 
-    expect(order).toEqual({ showroomBeforeOffer: true, offerBeforeQuickChoose: true });
+    expect(order).toEqual({
+      showroomBeforeDetails: true,
+      detailsBeforeOffer: true,
+      offerBeforeQuickChoose: true,
+      quickChooseBeforeExtras: true,
+    });
   });
 
   test('promo image is the expected decoded asset', async ({ page }) => {

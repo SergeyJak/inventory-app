@@ -13,6 +13,7 @@ window.catalogTranslations = {
     common: {
       selectedModel: 'Выбрана модель',
       aboutModel: 'О модели',
+      moreAboutModel: 'Подробнее о модели',
       contact: 'Связаться',
       close: 'Закрыть',
       inStock: 'В наличии',
@@ -89,6 +90,7 @@ window.catalogTranslations = {
         lite: { lead: 'Подходит как первая умная колонка для спальни, детской или небольшого рабочего места, где важны простота и компактность.', point1: 'Легко познакомиться с Алисой.', point2: 'Не занимает много места.', point3: 'Хороший подарок для ежедневных задач.', recommend: 'Для первой колонки', final: 'Выбирайте, если нужен самый простой старт.' },
         mini: { lead: 'Оптимальный вариант для большинства покупателей: компактная колонка с более уверенным звуком для музыки, кухни или гостиной.', point1: 'Лучше звучит в повседневном использовании.', point2: 'Остается компактной и аккуратной.', point3: 'Подходит для большинства комнат.', recommend: 'Лучший баланс', final: 'Выбирайте, если хотите универсальный вариант.' },
         pro: { lead: 'Лучший выбор, если колонка должна стать центром умного дома и управлять совместимыми устройствами через Zigbee.', point1: 'Сильнее в роли центра умного дома.', point2: 'Zigbee для совместимых устройств.', point3: 'Больше запаса для будущей системы.', recommend: 'Для умного дома', final: 'Выбирайте, если важна автоматизация.' },
+        midi: { lead: 'Модель для тех, кому уже мало компактной колонки: более мощный звук для гостиной, музыки, фильмов и семейных сценариев.', point1: 'Мощнее компактных моделей.', point2: 'Подходит для гостиной и фильмов.', point3: 'Хороша для музыки и семейного использования.', recommend: 'Для большой комнаты', final: 'Выбирайте, если нужен более серьёзный звук дома.' },
         street: { lead: 'Портативная колонка для тех, кто хочет брать Алису с собой на улицу, в поездки, на балкон или за пределы дома.', point1: 'Удобный формат для движения.', point2: 'Полезна вне рабочего стола.', point3: 'Подходит для поездок и отдыха.', recommend: 'Для улицы и поездок', final: 'Выбирайте, если колонка должна быть мобильной.' }
       },
       localInfo: {
@@ -137,7 +139,7 @@ window.catalogTranslations = {
           ['Умный дом', 'Используйте Алису для управления совместимыми устройствами умного дома: освещением, розетками, датчиками и другой техникой без необходимости брать телефон в руки.'],
           ['LED-дисплей', 'На передней панели отображаются часы, таймеры, погода, уровень громкости и другая полезная информация, делая взаимодействие со Станцией ещё удобнее.'],
         ],
-        details: ['Алиса нового поколения', 'LED-дисплей', 'Голосовое управление', 'Музыка и подкасты', 'Управление умным домом', 'Несколько цветовых вариантов'],
+        details: ['Алиса нового поколения', 'LED-дисплей', 'Несколько цветовых вариантов'],
         fits: ['Спальня', 'Кухня', 'Детская', 'Рабочий стол'],
         badge: 'доступная',
         compare: ['Первое знакомство', 'Компактная', 'LED-дисплей', 'Спальня, кухня, детская'],
@@ -219,7 +221,8 @@ window.catalogTranslations = {
     },
     nav: { brand: 'Viedais skaļrunis', consultation: 'Konsultācija', lang: 'Valoda', help: 'Zināšanu bāze' },
     state: { loading: 'Ielādējam modeļus...', empty: 'Pašlaik nav pieejamu modeļu ar foto.', error: 'Neizdevās ielādēt modeļus. Mēģiniet atsvaidzināt lapu.' },
-    common: { selectedModel: 'Izvēlētais modelis', aboutModel: 'Par modeli', contact: 'Sazināties', close: 'Aizvērt', inStock: 'Pieejams', stockUnknown: 'Pieejamība jāprecizē', model: 'modelis', models: 'Modeļi', colors: 'Krāsas', fitFor: 'Kam piemērots', showModel: 'Parādīt modeli', compare: 'Salīdzināt' },
+    common: { selectedModel: 'Izvēlētais modelis', aboutModel: 'Par modeli',
+      moreAboutModel: 'Vairāk par modeli', contact: 'Sazināties', close: 'Aizvērt', inStock: 'Pieejams', stockUnknown: 'Pieejamība jāprecizē', model: 'modelis', models: 'Modeļi', colors: 'Krāsas', fitFor: 'Kam piemērots', showModel: 'Parādīt modeli', compare: 'Salīdzināt' },
     contact: {
       kicker: 'Saziņa',
       title: 'Kā jums ērtāk sazināties?',
@@ -285,6 +288,7 @@ window.catalogTranslations = {
         lite: { lead: 'Piemērota kā pirmā viedā kolonna guļamistabai, bērnistabai vai mazai darba vietai, kur svarīga vienkāršība un kompaktums.', point1: 'Vienkārši sākt ar Alisi.', point2: 'Neaizņem daudz vietas.', point3: 'Laba dāvana ikdienas uzdevumiem.', recommend: 'Pirmajai ierīcei', final: 'Izvēlieties, ja vajadzīgs vienkāršākais starts.' },
         mini: { lead: 'Optimāla izvēle lielākajai daļai pircēju: kompakta kolonna ar pārliecinošāku skaņu mūzikai, virtuvei vai viesistabai.', point1: 'Labāk skan ikdienas klausīšanā.', point2: 'Joprojām kompakta un kārtīga.', point3: 'Der lielākajai daļai istabu.', recommend: 'Labākais līdzsvars', final: 'Izvēlieties, ja vajadzīgs universāls variants.' },
         pro: { lead: 'Labākā izvēle, ja kolonnai jākļūst par viedās mājas centru un jāvada saderīgas ierīces caur Zigbee.', point1: 'Spēcīgāka kā viedās mājas centrs.', point2: 'Zigbee saderīgām ierīcēm.', point3: 'Vairāk iespēju nākotnes sistēmai.', recommend: 'Viedajai mājai', final: 'Izvēlieties, ja svarīga automatizācija.' },
+        midi: { lead: 'Modelis lielākai telpai, kad ar kompaktu skaļruni vairs nepietiek: jaudīgāka skaņa viesistabai, mūzikai, filmām un ģimenes scenārijiem.', point1: 'Jaudīgāka par kompaktajiem modeļiem.', point2: 'Piemērota viesistabai un filmām.', point3: 'Laba mūzikai un ģimenes lietošanai.', recommend: 'Lielākai telpai', final: 'Izvēlieties, ja mājās vajadzīga nopietnāka skaņa.' },
         street: { lead: 'Pārnēsājama kolonna tiem, kuri vēlas ņemt Alisi līdzi ārā, braucienos, uz balkona vai ārpus mājām.', point1: 'Ērts formāts kustībai.', point2: 'Noderīga ārpus darba galda.', point3: 'Der braucieniem un atpūtai.', recommend: 'Āram un braucieniem', final: 'Izvēlieties, ja kolonnai jābūt mobilai.' }
       },
       localInfo: {
@@ -319,7 +323,7 @@ window.catalogTranslations = {
           ['Viedā māja', 'Ar Alisi var vadīt saderīgas viedās mājas ierīces: gaismas, rozetes, sensorus un citu tehniku.'],
           ['LED displejs', 'Priekšpusē redzams pulkstenis, taimeri, laikapstākļi, skaļums un cita noderīga informācija.'],
         ],
-        details: ['Jaunās paaudzes Alise', 'LED displejs', 'Balss vadība', 'Mūzika un podkāsti', 'Viedās mājas vadība', 'Vairākas krāsas'],
+        details: ['Jaunās paaudzes Alise', 'LED displejs', 'Vairākas krāsas'],
         fits: ['Guļamistaba', 'Virtuve', 'Bērnistaba', 'Darba galds'], badge: 'pieejama', compare: ['Pirmais skaļrunis', 'Kompakta', 'LED displejs', 'Guļamistaba un virtuve'],
       },
       mini3: {
@@ -383,7 +387,8 @@ window.catalogTranslations = {
     },
     nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language', help: 'Knowledge Base' },
     state: { loading: 'Loading models...', empty: 'No available models with photos right now.', error: 'Could not load models. Please refresh the page.' },
-    common: { selectedModel: 'Selected model', aboutModel: 'About the model', contact: 'Contact', close: 'Close', inStock: 'In stock', stockUnknown: 'Availability to be confirmed', model: 'model', models: 'Models', colors: 'Colors', fitFor: 'Who it suits', showModel: 'Show model', compare: 'Compare' },
+    common: { selectedModel: 'Selected model', aboutModel: 'About the model',
+      moreAboutModel: 'More about this model', contact: 'Contact', close: 'Close', inStock: 'In stock', stockUnknown: 'Availability to be confirmed', model: 'model', models: 'Models', colors: 'Colors', fitFor: 'Who it suits', showModel: 'Show model', compare: 'Compare' },
     contact: {
       kicker: 'Contact',
       title: 'How would you like to contact us?',
@@ -449,6 +454,7 @@ window.catalogTranslations = {
         lite: { lead: 'Best as a first smart speaker for a bedroom, children\'s room, or small desk where simple setup and compact size matter most.', point1: 'Easy way to start with Alice.', point2: 'Fits comfortably in small spaces.', point3: 'Good gift for everyday tasks.', recommend: 'For a first speaker', final: 'Choose it for the simplest start.' },
         mini: { lead: 'The safest choice for most buyers: a compact speaker with stronger sound for music, the kitchen, or a living room.', point1: 'Better sound for daily listening.', point2: 'Still compact and minimal.', point3: 'Works well in most rooms.', recommend: 'Best balance', final: 'Choose it if you want one universal pick.' },
         pro: { lead: 'Best when the speaker should become a smart-home hub and control compatible devices through Zigbee automation.', point1: 'Stronger smart-home role.', point2: 'Zigbee for compatible devices.', point3: 'More capable for future setup.', recommend: 'For smart home', final: 'Choose it when automation matters.' },
+        midi: { lead: 'For a larger room when a compact speaker is no longer enough: stronger sound for a living room, music, movies and family use.', point1: 'More powerful than compact models.', point2: 'Well suited to living rooms and movies.', point3: 'Good for music and family use.', recommend: 'For a larger room', final: 'Choose it when you want more serious sound at home.' },
         street: { lead: 'A portable speaker for people who want to take Alice outside, on trips, to the balcony, or anywhere away from home.', point1: 'Portable format for movement.', point2: 'Useful away from the desk.', point3: 'Good for trips and relaxed use.', recommend: 'For outdoors and trips', final: 'Choose it if the speaker should move with you.' }
       },
       localInfo: {
@@ -483,7 +489,7 @@ window.catalogTranslations = {
           ['Smart home', 'Use Alice to control compatible smart home devices: lights, sockets, sensors and other equipment.'],
           ['LED display', 'The front panel shows time, timers, weather, volume and other useful information.'],
         ],
-        details: ['New generation Alice', 'LED display', 'Voice control', 'Music and podcasts', 'Smart home control', 'Several colors'],
+        details: ['New generation Alice', 'LED display', 'Several colors'],
         fits: ['Bedroom', 'Kitchen', 'Child’s room', 'Desk'], badge: 'accessible', compare: ['First speaker', 'Compact', 'LED display', 'Bedroom and kitchen'],
       },
       mini3: {
