@@ -1670,6 +1670,40 @@ function sanitizeAnalyticsId(value) {
   return sanitizeAnalyticsString(value, 120).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120);
 }
 
+function sanitizeAnalyticsUrl(value, { keepUtm = false, referrer = false } = {}) {
+  try {
+    const url = new URL(String(value || ''), 'https://heysmart.lv');
+    if (referrer) return `${url.origin}${url.pathname}`.slice(0, 400);
+    const allowed = new Set(['model', 'color', 'select', 'lang']);
+    if (keepUtm) ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(key => allowed.add(key));
+    [...url.searchParams.keys()].forEach(key => {
+      if (!allowed.has(key)) url.searchParams.delete(key);
+    });
+    return `${url.pathname}${url.search}${url.hash}`.slice(0, 500);
+  } catch {
+    return '';
+  }
+}
+
+function sanitizeTrafficToken(value, limit = 120) {
+  return sanitizeAnalyticsString(value, limit).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/(^-+|-+$)/g, '').slice(0, limit);
+}
+
+function analyticsTrafficSource({ utmSource = '', referrer = '' } = {}) {
+  const campaignSource = sanitizeTrafficToken(utmSource, 80);
+  if (campaignSource) return campaignSource;
+  let hostname = '';
+  try { hostname = new URL(String(referrer || '')).hostname.toLowerCase().replace(/^www\./, ''); } catch {}
+  if (!hostname || hostname === 'heysmart.lv' || hostname.endsWith('.heysmart.lv')) return 'direct';
+  if (hostname === 'google.com' || hostname.endsWith('.google.com') || hostname.startsWith('google.')) return 'google';
+  if (hostname === 'bing.com' || hostname.endsWith('.bing.com')) return 'bing';
+  if (hostname === 'chatgpt.com' || hostname.endsWith('.chatgpt.com') || hostname === 'chat.openai.com') return 'chatgpt';
+  if (hostname === 'facebook.com' || hostname.endsWith('.facebook.com')) return 'facebook';
+  if (hostname === 'instagram.com' || hostname.endsWith('.instagram.com')) return 'instagram';
+  if (hostname === 't.me' || hostname === 'telegram.me' || hostname.endsWith('.telegram.org')) return 'telegram';
+  return 'other-referral';
+}
+
 function sanitizeAnalyticsMetadata(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const result = {};
@@ -1936,6 +1970,13 @@ async function saveVisitorAnalyticsEvent(req, body) {
     eventType,
     timestamp,
     page: sanitizeAssistantUrl(body?.page || req.headers.referer || ''),
+    landingPage: sanitizeAnalyticsUrl(body?.landingPage || body?.page || '', { keepUtm: true }),
+    referrer: sanitizeAnalyticsUrl(body?.referrer || req.headers.referer || '', { referrer: true }),
+    utmSource: sanitizeTrafficToken(body?.utmSource, 80),
+    utmMedium: sanitizeTrafficToken(body?.utmMedium, 80),
+    utmCampaign: sanitizeTrafficToken(body?.utmCampaign, 120),
+    utmContent: sanitizeTrafficToken(body?.utmContent, 120),
+    utmTerm: sanitizeTrafficToken(body?.utmTerm, 120),
     locale: ['ru', 'lv', 'en'].includes(body?.locale) ? body.locale : '',
     modelId: sanitizeAnalyticsString(body?.modelId, 80),
     color: sanitizeAnalyticsString(body?.color, 80),
@@ -1946,6 +1987,7 @@ async function saveVisitorAnalyticsEvent(req, body) {
     browser: device.browser,
     bot: device.bot,
   };
+  event.trafficSource = analyticsTrafficSource(event);
   event.geo = await resolveVisitorGeo(event.ip);
   await cleanupVisitorAnalytics();
   if (USE_MONGO) await db.collection(COLL.visitorAnalyticsEvents).insertOne(event);
@@ -2021,6 +2063,11 @@ async function aggregateVisitorRows(events, query = {}) {
       lastSeen: event.timestamp,
       locale: event.locale || '',
       device: event.device || '',
+      trafficSource: event.trafficSource || 'unknown',
+      landingPage: event.landingPage || '',
+      utmSource: event.utmSource || '',
+      utmMedium: event.utmMedium || '',
+      utmCampaign: event.utmCampaign || '',
       assistantQuestionCount: 0,
       contactClickCount: 0,
       modelsViewed: new Set(),
@@ -2030,7 +2077,14 @@ async function aggregateVisitorRows(events, query = {}) {
     row.sessions.add(event.sessionId);
     row.days.add(String(event.timestamp || '').slice(0, 10));
     if (event.ip) row.ips.add(event.ip);
-    if (String(event.timestamp || '') < String(row.firstSeen || '')) row.firstSeen = event.timestamp;
+    if (String(event.timestamp || '') < String(row.firstSeen || '')) {
+      row.firstSeen = event.timestamp;
+      row.trafficSource = event.trafficSource || 'unknown';
+      row.landingPage = event.landingPage || '';
+      row.utmSource = event.utmSource || '';
+      row.utmMedium = event.utmMedium || '';
+      row.utmCampaign = event.utmCampaign || '';
+    }
     if (String(event.timestamp || '') >= String(row.lastSeen || '')) {
       row.lastSeen = event.timestamp;
       row.latestIp = event.ip || row.latestIp;
@@ -2056,7 +2110,9 @@ async function aggregateVisitorRows(events, query = {}) {
     || row.ips.some(ip => ip.toLowerCase().includes(search))
     || String(row.geo.country || '').toLowerCase().includes(search)
     || String(row.geo.city || '').toLowerCase().includes(search)
-    || String(row.geo.isp || '').toLowerCase().includes(search));
+    || String(row.geo.isp || '').toLowerCase().includes(search)
+    || String(row.trafficSource || '').toLowerCase().includes(search)
+    || String(row.utmCampaign || '').toLowerCase().includes(search));
   const sort = ['firstSeen', 'eventCount', 'visitCount'].includes(query.sort) ? query.sort : 'lastSeen';
   rows.sort((a, b) => sort === 'firstSeen' ? String(a.firstSeen).localeCompare(String(b.firstSeen)) : sort === 'eventCount' ? b.eventCount - a.eventCount : sort === 'visitCount' ? b.visitCount - a.visitCount : String(b.lastSeen).localeCompare(String(a.lastSeen)));
   return rows;
