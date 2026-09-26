@@ -1886,7 +1886,7 @@ p {
   }
 
   .quick-choose {
-    padding: 62px 16px;
+    padding: 62px 16px 22px;
   }
 
   .quick-choose-head {
@@ -1983,6 +1983,15 @@ p {
 
   .model-details {
     padding: 68px 16px;
+  }
+
+  .model-details-extra {
+    padding: 0 16px 36px;
+  }
+
+  .model-details-extra .compare-block {
+    margin-top: 18px;
+    padding-top: 18px;
   }
 
   .model-details-collapsible {
