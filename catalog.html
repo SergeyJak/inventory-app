@@ -444,14 +444,22 @@
       <nav class="color-gallery" id="color-gallery" aria-label="Colors"></nav>
     </section>
 
-    <section class="model-details" id="model-details" hidden>
-      <div class="details-head">
-        <p class="eyebrow" data-i18n="common.aboutModel"></p>
-        <h2 id="details-title"></h2>
-        <p id="details-summary"></p>
+    <details class="model-details model-details-collapsible" id="model-details" hidden>
+      <summary class="model-details-toggle">
+        <span>
+          <span class="eyebrow" data-i18n="common.aboutModel">О модели</span>
+          <strong data-i18n="common.moreAboutModel">Подробнее о модели</strong>
+        </span>
+        <span class="model-details-chevron" aria-hidden="true"></span>
+      </summary>
+      <div class="model-details-content">
+        <div class="details-head">
+          <h2 id="details-title"></h2>
+          <p id="details-summary"></p>
+        </div>
+        <div class="details-grid" id="details-grid" aria-label="Описание модели"></div>
       </div>
-      <div class="details-grid" id="details-grid" aria-label="Описание модели"></div>
-    </section>
+    </details>
 
     <section class="quick-choose" aria-labelledby="quick-choose-title">
       <div class="quick-choose-head">
