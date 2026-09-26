@@ -179,6 +179,59 @@ async function main() {
     assert(storedEvents().find(item => item.visitorId === 'ip_unknown').ip === 'unknown');
     assert.strictEqual(storedEvents().find(item => item.visitorId === 'ip_unknown').geo.country, 'Unknown');
 
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_direct',
+      sessionId: 'source_direct_s',
+      page: '/ru',
+      landingPage: '/ru',
+      referrer: '',
+    })).res.status, 204);
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_google',
+      sessionId: 'source_google_s',
+      page: '/ru/yandex-station-mini-3',
+      landingPage: '/ru/yandex-station-mini-3',
+      referrer: 'https://www.google.com/search?q=yandex+station',
+    })).res.status, 204);
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_chatgpt',
+      sessionId: 'source_chatgpt_s',
+      page: '/en',
+      landingPage: '/en',
+      referrer: 'https://chatgpt.com/',
+    })).res.status, 204);
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_utm',
+      sessionId: 'source_utm_s',
+      page: '/ru',
+      landingPage: '/ru?utm_source=facebook&utm_medium=social&utm_campaign=autumn_sale&utm_content=green&utm_term=alice',
+      referrer: 'https://l.facebook.com/',
+      utmSource: 'facebook',
+      utmMedium: 'social',
+      utmCampaign: 'autumn_sale',
+      utmContent: 'green',
+      utmTerm: 'alice',
+    })).res.status, 204);
+
+    const sourceEvents = storedEvents();
+    const directSource = sourceEvents.find(item => item.visitorId === 'source_direct');
+    const googleSource = sourceEvents.find(item => item.visitorId === 'source_google');
+    const chatgptSource = sourceEvents.find(item => item.visitorId === 'source_chatgpt');
+    const utmSource = sourceEvents.find(item => item.visitorId === 'source_utm');
+    assert.strictEqual(directSource.trafficSource, 'direct');
+    assert.strictEqual(googleSource.trafficSource, 'google');
+    assert.strictEqual(chatgptSource.trafficSource, 'chatgpt');
+    assert.strictEqual(utmSource.trafficSource, 'facebook');
+    assert.strictEqual(utmSource.utmMedium, 'social');
+    assert.strictEqual(utmSource.utmCampaign, 'autumn_sale');
+    assert.strictEqual(utmSource.utmContent, 'green');
+    assert.strictEqual(utmSource.utmTerm, 'alice');
+    assert.strictEqual(utmSource.landingPage, '/ru?utm_source=facebook&utm_medium=social&utm_campaign=autumn_sale&utm_content=green&utm_term=alice');
+
     const flowEvents = [
       { eventType: 'page_view' },
       { eventType: 'model_view', modelId: 'mini3' },
