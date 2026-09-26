@@ -134,6 +134,8 @@ const FALLBACK_PRODUCTS = [
 const ASSISTANT_SESSION_KEY = 'heysmartAssistantSessionId';
 const VISITOR_ID_KEY = 'heysmartVisitorId';
 const VISITOR_SESSION_KEY = 'heysmartVisitorSessionId';
+const VISITOR_LANDING_KEY = 'heysmartVisitorLandingPage';
+const VISITOR_REFERRER_KEY = 'heysmartVisitorReferrer';
 let lastTrackedModelView = '';
 let pageViewTracked = false;
 
@@ -160,12 +162,41 @@ function visitorSessionId() {
   return value;
 }
 
+function initialTrafficContext() {
+  let landingPage = sessionStorage.getItem(VISITOR_LANDING_KEY);
+  if (!landingPage) {
+    const url = new URL(window.location.href);
+    const allowed = new Set(['model', 'color', 'select', 'lang', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']);
+    [...url.searchParams.keys()].forEach(key => {
+      if (!allowed.has(key)) url.searchParams.delete(key);
+    });
+    landingPage = `${url.pathname}${url.search}${url.hash}`.slice(0, 500);
+    sessionStorage.setItem(VISITOR_LANDING_KEY, landingPage);
+  }
+  let referrer = sessionStorage.getItem(VISITOR_REFERRER_KEY);
+  if (referrer === null) {
+    referrer = String(document.referrer || '').slice(0, 500);
+    sessionStorage.setItem(VISITOR_REFERRER_KEY, referrer);
+  }
+  const params = new URL(window.location.href).searchParams;
+  return {
+    landingPage,
+    referrer,
+    utmSource: params.get('utm_source') || '',
+    utmMedium: params.get('utm_medium') || '',
+    utmCampaign: params.get('utm_campaign') || '',
+    utmContent: params.get('utm_content') || '',
+    utmTerm: params.get('utm_term') || '',
+  };
+}
+
 function analyticsContext(extra = {}) {
   const { model, photo } = currentSelection();
   return {
     visitorId: visitorId(),
     sessionId: visitorSessionId(),
     page: safePageUrl(),
+    ...initialTrafficContext(),
     locale: currentLang,
     modelId: extra.modelId ?? model?.id ?? '',
     color: extra.color ?? photo?.colorKey ?? '',
