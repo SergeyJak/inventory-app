@@ -57,6 +57,10 @@ if (location.pathname === '/analytics') {
           <div class="rank-list" id="visitor-devices"></div>
         </article>
         <article class="panel">
+          <div class="panel-head"><div><h2>Источники</h2><p>Первый источник входа посетителя.</p></div></div>
+          <div class="rank-list" id="visitor-sources"></div>
+        </article>
+        <article class="panel">
           <div class="panel-head"><div><h2>Язык и модели</h2><p>Язык сайта и интерес к моделям.</p></div></div>
           <div class="mini-section"><h3>Язык</h3><div class="rank-list" id="visitor-locales"></div></div>
           <div class="mini-section"><h3>Модели</h3><div class="rank-list" id="visitor-models"></div></div>
@@ -277,6 +281,7 @@ if (location.pathname === '/analytics') {
     const devices = countBy(rows.map(row => row.device || 'unknown'));
     const locales = countBy(rows.map(row => (row.locale || 'unknown').toUpperCase()));
     const models = countBy(rows.flatMap(row => row.modelsViewed || []));
+    const sources = countBy(rows.map(row => row.trafficSource || 'unknown'));
 
     renderRankList('visitor-countries', countries, total, value => {
       const row = rows.find(item => (item.geo?.country || 'Unknown') === value);
@@ -286,6 +291,7 @@ if (location.pathname === '/analytics') {
     renderRankList('visitor-devices', devices, total, value => escapeHtml(value === 'mobile' ? 'Mobile' : value === 'desktop' ? 'Desktop' : value), 5);
     renderRankList('visitor-locales', locales, total, value => escapeHtml(value), 5);
     renderRankList('visitor-models', models, total, value => escapeHtml(modelLabel(value)), 6);
+    renderRankList('visitor-sources', sources, total, value => escapeHtml(value === 'unknown' ? 'Не определено' : value), 8);
 
     const countryLabels = countries.slice(0, 6).map(([name]) => name === 'Unknown' ? 'Не определено' : name);
     const countryData = countries.slice(0, 6).map(([, count]) => count);
@@ -371,6 +377,8 @@ if (location.pathname === '/analytics') {
         row.geo?.isp,
         row.locale,
         row.device,
+        row.trafficSource,
+        row.utmCampaign,
         ...(row.modelsViewed || []),
       ].join(' ').toLowerCase();
       return haystack.includes(q);

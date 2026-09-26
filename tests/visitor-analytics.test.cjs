@@ -179,6 +179,59 @@ async function main() {
     assert(storedEvents().find(item => item.visitorId === 'ip_unknown').ip === 'unknown');
     assert.strictEqual(storedEvents().find(item => item.visitorId === 'ip_unknown').geo.country, 'Unknown');
 
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_direct',
+      sessionId: 'source_direct_s',
+      page: '/ru',
+      landingPage: '/ru',
+      referrer: '',
+    })).res.status, 204);
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_google',
+      sessionId: 'source_google_s',
+      page: '/ru/yandex-station-mini-3',
+      landingPage: '/ru/yandex-station-mini-3',
+      referrer: 'https://www.google.com/search?q=yandex+station',
+    })).res.status, 204);
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_chatgpt',
+      sessionId: 'source_chatgpt_s',
+      page: '/en',
+      landingPage: '/en',
+      referrer: 'https://chatgpt.com/',
+    })).res.status, 204);
+    assert.strictEqual((await event({
+      eventType: 'page_view',
+      visitorId: 'source_utm',
+      sessionId: 'source_utm_s',
+      page: '/ru',
+      landingPage: '/ru?utm_source=facebook&utm_medium=social&utm_campaign=autumn_sale&utm_content=green&utm_term=alice',
+      referrer: 'https://l.facebook.com/',
+      utmSource: 'facebook',
+      utmMedium: 'social',
+      utmCampaign: 'autumn_sale',
+      utmContent: 'green',
+      utmTerm: 'alice',
+    })).res.status, 204);
+
+    const sourceEvents = storedEvents();
+    const directSource = sourceEvents.find(item => item.visitorId === 'source_direct');
+    const googleSource = sourceEvents.find(item => item.visitorId === 'source_google');
+    const chatgptSource = sourceEvents.find(item => item.visitorId === 'source_chatgpt');
+    const utmSource = sourceEvents.find(item => item.visitorId === 'source_utm');
+    assert.strictEqual(directSource.trafficSource, 'direct');
+    assert.strictEqual(googleSource.trafficSource, 'google');
+    assert.strictEqual(chatgptSource.trafficSource, 'chatgpt');
+    assert.strictEqual(utmSource.trafficSource, 'facebook');
+    assert.strictEqual(utmSource.utmMedium, 'social');
+    assert.strictEqual(utmSource.utmCampaign, 'autumn_sale');
+    assert.strictEqual(utmSource.utmContent, 'green');
+    assert.strictEqual(utmSource.utmTerm, 'alice');
+    assert.strictEqual(utmSource.landingPage, '/ru?utm_source=facebook&utm_medium=social&utm_campaign=autumn_sale&utm_content=green&utm_term=alice');
+
     const flowEvents = [
       { eventType: 'page_view' },
       { eventType: 'model_view', modelId: 'mini3' },
@@ -220,11 +273,11 @@ async function main() {
     const token = await login();
     const list = await request('/api/admin/analytics/visitors?limit=10', { headers: auth(token) });
     assert.strictEqual(list.res.status, 200);
-    assert.strictEqual(list.body.summary.uniqueVisitors, 24);
+    assert.strictEqual(list.body.summary.uniqueVisitors, 28);
     assert.strictEqual(list.body.summary.returningVisitors, 3);
     assert.strictEqual(list.body.summary.assistantUsers, 2);
     assert.strictEqual(list.body.summary.contactClicks, 3);
-    assert.strictEqual(list.body.summary.pageViews, 26);
+    assert.strictEqual(list.body.summary.pageViews, 30);
     const flowVisitor = list.body.items.find(row => row.visitorId === 'flow_v');
     assert(flowVisitor);
     assert.strictEqual(flowVisitor.sessionCount, 3);
@@ -240,7 +293,14 @@ async function main() {
     assert(visitorA.ips.includes('2001:db8::2'));
 
     const withBots = await request('/api/admin/analytics/visitors?includeBots=true', { headers: auth(token) });
-    assert.strictEqual(withBots.body.summary.uniqueVisitors, 25);
+    assert.strictEqual(withBots.body.summary.uniqueVisitors, 29);
+    const googleSourceList = await request('/api/admin/analytics/visitors?search=source_google&limit=5', { headers: auth(token) });
+    assert.strictEqual(googleSourceList.res.status, 200);
+    const googleSourceRow = googleSourceList.body.items.find(row => row.visitorId === 'source_google');
+    assert(googleSourceRow);
+    assert.strictEqual(googleSourceRow.trafficSource, 'google');
+    assert.strictEqual(googleSourceRow.landingPage, '/ru/yandex-station-mini-3');
+
     const historicalGeoList = await request('/api/admin/analytics/visitors?search=historical_geo_v&limit=5', { headers: auth(token) });
     assert.strictEqual(historicalGeoList.res.status, 200);
     const historicalGeoRow = historicalGeoList.body.items.find(row => row.visitorId === 'historical_geo_v');
