@@ -13,6 +13,7 @@ window.catalogTranslations = {
     common: {
       selectedModel: 'Выбрана модель',
       aboutModel: 'О модели',
+      moreAboutModel: 'Подробнее о модели',
       contact: 'Связаться',
       close: 'Закрыть',
       inStock: 'В наличии',
@@ -219,7 +220,8 @@ window.catalogTranslations = {
     },
     nav: { brand: 'Viedais skaļrunis', consultation: 'Konsultācija', lang: 'Valoda', help: 'Zināšanu bāze' },
     state: { loading: 'Ielādējam modeļus...', empty: 'Pašlaik nav pieejamu modeļu ar foto.', error: 'Neizdevās ielādēt modeļus. Mēģiniet atsvaidzināt lapu.' },
-    common: { selectedModel: 'Izvēlētais modelis', aboutModel: 'Par modeli', contact: 'Sazināties', close: 'Aizvērt', inStock: 'Pieejams', stockUnknown: 'Pieejamība jāprecizē', model: 'modelis', models: 'Modeļi', colors: 'Krāsas', fitFor: 'Kam piemērots', showModel: 'Parādīt modeli', compare: 'Salīdzināt' },
+    common: { selectedModel: 'Izvēlētais modelis', aboutModel: 'Par modeli',
+      moreAboutModel: 'Vairāk par modeli', contact: 'Sazināties', close: 'Aizvērt', inStock: 'Pieejams', stockUnknown: 'Pieejamība jāprecizē', model: 'modelis', models: 'Modeļi', colors: 'Krāsas', fitFor: 'Kam piemērots', showModel: 'Parādīt modeli', compare: 'Salīdzināt' },
     contact: {
       kicker: 'Saziņa',
       title: 'Kā jums ērtāk sazināties?',
@@ -383,7 +385,8 @@ window.catalogTranslations = {
     },
     nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language', help: 'Knowledge Base' },
     state: { loading: 'Loading models...', empty: 'No available models with photos right now.', error: 'Could not load models. Please refresh the page.' },
-    common: { selectedModel: 'Selected model', aboutModel: 'About the model', contact: 'Contact', close: 'Close', inStock: 'In stock', stockUnknown: 'Availability to be confirmed', model: 'model', models: 'Models', colors: 'Colors', fitFor: 'Who it suits', showModel: 'Show model', compare: 'Compare' },
+    common: { selectedModel: 'Selected model', aboutModel: 'About the model',
+      moreAboutModel: 'More about this model', contact: 'Contact', close: 'Close', inStock: 'In stock', stockUnknown: 'Availability to be confirmed', model: 'model', models: 'Models', colors: 'Colors', fitFor: 'Who it suits', showModel: 'Show model', compare: 'Compare' },
     contact: {
       kicker: 'Contact',
       title: 'How would you like to contact us?',
