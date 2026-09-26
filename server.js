@@ -1039,7 +1039,9 @@ async function sendCatalogPage(req, res, next, productModel = null) {
   try {
     data = await catalogInitialData(productModel ? {} : req.query);
     if (productModel) {
-      page = productPages.pageOptions(productModel, req.params.locale, data.products);
+      const { products } = await dbGetAll();
+      const structuredDataProducts = (products || []).map(publicProduct);
+      page = productPages.pageOptions(productModel, req.params.locale, structuredDataProducts);
       data.initial = page.initial;
       data.route = { modelId: productModel.id, slug: productModel.slug };
     }
