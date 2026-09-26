@@ -1672,6 +1672,7 @@ function sanitizeAnalyticsId(value) {
 
 function sanitizeAnalyticsUrl(value, { keepUtm = false, referrer = false } = {}) {
   try {
+    if (!String(value || '').trim()) return '';
     const url = new URL(String(value || ''), 'https://heysmart.lv');
     if (referrer) return `${url.origin}${url.pathname}`.slice(0, 400);
     const allowed = new Set(['model', 'color', 'select', 'lang']);
