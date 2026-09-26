@@ -1741,6 +1741,7 @@ p {
 
 @media (max-width: 900px) {
   .showroom {
+    min-height: auto;
     padding: 20px 14px 22px;
     gap: 14px;
   }
