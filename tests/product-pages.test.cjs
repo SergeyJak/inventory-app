@@ -81,7 +81,10 @@ async function main() {
       } else if (model.id !== 'street') {
         assert.strictEqual(schema.offers.price, model.id === 'light2' ? '100' : '140');
         assert.strictEqual(schema.sku, model.id === 'light2' ? 'lite' : 'mini');
-      } else assert.ok(!('price' in schema.offers), 'unavailable inventory must not invent a zero price');
+      } else {
+        assert.strictEqual(schema.offers.price, '200', 'out-of-stock products keep their known price for valid Google Product structured data');
+        assert.strictEqual(schema.offers.availability, 'https://schema.org/OutOfStock');
+      }
       if (boot.initial.price) assert.ok(text.includes(`id="model-price">${boot.initial.price} €</div>`));
       const other = locale === 'ru' ? 'en' : 'ru';
       assert.ok(text.includes(`class="lang-btn" href="/${other}/${slug}"`));
