@@ -273,11 +273,11 @@ async function main() {
     const token = await login();
     const list = await request('/api/admin/analytics/visitors?limit=10', { headers: auth(token) });
     assert.strictEqual(list.res.status, 200);
-    assert.strictEqual(list.body.summary.uniqueVisitors, 24);
+    assert.strictEqual(list.body.summary.uniqueVisitors, 28);
     assert.strictEqual(list.body.summary.returningVisitors, 3);
     assert.strictEqual(list.body.summary.assistantUsers, 2);
     assert.strictEqual(list.body.summary.contactClicks, 3);
-    assert.strictEqual(list.body.summary.pageViews, 26);
+    assert.strictEqual(list.body.summary.pageViews, 30);
     const flowVisitor = list.body.items.find(row => row.visitorId === 'flow_v');
     assert(flowVisitor);
     assert.strictEqual(flowVisitor.sessionCount, 3);
@@ -293,7 +293,14 @@ async function main() {
     assert(visitorA.ips.includes('2001:db8::2'));
 
     const withBots = await request('/api/admin/analytics/visitors?includeBots=true', { headers: auth(token) });
-    assert.strictEqual(withBots.body.summary.uniqueVisitors, 25);
+    assert.strictEqual(withBots.body.summary.uniqueVisitors, 29);
+    const googleSourceList = await request('/api/admin/analytics/visitors?search=source_google&limit=5', { headers: auth(token) });
+    assert.strictEqual(googleSourceList.res.status, 200);
+    const googleSourceRow = googleSourceList.body.items.find(row => row.visitorId === 'source_google');
+    assert(googleSourceRow);
+    assert.strictEqual(googleSourceRow.trafficSource, 'google');
+    assert.strictEqual(googleSourceRow.landingPage, '/ru/yandex-station-mini-3');
+
     const historicalGeoList = await request('/api/admin/analytics/visitors?search=historical_geo_v&limit=5', { headers: auth(token) });
     assert.strictEqual(historicalGeoList.res.status, 200);
     const historicalGeoRow = historicalGeoList.body.items.find(row => row.visitorId === 'historical_geo_v');
