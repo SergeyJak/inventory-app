@@ -1,0 +1,37 @@
+name: Security audit detail
+
+on:
+  push:
+    branches:
+      - security/npm-audit-2026-10-07
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/npm-audit-2026-10-07
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --ignore-scripts
+      - name: Audit detail
+        run: |
+          npm audit --json > audit.json || true
+          node - <<'NODE'
+          const a=require('./audit.json');
+          for (const [name,v] of Object.entries(a.vulnerabilities||{})) {
+            console.log(JSON.stringify({
+              name,
+              severity:v.severity,
+              isDirect:v.isDirect,
+              range:v.range,
+              nodes:v.nodes,
+              via:(v.via||[]).map(x=>typeof x==='string'?x:{source:x.source,name:x.name,severity:x.severity,title:x.title,range:x.range,url:x.url}),
+              effects:v.effects,
+              fixAvailable:v.fixAvailable
+            }, null, 2));
+          }
+          console.log("SUMMARY", JSON.stringify(a.metadata?.vulnerabilities||{}));
+          NODE
