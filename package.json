@@ -4,7 +4,7 @@
   "description": "Local inventory tracker",
   "main": "server.js",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "prestart": "node scripts/bootstrap-geolite2.js && node scripts/ensure-yandex-plus-category.js && node scripts/restore-yandex-plus-hq-image.js && node scripts/enable-yandex-plus-storefront.js && node scripts/enable-finance-routes.js && node scripts/bust-assistant-loader-cache.js",
@@ -34,6 +34,6 @@
     "mailparser": "3.9.36",
     "maxmind": "^5.0.7",
     "mongodb": "7.2.0",
-    "sanitize-html": "2.17.6"
+    "sanitize-html": "2.18.0"
   }
 }
