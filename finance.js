@@ -237,7 +237,21 @@
     const to = byId('invoice-date-to')?.value || '';
     const number = (byId('invoice-number-filter')?.value || '').trim().toLowerCase();
     const statusFilter = byId('invoice-status-filter')?.value || 'all';
-    return state.financeInvoices
+    // Historical invoices (before the draft workflow) live in financeIncome.
+    // Prefer the dedicated invoice document whenever both collections contain the number.
+    const knownNumbers = new Set(state.financeInvoices.map(invoice => String(invoice.invoiceNo || '').trim().toLowerCase()));
+    const legacy = state.financeIncome
+      .filter(entry => String(entry.invoiceNo || '').trim())
+      .filter(entry => !knownNumbers.has(String(entry.invoiceNo).trim().toLowerCase()))
+      .map(entry => ({
+        ...entry,
+        id: entry.id,
+        status: 'CONFIRMED',
+        legacyInvoice: true,
+        customerEmailSnapshot: entry.ownerEmailSnapshot || '',
+        customerAccountNameSnapshot: entry.ownerNameSnapshot || '',
+      }));
+    return [...state.financeInvoices, ...legacy]
       .filter(invoice => year == null || dateYear(invoice.date) === Number(year))
       .filter(invoice => !from || String(invoice.date || '') >= from)
       .filter(invoice => !to || String(invoice.date || '') <= to)
@@ -277,7 +291,9 @@
         <td><span class="invoice-status ${status.toLowerCase()}">${status}</span></td>
         <td class="invoice-actions">
           ${draftActions}
-          <button type="button" class="invoice-action pdf" data-invoice-action="pdf" data-invoice-id="${esc(invoice.id)}">PDF</button>
+          ${invoice.legacyInvoice
+            ? '<span title="Старый счёт: PDF не сохранён в новой системе">Архив</span>'
+            : `<button type="button" class="invoice-action pdf" data-invoice-action="pdf" data-invoice-id="${esc(invoice.id)}">PDF</button>`}
         </td>
       </tr>`;
     }).join('') : '<tr class="empty-row"><td colspan="6">По фильтрам счетов нет.</td></tr>';

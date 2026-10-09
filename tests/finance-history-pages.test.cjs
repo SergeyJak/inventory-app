@@ -42,6 +42,8 @@ assert.match(js, /invoice\.date \|\| ''\) <= to/, 'invoice date-to filter must b
 assert.match(js, /row\.date \|\| ''\) >= from/, 'ledger date-from filter must be applied');
 assert.match(js, /row\.date \|\| ''\) <= to/, 'ledger date-to filter must be applied');
 assert.match(js, /return serviceRows\(null\)/, 'history filters must span all years');
+assert.match(js, /state\.financeIncome[\s\S]*?legacyInvoice: true/, 'historical income invoices must appear in invoice history');
+assert.match(js, /knownNumbers\.has/, 'legacy invoice history must not duplicate dedicated invoices');
 
 assert.doesNotMatch(routes, /\['\/finance\/invoices', 'finance\.html'\]/, 'invoice subpage route must be removed');
 assert.doesNotMatch(routes, /\['\/finance\/transactions', 'finance\.html'\]/, 'ledger subpage route must be removed');
