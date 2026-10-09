@@ -50,3 +50,12 @@ Documentation rules:
 * Put future work in `docs/BACKLOG.md`.
 * Put shipped or existing state in `docs/CHANGELOG.md`.
 * Do not store secrets, passwords, tokens, or full environment values in docs.
+
+## FINANCIAL DATA SAFETY: NON-NEGOTIABLE
+
+- Financial records are durable business records: invoices, income, expenses, audit entries, payment references, and historical invoice numbers MUST NEVER disappear because of a UI redesign, migration, filter, deployment, or partial save.
+- `financeIncome` legacy invoice numbers and `financeInvoices` dedicated invoices MUST both appear in the unified invoice history, deduplicated by normalized invoice number. Preserve cross-year search, sorting, status and pagination.
+- NEVER clear, drop, truncate, overwrite, or silently migrate production finance collections. Any destructive financial data operation requires an explicit recovery plan, verified backup, and the user's specific approval.
+- Run `npm run test:finance` and the historical-invoice invariant regression test for every finance change. No merge/deploy with failing finance tests.
+- Before and after a finance-sensitive deployment, verify count and identity preservation of finance records; missing records are a release blocker, not an acceptable change.
+- Restoring old entries to visibility must be read-only and must not fabricate historical PDFs or duplicate booked income.
