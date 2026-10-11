@@ -1050,9 +1050,56 @@ function renderLinkedSubAccounts(subs) {
   }).join('')}</tbody></table>`;
 }
 
+
+function whatsappSubscriptionDate(sub) {
+  const due = getSubPaymentDue(sub);
+  return due ? normalizeStartDate(due) : '';
+}
+function whatsappPhone(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 8) return '371' + digits;
+  if (digits.startsWith('00')) return digits.slice(2);
+  return digits.length >= 10 && digits.length <= 15 ? digits : '';
+}
+function isWhatsAppReminderDue(sub) {
+  if (String(sub.status || '').trim().toLowerCase() !== 'active') return false;
+  const due = getSubPaymentDue(sub);
+  if (!due) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((due.getTime() - today.getTime()) / 86400000);
+  return days >= 0 && days <= 7;
+}
+function whatsappReminderText(sub) {
+  return 'Добрый день. ' + whatsappSubscriptionDate(sub) + ' заканчивается годовая подписка на колонку Алиса. Дальнейшее продление 35 еуро в год. Будете продлевать?';
+}
+function openSubWhatsApp(id) {
+  const sub = loadSubAccounts().find(item => item.id === id);
+  if (!sub || !isWhatsAppReminderDue(sub)) return;
+  const phone = whatsappPhone(sub.tel);
+  if (!phone) return showToast('Неверный номер телефона', 'error');
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(whatsappReminderText(sub)), '_blank', 'noopener');
+}
+function markSubWhatsAppNotified(id) {
+  const subs = loadSubAccounts();
+  const sub = subs.find(item => item.id === id);
+  if (!sub || !isWhatsAppReminderDue(sub)) return;
+  sub.whatsappReminderDue = whatsappSubscriptionDate(sub);
+  sub.whatsappReminderAt = new Date().toISOString();
+  saveSubAccounts(subs);
+  renderAccounts();
+}
+function subWhatsAppButton(sub) {
+  if (!isWhatsAppReminderDue(sub)) return '';
+  if (sub.whatsappReminderDue === whatsappSubscriptionDate(sub)) return '<span class="account-status" title="Отмечено вручную">✓ Отмечено</span>';
+  const id = esc(sub.id);
+  const disabled = whatsappPhone(sub.tel) ? '' : ' disabled title="Неверный номер"';
+  return '<button class="btn-edit" onclick="openSubWhatsApp(\'' + id + '\')" ' + disabled + '>WhatsApp</button><button class="btn-edit" onclick="markSubWhatsAppNotified(\'' + id + '\')" title="Отметить после отправки">✓ Отправлено</button>';
+}
+
 function subActionButtons(sub) {
   const id = esc(sub.id);
-  return `<span class="accounts-actions"><button class="btn-edit" onclick="editSubAccount('${id}')">Edit</button><button class="btn-delete" onclick="deleteSubAccount('${id}')">Delete</button></span>`;
+  return `<span class="accounts-actions">${subWhatsAppButton(sub)}<button class="btn-edit" onclick="editSubAccount('${id}')">Edit</button><button class="btn-delete" onclick="deleteSubAccount('${id}')">Delete</button></span>`;
 }
 
 function toggleAccountHost(id) {
@@ -1181,7 +1228,11 @@ function saveSubAccount() {
   sub.startDate = isNotActiveSub(sub) ? '' : document.getElementById('sub-start-date').value;
   if (!sub.email) return showToast('Sub-account email is required', 'error');
   const idx = subs.findIndex(s => s.id === id);
-  if (idx >= 0) subs[idx] = sub; else subs.push(sub);
+  if (idx >= 0) {
+    sub.whatsappReminderDue = subs[idx].whatsappReminderDue;
+    sub.whatsappReminderAt = subs[idx].whatsappReminderAt;
+    subs[idx] = sub;
+  } else subs.push(sub);
   saveSubAccounts(subs);
   syncSubAccountLink(sub);
   clearSubForm();
