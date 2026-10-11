@@ -557,3 +557,11 @@ body.app-routing-pending .app-main,
 body.app-routing-pending .app-sidebar {
   visibility: hidden;
 }
+
+/* Subscriber reminder: compact dedicated WhatsApp column */
+.whatsapp-cell { text-align: center; white-space: nowrap; }
+.whatsapp-cell .btn-edit { padding: 3px 7px; margin: 0 0 0 5px; font-size: .75rem; }
+.whatsapp-send-btn { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; padding: 4px; border: 0; border-radius: 7px; background: #25d366; color: #fff; cursor: pointer; vertical-align: middle; }
+.whatsapp-send-btn:hover { background: #1eaf54; }
+.whatsapp-send-btn:disabled { opacity: .45; cursor: not-allowed; }
+.whatsapp-icon { display: block; width: 22px; height: 22px; }
