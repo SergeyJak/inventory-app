@@ -1801,6 +1801,7 @@ let mailAccountsCache = [];
 let mailAdminMessagesCache = [];
 let mailAdminSelectedAccount = null;
 let mailAccountsNameSort = 'asc';
+let mailAccountsSort = { field: 'createdAt', direction: 'desc' };
 
 function formatMailDate(value) {
   if (!value) return '<span style="color:#94a3b8">-</span>';
@@ -1930,16 +1931,31 @@ async function renderMailAccounts() {
   try {
     await loadMailAccounts();
     const q = (document.getElementById('mail-accounts-search')?.value || '').trim().toLowerCase();
+    const from = document.getElementById('mail-created-from')?.value || '';
+    const to = document.getElementById('mail-created-to')?.value || '';
     const subs = loadSubAccounts();
     const hosts = loadHostSubscriptions();
     const rows = mailAccountsCache
-      .filter(account => !q || String(account.email || '').toLowerCase().includes(q))
+      .filter(account => {
+        if (q && !String(account.email || '').toLowerCase().includes(q)) return false;
+        if (!from && !to) return true;
+        const date = new Date(account.createdAt);
+        if (Number.isNaN(date.getTime())) return false;
+        const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        return (!from || day >= from) && (!to || day <= to);
+      })
       .map(account => ({
         account,
         connectedSub: subs.find(sub => String(sub.email || '').toLowerCase() === String(account.email || '').toLowerCase()),
         hostRecord: hosts.find(host => String(host.hostMail || '').toLowerCase() === String(account.email || '').toLowerCase()),
       }))
       .sort((a, b) => {
+        if (mailAccountsSort.field === 'createdAt') {
+          const aTime = new Date(a.account.createdAt || 0).getTime() || 0;
+          const bTime = new Date(b.account.createdAt || 0).getTime() || 0;
+          const diff = aTime - bTime;
+          return mailAccountsSort.direction === 'desc' ? -diff : diff;
+        }
         const aName = String(a.connectedSub?.name || a.account.email || '').toLowerCase();
         const bName = String(b.connectedSub?.name || b.account.email || '').toLowerCase();
         const diff = aName.localeCompare(bName, undefined, { numeric: true });
@@ -1976,16 +1992,28 @@ async function renderMailAccounts() {
         </tr>`;
       });
     tbody.innerHTML = rows.length ? rows.join('') : '<tr class="empty-row"><td colspan="9">No mail accounts yet.</td></tr>';
-    document.getElementById('mail-accounts-summary').textContent = `${mailAccountsCache.length} mail accounts`;
+    document.getElementById('mail-accounts-summary').textContent = `${rows.length} of ${mailAccountsCache.length} mail accounts`;
   } catch (e) {
     tbody.innerHTML = `<tr class="empty-row"><td colspan="9">Could not load mail accounts: ${esc(e.message)}</td></tr>`;
   }
 }
 
 function toggleMailAccountsNameSort() {
-  mailAccountsNameSort = mailAccountsNameSort === 'asc' ? 'desc' : 'asc';
+  mailAccountsNameSort = mailAccountsSort.field === 'name' && mailAccountsNameSort === 'asc' ? 'desc' : 'asc';
+  mailAccountsSort = { field: 'name', direction: mailAccountsNameSort };
   document.querySelectorAll('.mail-name-sort-mark').forEach(mark => {
     mark.textContent = mailAccountsNameSort === 'asc' ? '↑' : '↓';
+  });
+  renderMailAccounts();
+}
+
+function toggleMailAccountsCreatedSort() {
+  mailAccountsSort = {
+    field: 'createdAt',
+    direction: mailAccountsSort.field === 'createdAt' && mailAccountsSort.direction === 'desc' ? 'asc' : 'desc',
+  };
+  document.querySelectorAll('.mail-created-sort-mark').forEach(mark => {
+    mark.textContent = mailAccountsSort.direction === 'desc' ? '↓' : '↑';
   });
   renderMailAccounts();
 }
@@ -2451,6 +2479,8 @@ document.getElementById('stock-show-all')?.addEventListener('change', e => {
 document.getElementById('accounts-search')?.addEventListener('input', renderAccounts);
 document.getElementById('host-renewal-filter')?.addEventListener('change', e => { hostRenewalFilter = e.target.value; renderAccounts(); });
 document.getElementById('mail-accounts-search')?.addEventListener('input', renderMailAccounts);
+document.getElementById('mail-created-from')?.addEventListener('change', renderMailAccounts);
+document.getElementById('mail-created-to')?.addEventListener('change', renderMailAccounts);
 document.getElementById('visitor-analytics-search')?.addEventListener('input', () => { visitorAnalyticsPage = 1; renderVisitorAnalytics(); });
 ['visitor-analytics-from','visitor-analytics-to','visitor-analytics-bots'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', () => { visitorAnalyticsPage = 1; renderVisitorAnalytics(); });

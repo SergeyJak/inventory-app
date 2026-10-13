@@ -345,10 +345,14 @@
 
   <div class="accounts-toolbar">
     <input type="search" id="mail-accounts-search" placeholder="Search mail accounts..." />
+    <label for="mail-created-from">Created from</label>
+    <input type="date" id="mail-created-from" aria-label="Created from" />
+    <label for="mail-created-to">to</label>
+    <input type="date" id="mail-created-to" aria-label="Created to" />
     <div class="accounts-summary" id="mail-accounts-summary"></div>
   </div>
   <table id="mail-accounts-table">
-    <thead><tr><th>Email</th><th>Name <button class="table-sort-btn" onclick="toggleMailAccountsNameSort()"><span class="mail-name-sort-mark">↑</span></button></th><th>Status</th><th>Host</th><th>Created</th><th>Last login</th><th>Open</th><th>Connect</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Email</th><th>Name <button class="table-sort-btn" onclick="toggleMailAccountsNameSort()"><span class="mail-name-sort-mark">↑</span></button></th><th>Status</th><th>Host</th><th>Created <button class="table-sort-btn" onclick="toggleMailAccountsCreatedSort()" aria-label="Sort by creation date"><span class="mail-created-sort-mark">↓</span></button></th><th>Last login</th><th>Open</th><th>Connect</th><th>Actions</th></tr></thead>
     <tbody id="mail-accounts-tbody"></tbody>
   </table>
 </section>
