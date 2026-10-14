@@ -80,7 +80,7 @@ const PHOTO_MODELS = [
     wash: '#f3f6f4',
     photos: [
       { colorKey: 'gray', photos: ['/images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
-      { colorKey: 'black', photos: ['/images/catalog/mini-3/gray/01.webp'], aliases: ['черн', 'чёрн', 'black'], transparent: true },
+      { colorKey: 'black', photos: ['https://cdn-viewer.diplodoc.com/docs-assets/alice/rev/r21617167/ru/station/_assets/minis/mini3/black__clock__no-login-oknix.png'], aliases: ['черн', 'чёрн', 'black'], transparent: true },
     ],
   },
   {
