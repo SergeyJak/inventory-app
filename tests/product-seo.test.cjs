@@ -35,7 +35,7 @@ assert.equal(offer('mini3', [
 
 assert.equal(offer('mini3', [
   product('old', 'Мини 3', 140, false),
-]), undefined, 'No active offer should not advertise old price');
+]).availability, 'https://schema.org/OutOfStock', 'Sold-out variants must be marked unavailable');
 
 assert.equal(offer('mini3', [
   product('invalid', 'Мини 3', 0, true),
