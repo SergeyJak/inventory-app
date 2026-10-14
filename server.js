@@ -805,6 +805,7 @@ const CATALOG_INITIAL_PRODUCTS = [
   ] },
   { id: 'mini3', aliases: ['мини 3', 'mini 3', 'mini3'], title: 'Станция Мини 3', line: 'Компактная колонка с более уверенным звуком для кухни, спальни или гостиной.', colors: [
     { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/mini-3/gray/01.webp', label: 'серый' },
+    { key: 'black', aliases: ['черн', 'чёрн', 'black'], image: 'images/catalog/mini-3/gray/01.webp', label: 'чёрный' },
   ] },
   { id: 'miniPro', aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini3 pro', 'mini pro', 'minipro'], title: 'Станция Мини 3 Про', line: 'Колонка для умного дома с насыщенным звуком и управлением совместимыми устройствами.', colors: [
     { key: 'green', aliases: ['зелен', 'зелён'], image: 'images/catalog/mini-pro/green/01.webp', label: 'зелёный' },
