@@ -28,9 +28,54 @@ function colorKey(model, product) {
   return Object.keys(model.images).find(key => [key, ...aliases[key]].some(alias => text.includes(alias))) || Object.keys(model.images)[0];
 }
 function absolute(asset) { return `${ORIGIN}/${asset}`; }
-function build(model, products) { const matched = modelProducts(model, products); const stock = matched.filter(product => product.inStock).map(product => ({ ...product, colorKey: colorKey(model, product) })); const gallery = stock.flatMap(product => (model.images[product.colorKey] || []).map(image => ({ image, colorKey: product.colorKey }))); return { stock, prices: matched.map(product => Number(product.sellPrice) || 0).filter(Boolean), gallery: gallery.length ? gallery : Object.entries(model.images).slice(0, 1).flatMap(([colorKey, images]) => images.map(image => ({ image, colorKey }))), images: [...new Set(gallery.map(item => item.image))] }; }
-function schema(model, locale, data, canonical) { const copy = model.copy[locale]; const available = data.stock.length > 0; const prices = data.prices; const offer = prices.length > 1 ? { '@type': 'AggregateOffer', priceCurrency: 'EUR', lowPrice: String(Math.min(...prices)), highPrice: String(Math.max(...prices)), offerCount: data.stock.length, availability: `https://schema.org/${available ? 'InStock' : 'OutOfStock'}`, url: canonical } : { '@type': 'Offer', priceCurrency: 'EUR', price: prices.length ? String(prices[0]) : undefined, availability: `https://schema.org/${available ? 'InStock' : 'OutOfStock'}`, url: canonical };
-  return { '@context': 'https://schema.org', '@type': 'Product', '@id': `${canonical}#product`, name: copy.name, brand: { '@type': 'Brand', name: 'Yandex' }, url: canonical, image: (data.images.length ? data.images : Object.values(model.images).flat()).map(absolute), description: copy.intro, sku: data.stock.map(product => product.id).join(', ') || undefined, offers: offer };
+function build(model, products) { const matched = modelProducts(model, products); const stock = matched.filter(product => product.inStock).map(product => ({ ...product, colorKey: colorKey(model, product) })); const gallery = stock.flatMap(product => (model.images[product.colorKey] || []).map(image => ({ image, colorKey: product.colorKey }))); return { stock, prices: stock.map(product => Number(product.sellPrice) || 0).filter(price => price > 0), allPrices: matched.map(product => Number(product.sellPrice) || 0).filter(price => price > 0), gallery: gallery.length ? gallery : Object.entries(model.images).slice(0, 1).flatMap(([colorKey, images]) => images.map(image => ({ image, colorKey }))), images: [...new Set(gallery.map(item => item.image))] }; }
+function schema(model, locale, data, canonical) {
+  const copy = model.copy[locale];
+  const availableOffers = data.stock
+    .filter(product => Number(product.sellPrice) > 0)
+    .map(product => ({
+      '@type': 'Offer',
+      priceCurrency: 'EUR',
+      price: String(Number(product.sellPrice)),
+      availability: 'https://schema.org/InStock',
+      url: canonical,
+    }));
+  const productSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    '@id': `${canonical}#product`,
+    name: copy.name,
+    brand: { '@type': 'Brand', name: 'Yandex' },
+    url: canonical,
+    image: (data.images.length ? data.images : Object.values(model.images).flat()).map(absolute),
+    description: copy.intro,
+    sku: data.stock.map(product => product.id).join(', ') || undefined,
+  };
+  // Never publish price/availability from sold-out variants or placeholder data.
+  // Without a priced, available offer, omit offers entirely rather than
+  // advertising a misleading price in Google's product rich results.
+  if (availableOffers.length === 1) productSchema.offers = availableOffers[0];
+  else if (availableOffers.length > 1) {
+    const prices = availableOffers.map(offer => Number(offer.price));
+    productSchema.offers = {
+      '@type': 'AggregateOffer',
+      priceCurrency: 'EUR',
+      lowPrice: String(Math.min(...prices)),
+      highPrice: String(Math.max(...prices)),
+      offerCount: availableOffers.length,
+      availability: 'https://schema.org/InStock',
+      url: canonical,
+    };
+  }
+  else if (data.allPrices.length) {
+    // Preserve a truthful OutOfStock offer for a product with no available variants.
+    productSchema.offers = {
+      '@type': 'Offer', priceCurrency: 'EUR',
+      price: String(data.allPrices[0]),
+      availability: 'https://schema.org/OutOfStock', url: canonical,
+    };
+  }
+  return productSchema;
 }
 function pageOptions(model, locale, products) {
   const copy = model.copy[locale];
