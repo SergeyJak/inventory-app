@@ -58,6 +58,18 @@ async function main() {
       assert.ok(text.includes(`name="description" content="${copy.description}"`));
       assert.ok(text.includes(`<h1 class="sr-only">${copy.name}</h1>`));
       assert.ok(text.includes(`<h2 id="model-title">${copy.name}</h2>`));
+      assert.doesNotMatch(text, /__CATALOG_PRODUCT_SEO_CONTENT__/);
+      if (model.id === 'mini3' || model.id === 'miniPro') {
+        assert.match(text, /class="product-seo-details"/);
+        assert.match(text, /<h2>(?:Характеристики|Yandex Station)/);
+        assert.match(text, /<ul><li>/);
+        const otherSlug = model.id === 'mini3' ? 'yandex-station-mini-3-pro' : 'yandex-station-mini-3';
+        assert.ok(text.includes('href="/' + locale + '/' + otherSlug + '"'), 'product has crawlable comparison link');
+        assert.ok(text.includes(locale === 'ru' ? 'Латвии' : 'Latvia'));
+      } else {
+        assert.doesNotMatch(text, /class="product-seo-details"/);
+      }
+
       assert.ok(text.includes(`id="model-line">${copy.intro}</p>`));
       for (const id of ['catalog-content', 'model-switcher', 'color-gallery', 'model-details', 'assistant-panel', 'contact-panel']) assert.ok(text.includes(`id="${id}"`));
       assert.doesNotMatch(text, /class="product-page"|product-image-link|product-gallery|__CATALOG_/);
