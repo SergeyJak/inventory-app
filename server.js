@@ -994,6 +994,29 @@ function catalogLanguageSwitcher(locale, slug = '') {
   ).join('') + '<button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV</button>';
 }
 
+function productSeoContent(page) {
+  if (!['mini3', 'miniPro'].includes(page.model?.id)) return '';
+  const pro = page.model.id === 'miniPro';
+  const en = page.locale === 'en';
+  const miniUrl = '/'+page.locale+'/yandex-station-mini-3';
+  const proUrl = '/'+page.locale+'/yandex-station-mini-3-pro';
+  const heading = en ? (pro ? 'Yandex Station Mini 3 Pro features' : 'Yandex Station Mini 3 features') : (pro ? 'Характеристики Яндекс Станции Мини 3 Про' : 'Характеристики Яндекс Станции Мини 3');
+  const introduction = en
+    ? (pro ? 'Buy Yandex Station Mini 3 Pro with Alice in Riga or ask about delivery across Latvia. This compact speaker offers 18 W sound and Zigbee and Matter smart-home connectivity.' : 'Buy Yandex Station Mini 3 with Alice in Riga or ask about delivery across Latvia. A compact smart speaker with 12 W sound, voice control and LED display.')
+    : (pro ? 'Купить Алису Мини 3 Про в Риге или заказать доставку по Латвии. Умная колонка Яндекс Станция Mini 3 Pro: звук 18 Вт, поддержка Zigbee и Matter, LED-дисплей.' : 'Купить Алису Мини 3 в Риге или заказать доставку по Латвии. Яндекс Станция Mini 3: компактная умная колонка с Алисой, звук 12 Вт, LED-дисплей и голосовое управление.');
+  const bullets = en
+    ? (pro ? ['18 W speaker output', 'Zigbee and Matter for compatible smart-home devices', 'LED display and three microphones', 'Optional external battery and climate modules sold separately'] : ['12 W speaker output', 'LED display and three microphones', 'Wi-Fi 2.4/5 GHz and Bluetooth 5.0', 'Compact choice for a kitchen, bedroom or gift'])
+    : (pro ? ['Мощность звука 18 Вт', 'Поддержка Zigbee и Matter для совместимых устройств', 'LED-дисплей и три микрофона', 'Внешний аккумулятор и климатический модуль приобретаются отдельно'] : ['Мощность звука 12 Вт', 'LED-дисплей и три микрофона', 'Wi-Fi 2,4/5 ГГц и Bluetooth 5.0', 'Для кухни, спальни или подарка']);
+  const compare = en
+    ? (pro ? 'Compare with Mini 3' : 'Compare with Mini 3 Pro')
+    : (pro ? 'Сравнить с Мини 3' : 'Сравнить с Мини 3 Про');
+  const otherUrl = pro ? miniUrl : proUrl;
+  return '<section class="product-seo-details" aria-label="'+escapeHtml(heading)+'">'+
+    '<h2>'+escapeHtml(heading)+'</h2><p>'+escapeHtml(introduction)+'</p><ul>'+
+    bullets.map(item => '<li>'+escapeHtml(item)+'</li>').join('')+
+    '</ul><p><a href="'+otherUrl+'">'+escapeHtml(compare)+'</a></p></section>';
+}
+
 function renderCatalogSsrLocale(template, page, initial) {
   const locale = page.locale;
   const text = path => catalogTranslation(locale, path);
@@ -1018,6 +1041,7 @@ function renderCatalogSsrLocale(template, page, initial) {
     .replace(/__PRODUCT_MINIPRO_URL__/g, `/${locale}/yandex-station-mini-3-pro`)
     .replace(/__PRODUCT_MIDI_URL__/g, `/${locale}#model=midi&color=black`)
     .replace(/__PRODUCT_STREET_URL__/g, `/${locale}/yandex-station-street`)
+    .replace('__CATALOG_PRODUCT_SEO_CONTENT__', productSeoContent(page))
     .replace('__CATALOG_INITIAL_STOCK__', escapeHtml(page.stockText || ''))
     .replace('__CATALOG_STOCK_HIDDEN__', page.stockText ? '' : 'hidden')
     .replace(/__CATALOG_INITIAL_TITLE__/g, escapeHtml(initialTitle))
