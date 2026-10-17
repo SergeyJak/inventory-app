@@ -18,7 +18,7 @@
 
     const normalized = raw.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
     const tokens = normalized.split(/\s+/).filter(Boolean);
-    const lvHints = new Set(['vai','alise','latvija','latvija','piegade','piegadi','piegadat','cik','maksa','maksat','varu','var','bernam','majam','anglu','krievu','valoda','valodu','skaļrunis','skalrunis']);
+    const lvHints = new Set(['vai','alise','latvija','latvija','piegade','piegadi','piegadat','cik','maksa','maksat','varu','var','ir','bernam','majam','anglu','krievu','valoda','valodu','skaļrunis','skalrunis']);
     const lvHits = tokens.filter(token => lvHints.has(token)).length;
     if (lvHits >= 2) return 'lv';
     if (/[a-z]/i.test(raw)) return 'en';
@@ -48,6 +48,20 @@
       lv: 'Man nav apstiprinātas informācijas, ka Alise atbalsta uzbeku valodu. Pirms pirkuma pārbaudiet Yandex aktuālo atbalstīto valodu sarakstu.',
     }[detectInputLocale(input)];
     return { type: 'language_uncertain', intent: 'faq_question', locale: detectInputLocale(input), text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
+  }
+
+  function wifiCapabilitiesResponse(input) {
+    const raw = String(input || '');
+    const wifi = /(?:wi[\s-]?fi|вай\s?фай|вайфай|wifi|вай\s?фай)/i.test(raw);
+    const question = /(?:есть|имеется|поддерж|работает|можно|умеет|нужен|нужна|у нее|у неё|does|have|has|support|work|vai|atbalsta|ir)/i.test(raw);
+    if (!wifi || !question) return null;
+    const lang = detectInputLocale(input);
+    const text = {
+      ru: 'Да, Яндекс Станции поддерживают Wi-Fi. Для работы Алисы и потоковой музыки нужен доступ к интернету. Подключение и настройка выполняются через приложение Яндекса.',
+      en: 'Yes, Yandex Station speakers support Wi-Fi. Alice and music streaming require an internet connection. Setup is done through the Yandex app.',
+      lv: 'Jā, Yandex Station skaļruņi atbalsta Wi-Fi. Alises darbībai un mūzikas straumēšanai nepieciešams internets. Iestatīšana notiek Yandex lietotnē.',
+    }[lang];
+    return { type: 'wifi_capabilities', intent: 'faq_question', locale: lang, text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
   }
 
   function handoffResponse(input, options) {
@@ -252,6 +266,8 @@
           activeLocale = detectInputLocale(input);
           const directHandoff = handoffResponse(input, localizedOptions);
           if (directHandoff) return directHandoff;
+          const wifi = wifiCapabilitiesResponse(input);
+          if (wifi) return wifi;
           const language = unsupportedLanguageResponse(input);
           if (language) return language;
           const shipping = internationalShippingResponse(input, localizedOptions);
@@ -269,5 +285,5 @@
   }
 
   if (root?.AssistantEngine) install();
-  return { install, detectInputLocale, unsupportedLanguageResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
+  return { install, detectInputLocale, wifiCapabilitiesResponse, unsupportedLanguageResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
 });
