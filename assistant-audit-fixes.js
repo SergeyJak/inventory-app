@@ -84,6 +84,7 @@
     const shippingRequested = /(?:ship|shipping|deliver|delivery|courier|достав|отправ|pieg[aā]d)/i.test(raw);
     const greece = /(?:greece|greek|korinth|corinth|греци)/i.test(raw);
     const international = greece ||
+      /(?:germany|deutschland|германи|vācij|vaciju|sweden|швец|zviedrij|finland|финлянди|somij|estonia|эстони|igaunij|uk|united kingdom|britain|англи|британи|lielbritanij|poland|польш|polij|lithuania|литв|lietuva|cyprus|кипр|kipr|bulgaria|болгари|bulgarij)/i.test(raw) ||
       /(?:abroad|international|europe|europa|европ|за границ)/i.test(raw) ||
       /\b(?:ship|deliver)\s+(?:it\s+)?to\s+[a-z]/i.test(raw);
     if (!shippingRequested || !international) return null;
