@@ -18,7 +18,7 @@
 
     const normalized = raw.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
     const tokens = normalized.split(/\s+/).filter(Boolean);
-    const lvHints = new Set(['vai','alise','latvija','latvija','piegade','piegadi','piegadat','cik','maksa','maksat','varu','var','bernam','majam','anglu','krievu','valoda','valodu','skaļrunis','skalrunis']);
+    const lvHints = new Set(['vai','alise','latvija','latvija','piegade','piegadi','piegadat','cik','maksa','maksat','varu','var','ir','bernam','majam','anglu','krievu','valoda','valodu','skaļrunis','skalrunis']);
     const lvHits = tokens.filter(token => lvHints.has(token)).length;
     if (lvHits >= 2) return 'lv';
     if (/[a-z]/i.test(raw)) return 'en';
@@ -52,7 +52,6 @@
 
   function wifiCapabilitiesResponse(input) {
     const raw = String(input || '');
-    const normalized = normalize(raw);
     const wifi = /(?:wi[\s-]?fi|вай\s?фай|вайфай|wifi|вай\s?фай)/i.test(raw);
     const question = /(?:есть|имеется|поддерж|работает|можно|умеет|нужен|нужна|у нее|у неё|does|have|has|support|work|vai|atbalsta|ir)/i.test(raw);
     if (!wifi || !question) return null;
