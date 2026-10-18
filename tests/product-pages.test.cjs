@@ -85,6 +85,7 @@ async function main() {
       assert.doesNotMatch(JSON.stringify(schema), /"(?:gtin\d*|ean|upc|mpn|aggregateRating|review)":/i);
       assert.ok(schema.image.every(image => Object.values(model.images).flat().some(asset => image.endsWith(asset))));
       assert.ok(text.includes(`id="hero-image" src="/${boot.initial.color.image}" alt="${copy.name},`));
+      assert.doesNotMatch(text, /id="hero-image"[^>]*alt="[^"]*undefined/i, "image alt must not contain undefined");
       assert.strictEqual(schema.offers.availability, `https://schema.org/${model.id === 'street' ? 'OutOfStock' : 'InStock'}`);
       if (model.id === 'miniPro') {
         assert.strictEqual(schema.offers.lowPrice, '170');
@@ -121,6 +122,8 @@ async function main() {
     assert.match(catalog.text, /catalog\.js\?v=[0-9]{8}-[a-z0-9-]+/, 'catalog serves the updated JavaScript asset URL');
     const liteRu = await request('/ru/yandex-station-lite-2');
     for (const [locale, slug] of routes) assert.ok(sitemap.text.includes(`<loc>https://heysmart.lv/${locale}/${slug}</loc>`));
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3-pro<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
     for (const locale of ['ru', 'en']) {
       const page = await request(`/${locale}`);
       assert.ok(page.text.includes(`rel="canonical" href="https://heysmart.lv/${locale}"`));

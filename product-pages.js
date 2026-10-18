@@ -92,6 +92,6 @@ function pageOptions(model, locale, products) {
     stockText: data.stock.length ? (locale === 'en' ? 'In stock' : 'В наличии') : (locale === 'en' ? 'Currently unavailable' : 'Сейчас нет в наличии'),
   };
 }
-function sitemapUrls() { return MODELS.flatMap(model => ['ru', 'en'].map(locale => ({ loc: `${ORIGIN}/${locale}/${model.slug}`, lastmod: '2026-09-03' }))); }
+function sitemapUrls() { return MODELS.flatMap(model => ['ru', 'en'].map(locale => ({ loc: `${ORIGIN}/${locale}/${model.slug}`, lastmod: ['mini3', 'miniPro'].includes(model.id) ? '2026-10-17' : '2026-09-03' }))); }
 function catalogItemList(locale, canonical) { return { '@context': 'https://schema.org', '@graph': [{ '@type': 'WebPage', '@id': `${canonical}#webpage`, url: canonical, inLanguage: locale }, { '@type': 'ItemList', '@id': `${canonical}#catalog`, name: locale === 'en' ? 'HeySmart catalog' : 'Каталог HeySmart', itemListElement: MODELS.map((model, index) => ({ '@type': 'ListItem', position: index + 1, url: `${ORIGIN}/${locale}/${model.slug}`, name: model.copy[locale].name })) }] }; }
 module.exports = { MODELS, findBySlug, findById, pageOptions, sitemapUrls, catalogItemList };

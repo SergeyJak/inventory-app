@@ -1022,7 +1022,9 @@ function renderCatalogSsrLocale(template, page, initial) {
   const text = path => catalogTranslation(locale, path);
   const initialTitle = page.copy?.name || (initial ? text(`models.${initial.model.id}.title`) || initial.model.title : text('meta.title'));
   const initialLine = page.copy?.intro || (initial ? text(`models.${initial.model.id}.line`) || initial.model.line : '');
-  const initialColor = initial ? text(`colors.${initial.color.key}`) || initial.color.label : '';
+  const colorNames = { ru: { blue: 'синий', gray: 'серый', green: 'зелёный', black: 'чёрный', white: 'белый', pink: 'розовый', coral: 'коралловый', violet: 'фиолетовый', red: 'красный', graphite: 'графитовый', beige: 'бежевый' }, en: { blue: 'blue', gray: 'gray', green: 'green', black: 'black', white: 'white', pink: 'pink', coral: 'coral', violet: 'violet', red: 'red', graphite: 'graphite', beige: 'beige' } };
+  const colorKey = initial?.color?.key;
+  const initialColor = colorKey ? (text(`colors.${colorKey}`) || initial?.color?.label || colorNames[locale]?.[colorKey] || colorKey) : '';
   const heading = locale === 'en' ? 'Smart speakers with Alice in Riga and Latvia' : 'Яндекс Станции с Алисой в Латвии';
   const helpLink = locale === 'ru'
     ? `<a class="help-link" id="help-link" href="/ru/help">${escapeHtml(text('nav.help'))}</a>`
