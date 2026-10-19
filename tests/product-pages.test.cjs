@@ -139,6 +139,12 @@ async function main() {
     assert.doesNotMatch(sitemap.text, /#model=/);
     assert.doesNotMatch(liteRu.text.match(/<link[^>]+rel="canonical"[^>]*>/)?.[0] || '', /#model=/);
     const catalogScript = fs.readFileSync(path.join(__dirname, '..', 'catalog.js'), 'utf8');
+    const colorFn = catalogScript.slice(catalogScript.indexOf('function colorName('), catalogScript.indexOf('\nfunction ', catalogScript.indexOf('function colorName(') + 1));
+    const colorContext = vm.createContext({ dict: () => undefined });
+    vm.runInContext(colorFn, colorContext);
+    assert.strictEqual(vm.runInContext("colorName({ colorKey: 'green' })", colorContext), 'Green');
+    assert.strictEqual(vm.runInContext("colorName({ colorKey: 'gray' })", colorContext), 'Gray');
+    assert.notStrictEqual(vm.runInContext("colorName({ colorKey: 'green' })", colorContext), 'undefined');
     assert.match(catalogScript, /window\.location\.hash/);
     assert.match(catalogScript, /hasAppliedInitialUrlSelection/);
     assert.match(catalogScript, /if \(!hasAppliedInitialUrlSelection\)/);
