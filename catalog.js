@@ -300,7 +300,14 @@ function modelText(model, key) {
 }
 
 function colorName(photo) {
-  return dict(`colors.${photo?.colorKey || 'gray'}`);
+  const key = photo?.colorKey || 'gray';
+  const translated = dict(`colors.${key}`);
+  if (typeof translated === 'string' && translated.trim() && translated !== 'undefined') return translated;
+  const fallback = {
+    blue: 'Blue', gray: 'Gray', green: 'Green', black: 'Black', white: 'White',
+    pink: 'Pink', coral: 'Coral', violet: 'Violet', red: 'Red', graphite: 'Graphite', beige: 'Beige',
+  };
+  return fallback[key] || key;
 }
 
 function buildMessage(topicId = 'availability') {
