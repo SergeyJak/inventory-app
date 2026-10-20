@@ -42,3 +42,13 @@ assert.equal(offer('mini3', [
 ]), undefined, 'Zero-priced variant is not a valid offer');
 
 console.log('Product SEO structured data checks passed');
+
+// Comparison snippet stays targeted to model differences and purchasing in Latvia.
+const knowledgeBase = require('../knowledge-base');
+const comparison = knowledgeBase.ARTICLES.find(article => article.id === 'ru-mini3-vs-mini3-pro');
+assert.ok(comparison, 'Mini 3 comparison article exists');
+assert.match(comparison.seoTitle, /Мини 3.*Мини 3 Про/);
+assert.match(comparison.seoTitle, /Латвии/);
+assert.match(comparison.seoDescription, /12 и 18 Вт/);
+assert.match(comparison.seoDescription, /Риге/);
+assert.deepEqual(comparison.relatedProducts, ['mini3', 'miniPro']);
