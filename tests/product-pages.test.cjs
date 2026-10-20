@@ -86,7 +86,8 @@ async function main() {
       assert.ok(schema.image.every(image => Object.values(model.images).flat().some(asset => image.endsWith(asset))));
       assert.ok(text.includes(`id="hero-image" src="/${boot.initial.color.image}" alt="${copy.name},`));
       assert.doesNotMatch(text, /id="hero-image"[^>]*alt="[^"]*undefined/i, "image alt must not contain undefined");
-      assert.strictEqual(schema.offers.availability, `https://schema.org/${model.id === 'street' ? 'OutOfStock' : 'InStock'}`);
+      if (model.id === 'street') assert.strictEqual(schema.offers, undefined, 'sold-out model must not publish historical price');
+      else assert.strictEqual(schema.offers.availability, 'https://schema.org/InStock');
       if (model.id === 'miniPro') {
         assert.strictEqual(schema.offers.lowPrice, '170');
         assert.strictEqual(schema.offers.highPrice, '180');
@@ -94,9 +95,6 @@ async function main() {
       } else if (model.id !== 'street') {
         assert.strictEqual(schema.offers.price, model.id === 'light2' ? '100' : '140');
         assert.strictEqual(schema.sku, model.id === 'light2' ? 'lite' : 'mini');
-      } else {
-        assert.strictEqual(schema.offers.price, '200', 'out-of-stock products keep their known price for valid Google Product structured data');
-        assert.strictEqual(schema.offers.availability, 'https://schema.org/OutOfStock');
       }
       if (boot.initial.price) assert.ok(text.includes(`id="model-price">${boot.initial.price} €</div>`));
       const other = locale === 'ru' ? 'en' : 'ru';
