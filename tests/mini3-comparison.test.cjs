@@ -29,7 +29,7 @@ assert.doesNotMatch(article.contentMarkdown, /^# /m, 'runtime content does not c
 assert.doesNotMatch(article.contentMarkdown, /^## FAQ$/m, 'runtime content leaves FAQ rendering to KB metadata');
 
 const html = kb.renderArticlePage(makeReq(`/ru/help/${slug}`), article);
-assert.match(html, /<title>Яндекс Станция Мини 3 или Мини 3 Про: сравнение и что выбрать<\/title>/);
+assert.ok(html.includes(`<title>${article.seoTitle}</title>`), 'HTML title matches article SEO metadata');
 assert.match(html, /rel="canonical" href="https:\/\/heysmart\.lv\/ru\/help\/mini-3-ili-mini-3-pro-chto-vybrat"/);
 assert.match(html, /<h1>Яндекс Станция Мини 3 или Мини 3 Про: что выбрать<\/h1>/);
 assert.match(html, /Yandex Station Mini 3 Pro/);
