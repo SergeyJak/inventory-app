@@ -52,8 +52,8 @@ function schema(model, locale, data, canonical) {
     sku: data.stock.map(product => product.id).join(', ') || undefined,
   };
   // Never publish price/availability from sold-out variants or placeholder data.
-  // Without a priced, available offer, omit offers entirely rather than
-  // advertising a misleading price in Google's product rich results.
+  // With no currently available priced variant, omit offers entirely.
+  // Historical sold-out prices can otherwise produce misleading Google price snippets.
   if (availableOffers.length === 1) productSchema.offers = availableOffers[0];
   else if (availableOffers.length > 1) {
     const prices = availableOffers.map(offer => Number(offer.price));
@@ -67,14 +67,7 @@ function schema(model, locale, data, canonical) {
       url: canonical,
     };
   }
-  else if (data.allPrices.length) {
-    // Preserve a truthful OutOfStock offer for a product with no available variants.
-    productSchema.offers = {
-      '@type': 'Offer', priceCurrency: 'EUR',
-      price: String(data.allPrices[0]),
-      availability: 'https://schema.org/OutOfStock', url: canonical,
-    };
-  }
+
   return productSchema;
 }
 function pageOptions(model, locale, products) {

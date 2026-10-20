@@ -34,8 +34,8 @@ assert.equal(offer('mini3', [
 ]), undefined, 'Mini 3 Pro must not leak into Mini 3 rich results');
 
 assert.equal(offer('mini3', [
-  product('old', 'Мини 3', 140, false),
-]).availability, 'https://schema.org/OutOfStock', 'Sold-out variants must be marked unavailable');
+  product('old', 'Мини 3', 45, false),
+]), undefined, 'Sold-out historical price must never appear in Google rich results');
 
 assert.equal(offer('mini3', [
   product('invalid', 'Мини 3', 0, true),
