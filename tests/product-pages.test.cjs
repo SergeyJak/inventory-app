@@ -106,7 +106,9 @@ async function main() {
       if ((locale === 'ru' && model.id === 'miniPro') || (locale === 'en' && model.id === 'light2')) console.log(`HTML checked: /${locale}/${slug}; title, H1, intro, price, stock, image, boot, schema, full catalog`);
     }
     const outOfStock = await request('/ru/yandex-station-street');
-    assert.match(outOfStock.text, /Сейчас нет в наличии/); assert.match(outOfStock.text, /OutOfStock/);
+    assert.match(outOfStock.text, /Сейчас нет в наличии/);
+    const outOfStockSchema = JSON.parse(outOfStock.text.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+    assert.strictEqual(outOfStockSchema.offers, undefined, 'out-of-stock rich result must omit stale prices');
     const unknown = await request('/ru/yandex-station-nope');
     assert.strictEqual(unknown.res.status, 404); assert.match(unknown.text, /noindex/);
     const knownRedirect = await request('/en?model=mini3&color=0');
