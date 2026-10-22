@@ -118,7 +118,7 @@ async function main() {
     const sitemap = await request('/sitemap.xml');
     assert.match(sitemap.text, /yandex-station-street/); assert.doesNotMatch(sitemap.text, /\?model=/);
     const catalog = await request('/ru');
-    assert.match(catalog.text, /<h3><a href="\/ru\/yandex-station-lite-2">Lite 2<\/a><\/h3>/); assert.doesNotMatch(catalog.text, /catalog-product-links|"@type":"Product"/);
+    assert.match(catalog.text, /<h3><a href="\/ru\/yandex-station-lite-2">Яндекс Станция Лайт 2<\/a><\/h3>/); assert.doesNotMatch(catalog.text, /catalog-product-links|"@type":"Product"/);
     assert.match(catalog.text, /catalog\.js\?v=[0-9]{8}-[a-z0-9-]+/, 'catalog serves the updated JavaScript asset URL');
     const liteRu = await request('/ru/yandex-station-lite-2');
     for (const [locale, slug] of routes) assert.ok(sitemap.text.includes(`<loc>https://heysmart.lv/${locale}/${slug}</loc>`));
