@@ -120,6 +120,12 @@ async function main() {
     const catalog = await request('/ru');
     assert.match(catalog.text, /<h3><a href="\/ru\/yandex-station-lite-2">Яндекс Станция Лайт 2<\/a><\/h3>/); assert.doesNotMatch(catalog.text, /catalog-product-links|"@type":"Product"/);
     assert.match(catalog.text, /catalog\.js\?v=[0-9]{8}-[a-z0-9-]+/, 'catalog serves the updated JavaScript asset URL');
+    assert.match(catalog.text, /<img class="quick-product"[^>]*alt="Яндекс Станция Мини 3 Про, умная колонка с Алисой"/);
+    const enCatalog = await request('/en');
+    assert.match(enCatalog.text, /<h3><a href="\/en\/yandex-station-mini-3-pro">Yandex Station Mini 3 Pro<\/a><\/h3>/);
+    assert.match(enCatalog.text, /<img class="quick-product"[^>]*alt="Yandex Station Mini 3 Pro smart speaker with Alice"/);
+    assert.doesNotMatch(enCatalog.text, /__QUICK_(?:LIGHT2|MINI3|MINIPRO|MIDI|STREET)_(?:NAME|ALT)__/);
+
     const liteRu = await request('/ru/yandex-station-lite-2');
     for (const [locale, slug] of routes) assert.ok(sitemap.text.includes(`<loc>https://heysmart.lv/${locale}/${slug}</loc>`));
     assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
