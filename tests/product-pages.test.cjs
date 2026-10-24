@@ -122,7 +122,7 @@ async function main() {
     assert.match(catalog.text, /catalog\.js\?v=[0-9]{8}-[a-z0-9-]+/, 'catalog serves the updated JavaScript asset URL');
     assert.match(catalog.text, /<img class="quick-product"[^>]*alt="Яндекс Станция Мини 3 Про, умная колонка с Алисой"/);
     const enCatalog = await request('/en');
-    assert.match(enCatalog.text, /<h3><a href="\\/en\\/yandex-station-mini-3-pro">Yandex Station Mini 3 Pro<\\/a><\\/h3>/);
+    assert.match(enCatalog.text, /<h3><a href="\/en\/yandex-station-mini-3-pro">Yandex Station Mini 3 Pro<\/a><\/h3>/);
     assert.match(enCatalog.text, /<img class="quick-product"[^>]*alt="Yandex Station Mini 3 Pro smart speaker with Alice"/);
     assert.doesNotMatch(enCatalog.text, /__QUICK_(?:LIGHT2|MINI3|MINIPRO|MIDI|STREET)_(?:NAME|ALT)__/);
 
