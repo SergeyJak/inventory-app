@@ -1043,6 +1043,15 @@ function renderCatalogSsrLocale(template, page, initial) {
     .replace(/__PRODUCT_MINIPRO_URL__/g, `/${locale}/yandex-station-mini-3-pro`)
     .replace(/__PRODUCT_MIDI_URL__/g, `/${locale}#model=midi&color=black`)
     .replace(/__PRODUCT_STREET_URL__/g, `/${locale}/yandex-station-street`)
+    .replace(/__QUICK_(LIGHT2|MINI3|MINIPRO|MIDI|STREET)_(NAME|ALT)__/g, (_, modelKey, field) => {
+      const modelId = { LIGHT2: 'light2', MINI3: 'mini3', MINIPRO: 'miniPro', STREET: 'street' }[modelKey];
+      const name = modelId
+        ? productPages.findById(modelId).copy[locale].name
+        : (locale === 'en' ? 'Yandex Station Midi' : 'Яндекс Станция Миди');
+      return escapeHtml(field === 'ALT'
+        ? (locale === 'en' ? `${name} smart speaker with Alice` : `${name}, умная колонка с Алисой`)
+        : name);
+    })
     .replace('__CATALOG_PRODUCT_SEO_CONTENT__', productSeoContent(page))
     .replace('__CATALOG_INITIAL_STOCK__', escapeHtml(page.stockText || ''))
     .replace('__CATALOG_STOCK_HIDDEN__', page.stockText ? '' : 'hidden')
