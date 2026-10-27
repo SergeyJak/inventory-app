@@ -59,11 +59,15 @@ async function main() {
       assert.ok(text.includes(`<h1 class="sr-only">${copy.name}</h1>`));
       assert.ok(text.includes(`<h2 id="model-title">${copy.name}</h2>`));
       assert.doesNotMatch(text, /__CATALOG_PRODUCT_SEO_CONTENT__/);
-      if (model.id === 'mini3' || model.id === 'miniPro') {
+      if (['light2', 'mini3', 'miniPro'].includes(model.id)) {
         assert.match(text, /class="product-seo-details"/);
         assert.match(text, /<h2>(?:Характеристики|Yandex Station)/);
         assert.match(text, /<ul><li>/);
         const otherSlug = model.id === 'mini3' ? 'yandex-station-mini-3-pro' : 'yandex-station-mini-3';
+        if (model.id === 'light2') {
+          assert.match(text, locale === 'ru' ? /LED-дисплей с часами/ : /LED display with a clock/);
+          assert.match(text, locale === 'ru' ? /для детской или подарка/ : /for a child’s room or gift/);
+        }
         assert.ok(text.includes('href="/' + locale + '/' + otherSlug + '"'), 'product has crawlable comparison link');
         assert.ok(text.includes(locale === 'ru' ? 'Латвии' : 'Latvia'));
       } else {
@@ -128,6 +132,7 @@ async function main() {
 
     const liteRu = await request('/ru/yandex-station-lite-2');
     for (const [locale, slug] of routes) assert.ok(sitemap.text.includes(`<loc>https://heysmart.lv/${locale}/${slug}</loc>`));
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-lite-2<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/);
     assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
     assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3-pro<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
     for (const locale of ['ru', 'en']) {
