@@ -995,6 +995,21 @@ function catalogLanguageSwitcher(locale, slug = '') {
 }
 
 function productSeoContent(page) {
+  if (page.model?.id === 'light2') {
+    const en = page.locale === 'en';
+    const heading = en ? 'Yandex Station Lite 2 features' : 'Характеристики Яндекс Станции Лайт 2';
+    const introduction = en
+      ? 'Buy Yandex Station Lite 2 with Alice in Riga or ask about delivery across Latvia. A compact smart speaker with an LED clock display for a bedroom, child’s room or desk.'
+      : 'Купить Яндекс Станцию Лайт 2 с Алисой в Риге или уточнить доставку по Латвии. Компактная умная колонка с LED-дисплеем и часами для спальни, детской или рабочего стола.';
+    const bullets = en
+      ? ['LED display with a clock', 'Voice control, timers and alarms', 'Compact choice for a child’s room or gift', 'Ask about available colours before pickup']
+      : ['LED-дисплей с часами', 'Голосовое управление, таймеры и будильники', 'Компактный вариант для детской или подарка', 'Уточните доступные цвета перед самовывозом'];
+    const compare = en ? 'Compare with Mini 3' : 'Сравнить с Мини 3';
+    return '<section class="product-seo-details" aria-label="'+escapeHtml(heading)+'">'+
+      '<h2>'+escapeHtml(heading)+'</h2><p>'+escapeHtml(introduction)+'</p><ul>'+
+      bullets.map(item => '<li>'+escapeHtml(item)+'</li>').join('')+
+      '</ul><p><a href="/'+page.locale+'/yandex-station-mini-3">'+escapeHtml(compare)+'</a></p></section>';
+  }
   if (!['mini3', 'miniPro'].includes(page.model?.id)) return '';
   const pro = page.model.id === 'miniPro';
   const en = page.locale === 'en';
