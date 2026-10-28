@@ -533,7 +533,7 @@ const CATALOG_SSR_TEXT = {
       description: 'Smart speakers with Alice available in Riga. Pickup by prior arrangement, help with choosing and setup. Courier delivery across Latvia.',
     },
     nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language' },
-    common: { selectedModel: 'Selected model', aboutModel: 'About the model', contact: 'Contact' },
+    common: { selectedModel: 'Selected model', aboutModel: 'About the model', moreAboutModel: 'More about this model', contact: 'Contact' },
     contact: { kicker: 'Contact', title: 'How would you like to contact us?' },
     assistant: { fab: 'Alice will help you choose', kicker: 'Assistant', title: 'I can help you choose a Station.', intro: 'Choose a scenario and I’ll suggest a suitable model from the current selection.' },
     faq: { kicker: 'Questions', inputLabel: 'Your question', placeholder: 'Your question...', send: 'Ask' },
@@ -543,6 +543,7 @@ const CATALOG_SSR_TEXT = {
         lite: { recommend: 'For a first speaker', lead: 'Best as a first smart speaker for a bedroom, children\'s room, or small desk where simple setup and compact size matter most.', point1: 'Easy way to start with Alice.', point2: 'Fits comfortably in small spaces.', point3: 'Good gift for everyday tasks.', final: 'Choose it for the simplest start.' },
         mini: { recommend: 'Best balance', lead: 'The safest choice for most buyers: a compact speaker with stronger sound for music, the kitchen, or a living room.', point1: 'Better sound for daily listening.', point2: 'Still compact and minimal.', point3: 'Works well in most rooms.', final: 'Choose it if you want one universal pick.' },
         pro: { recommend: 'For smart home', lead: 'Best when the speaker should become a smart-home hub and control compatible devices through Zigbee automation.', point1: 'Stronger smart-home role.', point2: 'Zigbee for compatible devices.', point3: 'More capable for future setup.', final: 'Choose it when automation matters.' },
+        midi: { recommend: 'For a larger room', lead: 'For a larger room when a compact speaker is no longer enough: stronger sound for a living room, music, movies and family use.', point1: 'More powerful than compact models.', point2: 'Well suited to living rooms and movies.', point3: 'Good for music and family use.', final: 'Choose it when you want more serious sound at home.' },
         street: { recommend: 'For outdoors and trips', lead: 'A portable speaker for people who want to take Alice outside, on trips, to the balcony, or anywhere away from home.', point1: 'Portable format for movement.', point2: 'Useful away from the desk.', point3: 'Good for trips and relaxed use.', final: 'Choose it if the speaker should move with you.' },
       },
       localInfo: {
