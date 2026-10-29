@@ -165,6 +165,9 @@ async function main() {
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/rabotaet-li-alisa-v-latvii/, 'sitemap includes published KB article');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru<\/loc>/, 'sitemap includes the Russian catalog URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/en<\/loc>/, 'sitemap includes the English catalog URL');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/, 'root catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/, 'Russian catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/en<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/, 'English catalog lastmod matches the verified SSR content update');
     assert.doesNotMatch(sitemap.text, /https:\/\/heysmart\.lv\/lv(?:<|\/)/, 'sitemap does not include a Latvian commercial URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/category\/gid-pokupatelya/, 'sitemap includes KB category');
     assert.doesNotMatch(sitemap.text, /unpublished-kb-test/, 'sitemap excludes unpublished article');
