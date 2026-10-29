@@ -129,6 +129,12 @@ async function main() {
     assert.match(enCatalog.text, /<h3><a href="\/en\/yandex-station-mini-3-pro">Yandex Station Mini 3 Pro<\/a><\/h3>/);
     assert.match(enCatalog.text, /<img class="quick-product"[^>]*alt="Yandex Station Mini 3 Pro smart speaker with Alice"/);
     assert.doesNotMatch(enCatalog.text, /__QUICK_(?:LIGHT2|MINI3|MINIPRO|MIDI|STREET)_(?:NAME|ALT)__/);
+    assert.match(enCatalog.text, /<strong data-i18n="common\.moreAboutModel">More about this model<\/strong>/);
+    assert.match(enCatalog.text, /<strong data-i18n="sections\.quickChoose\.midi\.recommend">For a larger room<\/strong>/);
+    assert.match(enCatalog.text, /<p data-i18n="sections\.quickChoose\.midi\.lead">For a larger room when a compact speaker/);
+    assert.doesNotMatch(enCatalog.text, /Для большой комнаты|Модель для тех, кому уже мало компактной колонки/);
+    const liteEn = await request('/en/yandex-station-lite-2');
+    assert.match(liteEn.text, /<strong data-i18n="sections\.quickChoose\.midi\.recommend">For a larger room<\/strong>/);
 
     const liteRu = await request('/ru/yandex-station-lite-2');
     for (const [locale, slug] of routes) assert.ok(sitemap.text.includes(`<loc>https://heysmart.lv/${locale}/${slug}</loc>`));
