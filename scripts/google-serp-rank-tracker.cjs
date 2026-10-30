@@ -91,7 +91,10 @@ async function check(keyword, language_code, device) {
 async function main() {
   const allJobs = languages.flatMap(({ language_code, keywords }) => keywords.flatMap(keyword => ['mobile', 'desktop'].map(device => ({ keyword, language_code, device }))));
   // Keep the core buyer queries first; cap paid API requests until budget is approved.
-  const planned = allJobs.slice(0, maxChecks);
+  const ruJobs = allJobs.filter(job => job.language_code === 'ru');
+  const enJobs = allJobs.filter(job => job.language_code === 'en');
+  const ruLimit = Math.min(ruJobs.length, Math.ceil(maxChecks * 0.8));
+  const planned = [...ruJobs.slice(0, ruLimit), ...enJobs.slice(0, maxChecks - ruLimit)];
   if (dryRun) { console.log(JSON.stringify({ mode: 'dry-run', checks: planned.length, planned }, null, 2)); return; }
   if (!login || !password) throw new Error('Set DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Railway environment variables');
   const results = [];
@@ -104,7 +107,7 @@ async function main() {
   const filename = path.join(dir, 'serp-' + timestamp.replace(/[:.]/g, '-') + '.json');
   fs.writeFileSync(filename, JSON.stringify({ checked_at: timestamp, provider: 'DataForSEO Google Organic SERP', location: 'Riga,Latvia', results }, null, 2));
   const historyFile = path.join(dir, 'history.jsonl');
-  fs.appendFileSync(historyFile, JSON.stringify({ checked_at: timestamp, results }) + '\\n');
+  fs.appendFileSync(historyFile, JSON.stringify({ checked_at: timestamp, results }) + '\n');
   console.log(JSON.stringify({ file: filename, history: historyFile, available_queries: allJobs.length, total: results.length, found: results.filter(r => r.rank !== null && r.rank !== undefined).length, errors: results.filter(r => r.error).length }));
   if (results.some(r => r.error)) process.exitCode = 1;
 }
