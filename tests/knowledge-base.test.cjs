@@ -76,7 +76,7 @@ async function main() {
     const russianCatalog = await request('/ru', catalogRequest);
     assert.strictEqual(russianCatalog.res.status, 200, 'Russian catalog returns 200');
     assert.match(russianCatalog.text, /<html lang="ru">/, 'Russian catalog has a Russian document language');
-    assert.match(russianCatalog.text, /<title>Умные колонки с Алисой в Риге и Латвии \| HeySmart<\/title>/, 'Russian catalog has a Russian title');
+    assert.match(russianCatalog.text, /<title>Купить колонку Алиса в Риге и Латвии \| HeySmart<\/title>/, 'Russian catalog has a Russian title');
     assert.match(russianCatalog.text, /<h1[^>]*>Яндекс Станции с Алисой в Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
     assert.match(russianCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog self-canonicalizes');
     assert.match(russianCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes RU hreflang');
