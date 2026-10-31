@@ -3,6 +3,7 @@
 // Preview without API credentials: node scripts/google-serp-rank-tracker.cjs --dry-run
 const fs = require('node:fs');
 const path = require('node:path');
+const { MongoClient } = require('mongodb');
 const ruQueries = [
   'яндекс алиса колонка', 'алиса рига купить', 'купить алису в риге',
   'колонка алиса купить рига', 'колонка алиса купить в риге',
@@ -108,6 +109,24 @@ async function main() {
   fs.writeFileSync(filename, JSON.stringify({ checked_at: timestamp, provider: 'DataForSEO Google Organic SERP', location: 'Riga,Latvia', results }, null, 2));
   const historyFile = path.join(dir, 'history.jsonl');
   fs.appendFileSync(historyFile, JSON.stringify({ checked_at: timestamp, results }) + '\n');
+  // Railway service has no persistent volume: keep the authoritative history in MongoDB.
+  if (process.env.MONGODB_URI) {
+    const client = new MongoClient(process.env.MONGODB_URI);
+    try {
+      await client.connect();
+      const collection = client.db('inventory').collection('serp_rank_history');
+      await collection.createIndex({ checked_at: -1 });
+      await collection.insertOne({
+        checked_at: new Date(timestamp),
+        provider: 'DataForSEO Google Organic SERP',
+        location: 'Riga,Latvia',
+        results,
+      });
+    } finally {
+      await client.close();
+    }
+  }
+
   console.log(JSON.stringify({ file: filename, history: historyFile, available_queries: allJobs.length, total: results.length, found: results.filter(r => r.rank !== null && r.rank !== undefined).length, errors: results.filter(r => r.error).length }));
   if (results.some(r => r.error)) process.exitCode = 1;
 }
