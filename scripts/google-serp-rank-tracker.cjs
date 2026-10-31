@@ -5,6 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { MongoClient } = require('mongodb');
 const ruQueries = [
+  // Confirmed high-impression Latvia GSC queries (14–27 Oct 2026) come first.
+  'яндекс в латвии', 'колонка алиса', 'алиса колонка',
+  'умная колонка алиса купить латвия',
   'яндекс алиса колонка', 'алиса рига купить', 'купить алису в риге',
   'колонка алиса купить рига', 'колонка алиса купить в риге',
   'купить колонку алиса в риге', 'алиса купить латвия',
