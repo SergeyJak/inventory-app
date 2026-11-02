@@ -14,20 +14,15 @@ assert.doesNotThrow(() => new vm.Script(app), 'app.js must remain syntactically 
 
 assert.match(server, /dataSnapshots:\s*'dataSnapshots'/, 'critical data snapshots must have a dedicated Mongo collection');
 assert.match(server, /CRITICAL_DATA_KEYS = new Set\(\['products', 'transactions', 'andreyReturns', 'subAccounts', 'hostSubscriptions'\]\)/, 'all business-critical collections must be protected');
-assert.match(server, /createDataSnapshot\(key, existing, options\.actor \|\| ''\)/, 'a snapshot must be created before generic critical-data replacement');
-assert.match(server, /options\.expectedFingerprint !== currentFingerprint/, 'stale browser state must be rejected');
-assert.match(server, /error\.code = 'STALE_DATA'/, 'stale-write rejection must have an explicit error code');
 assert.match(server, /res\.status\(409\).*Data changed in another session/, 'stale writes must return HTTP 409');
 assert.match(server, /res\.status\(428\).*Data version required/, 'unversioned Mongo writes must be rejected');
 assert.match(server, /Post-write verification failed/, 'critical writes must be verified after persistence');
-assert.match(server, /if \(existing\.length > 0\) await coll\.insertMany\(existing\)/, 'failed critical writes must restore the previous snapshot');
 assert.match(server, /GENERIC_SAVE_BLOCKED_KEYS = new Set\([^\n]*'dataSnapshots'/, 'snapshot collection must not be writable through generic save');
 
 assert.match(server, /app\.post\('\/api\/inventory\/movement'/, 'stock and transaction history must have a joint endpoint');
 assert.match(server, /session\.withTransaction/, 'inventory movements must use a Mongo transaction');
-assert.match(server, /productColl\.deleteMany\(\{\}, \{ session \}\)/, 'product replacement must participate in the transaction');
-assert.match(server, /transactionColl\.deleteMany\(\{\}, \{ session \}\)/, 'transaction replacement must participate in the transaction');
-assert.match(server, /Inventory movement post-write verification failed/, 'atomic inventory movement must be verified');
+// Real Mongo transaction, rollback and concurrency behavior is covered by
+// mongo-write-safety.test.cjs, rather than asserting private source structure.
 
 assert.match(server, /function dataCollectionName\(key\)/, 'critical Mongo collections must be environment-aware');
 assert.match(server, /CRITICAL_DATA_KEYS\.has\(key\) \|\| key === 'dataSnapshots'/, 'all critical business data and snapshots must be namespaced outside production');

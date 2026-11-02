@@ -4,6 +4,16 @@ This file records the current high-level state of the project. It is not a relea
 
 ## Current State
 
+### Data Safety And Session Fixes
+
+* Inventory login rejects non-string credentials without terminating the Express process.
+* Mailbox requests validate current account activity and session version. Deactivation and password changes revoke older mailbox cookies; legacy cookies require a fresh login without changing stored passwords or messages.
+* Critical Mongo replacements use per-collection transaction fences, version checks, recovery snapshots and post-write verification in the same transaction. Concurrent stale saves return 409, including empty-collection writes.
+* Admin data responses include fingerprints calculated from their exact returned arrays in both Mongo and JSON modes.
+* JSON critical writes and website-file restores use atomic renames, snapshots and recovery journals. Pending failed recovery blocks requests rather than exposing partial data.
+* Mongo ZIP restores require versions for every selected critical dataset. Selected inventory collections restore together, and sales-only restoration preserves restock history. Malformed selected sections are rejected before changes.
+* Inventory and FAQ/translation restores are separate operations; the interface defaults to inventory sections. See `docs/review-data-safety.md` for verification and rollout limits.
+
 ### Inventory Admin
 
 * Inventory app is served by `server.js` with `index.html`, `app.js`, and `style.css`.
