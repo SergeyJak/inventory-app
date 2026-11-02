@@ -750,6 +750,7 @@ async function createMailAccount(db, username, password) {
   const doc = {
     email,
     passwordHash: await bcrypt.hash(cleanPassword, 10),
+    sessionVersion: 0,
     active: true,
     createdAt: now,
     updatedAt: now,
@@ -777,6 +778,7 @@ async function resetMailPassword(db, id) {
           passwordHash: await bcrypt.hash(password, 10),
           updatedAt: new Date(),
         },
+        $inc: { sessionVersion: 1 },
       },
       { returnDocument: 'after' }
     );
@@ -814,6 +816,7 @@ async function changeMailPassword(db, id, password) {
           passwordHash: await bcrypt.hash(cleanPassword, 10),
           updatedAt: new Date(),
         },
+        $inc: { sessionVersion: 1 },
       },
       { returnDocument: 'after' }
     );
@@ -1607,6 +1610,7 @@ function createMailService({
         purpose: MAIL_TOKEN_PURPOSE,
         accountId: String(account._id),
         email: account.email,
+        sessionVersion: account.sessionVersion ?? 0,
       },
       jwtSecret,
       {
@@ -1615,21 +1619,25 @@ function createMailService({
     );
   }
 
-  function requireMailbox(req, res, next) {
+  async function requireMailbox(req, res, next) {
+    let payload;
     try {
       const token = cookieValue(
         req,
         MAIL_COOKIE
       );
 
-      const payload = jwt.verify(
+      payload = jwt.verify(
         token,
         jwtSecret
       );
 
       if (
         payload.purpose !== MAIL_TOKEN_PURPOSE ||
-        !normalizeMailEmail(payload.email)
+        !normalizeMailEmail(payload.email) ||
+        !Number.isSafeInteger(payload.sessionVersion) ||
+        payload.sessionVersion < 0 ||
+        !ObjectId.isValid(payload.accountId)
       ) {
         return res
           .status(401)
@@ -1638,14 +1646,27 @@ function createMailService({
           });
       }
 
-      req.mailbox = payload;
-      return next();
     } catch {
       return res
         .status(401)
         .json({
           error: 'Unauthorized',
         });
+    }
+    try {
+      const account = await db().collection('mail_accounts').findOne({
+        _id: new ObjectId(payload.accountId),
+        email: payload.email,
+        active: true,
+      });
+      if (!account || (account.sessionVersion ?? 0) !== payload.sessionVersion) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      req.mailbox = payload;
+      return next();
+    } catch (error) {
+      console.error('Mailbox session check error:', error.message);
+      return res.status(503).json({ error: 'Mail service temporarily unavailable' });
     }
   }
 
@@ -1758,6 +1779,7 @@ function createMailService({
                 updatedAt:
                   new Date(),
               },
+              $inc: { sessionVersion: 1 },
             }
           );
 

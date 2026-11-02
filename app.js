@@ -124,6 +124,8 @@ async function _persistInventoryMovement(products, transactions) {
     }
     _cacheMeta.products = result.fingerprints?.products || _cacheMeta.products;
     _cacheMeta.transactions = result.fingerprints?.transactions || _cacheMeta.transactions;
+    _cache.products = products;
+    _cache.transactions = transactions;
     return true;
   } catch (error) {
     console.error('Inventory movement save error:', error);
@@ -2348,14 +2350,14 @@ async function recordSale() {
   if (isNaN(qty)   || qty < 1)   return showToast('Укажите количество (мин. 1)', 'error');
   if (isNaN(price) || price < 0) return showToast('Укажите цену продажи', 'error');
   if (!dateVal)                  return showToast('Укажите дату продажи', 'error');
-  const products = loadProducts();
+  const products = structuredClone(loadProducts());
   const p = products.find(x => x.id === sel.value);
   if (!p) return showToast('Товар не найден', 'error');
   if (getStock(p) < qty) return showToast(`Недостаточно товара. Остаток: ${getStock(p)} шт.`, 'error');
   const total     = qty * price;
   const costTotal = consumeFIFO(p, qty);
   const profit    = total - costTotal;
-  const txs = loadTransactions();
+  const txs = structuredClone(loadTransactions());
   txs.unshift({ id: genId(), type: 'sale', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal, profit, date: dateVal + 'T12:00:00' });
   if (!await _persistInventoryMovement(products, txs)) return;
   document.getElementById('sale-qty').value   = '';
@@ -2377,14 +2379,14 @@ async function recordRestock() {
   if (isNaN(qty)   || qty < 1)    return showToast('Укажите количество', 'error');
   if (isNaN(price) || price <= 0) return showToast('Укажите цену закупки', 'error');
   if (!dateVal)                   return showToast('Укажите дату поступления', 'error');
-  const products = loadProducts();
+  const products = structuredClone(loadProducts());
   const p = products.find(x => x.id === sel.value);
   if (!p) return showToast('Товар не найден', 'error');
   p.lots = p.lots || [];
   p.lots.push({ qty, buyPrice: price, date: dateVal });
   delete p.refBuyPrice;
   const total = qty * price;
-  const txs = loadTransactions();
+  const txs = structuredClone(loadTransactions());
   txs.unshift({ id: genId(), type: 'restock', productId: p.id, productLabel: pLabel(p), qty, price, total, costTotal: 0, profit: 0, date: dateVal + 'T12:00:00' });
   if (!await _persistInventoryMovement(products, txs)) return;
   document.getElementById('restock-qty').value   = '';
@@ -2420,14 +2422,14 @@ function renderHistory(filter) {
 }
 
 async function returnOneSaleItem(txId) {
-  const txs = loadTransactions();
+  const txs = structuredClone(loadTransactions());
   const tx = txs.find(t => t.id === txId);
   if (!tx || tx.type !== 'sale') return;
   const qty = Number(tx.qty) || 0;
   if (qty <= 0) return;
   if (!confirm(`Return 1 item from sale "${tx.productLabel || tx.productName || txId}" to stock?`)) return;
 
-  const products = loadProducts();
+  const products = structuredClone(loadProducts());
   let product = products.find(p => p.id === tx.productId);
   if (!product) {
     const label = tx.productLabel || tx.productName || 'Returned item';
@@ -2580,7 +2582,7 @@ function renderBackupSectionChecks(containerId, sections, inputName, checkedRest
   const el = document.getElementById(containerId);
   if (!el) return;
   el.innerHTML = sections.map(section => {
-    const checked = checkedRestorableOnly ? section.restorable : true;
+    const checked = checkedRestorableOnly ? section.restorable && !['faq', 'translations'].includes(section.id) : true;
     const disabled = inputName === 'backup-restore-section' && !section.restorable;
     return `<label class="backup-check">
       <input type="checkbox" name="${inputName}" value="${esc(section.id)}" ${checked && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''} />
@@ -2681,6 +2683,7 @@ function renderBackupInspect(info) {
       <strong>Только экспорт:</strong> ${esc((info.exportOnlyCollections || []).join(', ') || '-')}
     </div>
     <div class="backup-checks" id="backup-restore-sections"></div>
+    <div class="backup-muted">Данные склада и FAQ/переводы восстанавливаются отдельно. При восстановлении продаж история приходов сохраняется.</div>
     <div class="backup-restore-actions">
       <label class="backup-confirm">
         <input type="checkbox" id="backup-confirm-check" />
@@ -2695,6 +2698,9 @@ async function restoreBackup() {
   if (!inspectedBackupBase64 || !inspectedBackupInfo) return showToast('Сначала проверьте ZIP-архив', 'error');
   const sections = selectedBackupSections('backup-restore-section');
   if (!sections.length) return showToast('Выберите секции для восстановления', 'error');
+  if (sections.some(id => ['products', 'sales', 'settings'].includes(id)) && sections.some(id => ['faq', 'translations'].includes(id))) {
+    return showToast('Выберите либо данные склада, либо FAQ/переводы для отдельного восстановления.', 'error');
+  }
   if (!document.getElementById('backup-confirm-check')?.checked) {
     return showToast('Подтвердите восстановление чекбоксом', 'error');
   }
@@ -2705,7 +2711,7 @@ async function restoreBackup() {
     const res = await fetch('/api/backups/import', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ backupBase64: inspectedBackupBase64, sections, confirm: true }),
+      body: JSON.stringify({ backupBase64: inspectedBackupBase64, sections, confirm: true, expectedFingerprints: _cacheMeta }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));

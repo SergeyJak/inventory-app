@@ -73,6 +73,9 @@ jobs:
       - name: Inventory API integration tests
         run: npm run test:api
 
+      - name: MongoDB transaction safety tests
+        run: npm run test:mongo-safety
+
       - name: Install Playwright test runner
         run: npm install --no-save --no-package-lock @playwright/test@1.55.0
 

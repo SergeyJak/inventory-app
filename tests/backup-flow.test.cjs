@@ -183,7 +183,10 @@ function waitForServer(proc) {
     });
     assert.strictEqual(imported.res.status, 200, 'import should succeed');
     assert.deepStrictEqual(readJson('products.json'), expectedProducts);
-    assert.deepStrictEqual(readJson('transactions.json'), expectedTransactions.filter(tx => tx.type === 'sale'));
+    assert.deepStrictEqual(readJson('transactions.json'), [
+      { id: 'r2', type: 'restock', productId: 'changed', qty: 1 },
+      ...expectedTransactions.filter(tx => tx.type === 'sale'),
+    ], 'restoring sales must preserve current restock history');
     assert.deepStrictEqual(readJson('sub-accounts.json'), expectedSubAccounts);
     assert.deepStrictEqual(readJson('host-subscriptions.json'), expectedHostSubscriptions);
 

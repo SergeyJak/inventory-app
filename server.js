@@ -90,9 +90,10 @@ const COLL = {
   financeAudit: 'financeAudit',
   financeMigrations: 'financeMigrations',
   dataSnapshots: 'dataSnapshots',
+  dataWriteLocks: 'dataWriteLocks',
 };
 const ADMIN_ONLY_KEYS = ['subAccounts', 'hostSubscriptions'];
-const GENERIC_SAVE_BLOCKED_KEYS = new Set(['financeIncome', 'financeExpenses', 'financeInvoices', 'financeInvoiceCounters', 'financeAudit', 'financeMigrations', 'dataSnapshots']);
+const GENERIC_SAVE_BLOCKED_KEYS = new Set(['financeIncome', 'financeExpenses', 'financeInvoices', 'financeInvoiceCounters', 'financeAudit', 'financeMigrations', 'dataSnapshots', 'dataWriteLocks']);
 const CRITICAL_DATA_KEYS = new Set(['products', 'transactions', 'andreyReturns', 'subAccounts', 'hostSubscriptions']);
 const ASSISTANT_LOW_CONFIDENCE_THRESHOLD = 0.5;
 const ASSISTANT_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
@@ -127,6 +128,12 @@ async function ensureDataIntegrityIndexes() {
     db.collection(dataCollectionName('dataSnapshots')).createIndex({ key: 1, createdAt: -1 }, { name: 'snapshot_key_time' }),
     db.collection(dataCollectionName('dataSnapshots')).createIndex({ snapshotId: 1 }, { unique: true, name: 'uniq_snapshot_id' }),
   ]);
+  // Existing fence documents also serialize replacements of empty collections.
+  for (const key of CRITICAL_DATA_KEYS) {
+    await db.collection(dataCollectionName('dataWriteLocks')).updateOne(
+      { _id: key }, { $setOnInsert: { revision: 0 } }, { upsert: true },
+    );
+  }
 }
 
 function canonicalValue(value) {
@@ -167,7 +174,7 @@ function validateCriticalDataset(key, rows) {
   }
 }
 
-async function createDataSnapshot(key, rows, actor = '') {
+async function createDataSnapshot(key, rows, actor = '', session) {
   if (!USE_MONGO || !CRITICAL_DATA_KEYS.has(key)) return null;
   const snapshot = {
     snapshotId: crypto.randomUUID(),
@@ -178,12 +185,11 @@ async function createDataSnapshot(key, rows, actor = '') {
     fingerprint: datasetFingerprint(rows),
     documents: rows,
   };
-  await db.collection(dataCollectionName('dataSnapshots')).insertOne(snapshot);
+  await db.collection(dataCollectionName('dataSnapshots')).insertOne(snapshot, { session });
   return snapshot;
 }
 
-async function currentCriticalDataMeta() {
-  const data = await dbGetAll();
+function currentCriticalDataMeta(data) {
   const fingerprints = {};
   const counts = {};
   for (const key of CRITICAL_DATA_KEYS) {
@@ -220,7 +226,7 @@ function dataCollectionName(key) {
   if (isProductionRailwayEnvironment()) return base;
   const suffix = previewCollectionSuffix();
   if (!suffix) return base;
-  if (CRITICAL_DATA_KEYS.has(key) || key === 'dataSnapshots') return `${base}__${suffix}`;
+  if (CRITICAL_DATA_KEYS.has(key) || key === 'dataSnapshots' || key === 'dataWriteLocks') return `${base}__${suffix}`;
   return base;
 }
 
@@ -396,6 +402,7 @@ async function dbGetAll() {
     ]);
     return { products, transactions, andreyReturns, subAccounts, hostSubscriptions };
   }
+  recoverPendingDataWrite();
   return {
     products:      JSON.parse(fs.readFileSync(FILES.products,      'utf8')),
     transactions:  JSON.parse(fs.readFileSync(FILES.transactions,  'utf8')),
@@ -439,71 +446,185 @@ function mergeProtectedFinanceFields(key, incoming, existing) {
   return merged;
 }
 
-async function dbSave(key, data, options = {}) {
-  if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
-    throw new Error(`Generic save forbidden for protected collection: ${key}`);
+function dataWriteError(code, message) {
+  return Object.assign(new Error(message), { code });
+}
+
+function atomicWriteFile(file, content) {
+  const temporary = `${file}.${crypto.randomUUID()}.tmp`;
+  let descriptor;
+  try {
+    descriptor = fs.openSync(temporary, 'wx', 0o600);
+    fs.writeFileSync(descriptor, content, 'utf8');
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    fs.renameSync(temporary, file);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
   }
+}
 
-  let safeData = Array.isArray(data) ? data : [];
-  validateCriticalDataset(key, safeData);
-
-  if (USE_MONGO) {
-    const coll = db.collection(dataCollectionName(key));
-    const existing = await coll.find({}, { projection: { _id: 0 } }).toArray();
-    const currentFingerprint = datasetFingerprint(existing);
-
-    if (CRITICAL_DATA_KEYS.has(key)) {
-      if (!options.expectedFingerprint) {
-        const error = new Error(`Missing data version for ${key}`);
-        error.code = 'MISSING_DATA_VERSION';
-        throw error;
-      }
-      if (options.expectedFingerprint !== currentFingerprint) {
-        const error = new Error(`Stale data for ${key}`);
-        error.code = 'STALE_DATA';
-        throw error;
-      }
-      await createDataSnapshot(key, existing, options.actor || '');
-    }
-
-    if (key === 'subAccounts' || key === 'hostSubscriptions') {
-      safeData = mergeProtectedFinanceFields(key, safeData, existing);
-    }
-    validateCriticalDataset(key, safeData);
-
-    try {
-      await coll.deleteMany({});
-      if (safeData.length > 0) await coll.insertMany(safeData);
-
-      if (CRITICAL_DATA_KEYS.has(key)) {
-        const written = await coll.find({}, { projection: { _id: 0 } }).toArray();
-        if (written.length !== safeData.length || datasetFingerprint(written) !== datasetFingerprint(safeData)) {
-          throw new Error(`Post-write verification failed for ${key}`);
-        }
-      }
-    } catch (error) {
-      if (CRITICAL_DATA_KEYS.has(key)) {
-        await coll.deleteMany({});
-        if (existing.length > 0) await coll.insertMany(existing);
-      }
-      throw error;
-    }
-
-    return {
-      fingerprint: CRITICAL_DATA_KEYS.has(key) ? datasetFingerprint(safeData) : null,
-      count: safeData.length,
-    };
+function recoverPendingDataWrite() {
+  const journalFile = path.join(DATA_DIR, '.inventory-write-journal.json');
+  if (!fs.existsSync(journalFile)) return;
+  const journal = JSON.parse(fs.readFileSync(journalFile, 'utf8'));
+  if (journal.version !== 1 || !journal.previous || Array.isArray(journal.previous)) {
+    throw new Error('Invalid inventory write journal; refusing to overwrite data');
   }
+  // Validate the entire journal before restoring any file.
+  for (const [key, rows] of Object.entries(journal.previous)) {
+    if (!CRITICAL_DATA_KEYS.has(key)) throw new Error('Invalid journal collection');
+    validateCriticalDataset(key, rows);
+  }
+  for (const [key, rows] of Object.entries(journal.previous)) {
+    atomicWriteFile(FILES[key], JSON.stringify(rows, null, 2));
+  }
+  fs.unlinkSync(journalFile);
+}
 
+function recoverPendingAssetWrite() {
+  const journalFile = path.join(DATA_DIR, '.asset-write-journal.json');
+  if (!fs.existsSync(journalFile)) return;
+  const journal = JSON.parse(fs.readFileSync(journalFile, 'utf8'));
+  if (journal.version !== 1 || !journal.previous || Array.isArray(journal.previous)) {
+    throw new Error('Invalid asset restore journal');
+  }
+  for (const [file, text] of Object.entries(journal.previous)) {
+    if (!['faq.json', 'i18n.js'].includes(file) || typeof text !== 'string') throw new Error('Invalid asset restore entry');
+  }
+  for (const [file, text] of Object.entries(journal.previous)) atomicWriteFile(path.join(__dirname, file), text);
+  fs.unlinkSync(journalFile);
+}
+
+function replaceAssetFiles(changes) {
+  recoverPendingAssetWrite();
+  const previous = {};
+  for (const file of Object.keys(changes)) previous[file] = readTextFile(file);
+  const snapshotId = crypto.randomUUID();
+  const snapshotDirectory = path.join(DATA_DIR, '.snapshots');
+  fs.mkdirSync(snapshotDirectory, { recursive: true });
+  atomicWriteFile(path.join(snapshotDirectory, snapshotId + '.json'), JSON.stringify({
+    snapshotId, createdAt: new Date().toISOString(), type: 'assets', documents: previous,
+  }));
+  const journalFile = path.join(DATA_DIR, '.asset-write-journal.json');
+  atomicWriteFile(journalFile, JSON.stringify({ version: 1, previous }));
+  try {
+    for (const [file, content] of Object.entries(changes)) atomicWriteFile(path.join(__dirname, file), content);
+    fs.unlinkSync(journalFile);
+  } catch (error) {
+    recoverPendingAssetWrite();
+    throw error;
+  }
+}
+
+function prepareCriticalReplacement(key, rows, existing, options) {
+  const expectedFingerprint = options.expectedFingerprints?.[key];
+  if (USE_MONGO && !expectedFingerprint) {
+    throw dataWriteError('MISSING_DATA_VERSION', `Missing data version for ${key}`);
+  }
+  if (expectedFingerprint && expectedFingerprint !== datasetFingerprint(existing)) {
+    throw dataWriteError('STALE_DATA', `Stale data for ${key}`);
+  }
+  let safeData = rows;
+  if (key === 'transactions' && options.restoreSales) {
+    safeData = [...existing.filter(row => row.type !== 'sale'), ...rows];
+  }
   if (key === 'subAccounts' || key === 'hostSubscriptions') {
-    const existing = fs.existsSync(FILES[key])
-      ? JSON.parse(fs.readFileSync(FILES[key], 'utf8'))
-      : [];
     safeData = mergeProtectedFinanceFields(key, safeData, existing);
   }
   validateCriticalDataset(key, safeData);
-  fs.writeFileSync(FILES[key], JSON.stringify(safeData, null, 2), 'utf8');
-  return { fingerprint: datasetFingerprint(safeData), count: safeData.length };
+  return safeData;
+}
+
+async function replaceCriticalDatasets(changes, options = {}) {
+  const keys = Object.keys(changes).sort();
+  for (const key of keys) {
+    if (!CRITICAL_DATA_KEYS.has(key)) throw dataWriteError('INVALID_DATA', 'Invalid critical collection');
+    try { validateCriticalDataset(key, changes[key]); }
+    catch (error) { throw dataWriteError('INVALID_DATA', error.message); }
+  }
+  if (!keys.length) return {};
+  const result = {};
+  if (USE_MONGO) {
+    const session = mongoClient.startSession();
+    try {
+      await session.withTransaction(async () => {
+        // A fence write establishes contention even when the dataset is empty.
+        // Driver retries repeat the reads and version checks in a new snapshot.
+        for (const key of keys) {
+          const locked = await db.collection(dataCollectionName('dataWriteLocks')).updateOne(
+            { _id: key }, { $inc: { revision: 1 } }, { session },
+          );
+          if (locked.matchedCount !== 1) throw new Error('Inventory write fence unavailable');
+        }
+        for (const key of keys) {
+          const coll = db.collection(dataCollectionName(key));
+          const existing = await coll.find({}, { session, projection: { _id: 0 } }).toArray();
+          const safeData = prepareCriticalReplacement(key, changes[key], existing, options);
+          await createDataSnapshot(key, existing, options.actor || '', session);
+          await coll.deleteMany({}, { session });
+          if (safeData.length) await coll.insertMany(safeData, { session });
+          const written = await coll.find({}, { session, projection: { _id: 0 } }).toArray();
+          if (datasetFingerprint(written) !== datasetFingerprint(safeData)) {
+            throw new Error(`Post-write verification failed for ${key}`);
+          }
+          result[key] = { fingerprint: datasetFingerprint(safeData), count: safeData.length };
+        }
+      }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
+    } finally {
+      await session.endSession();
+    }
+    return result;
+  }
+
+  // All local steps are synchronous: requests cannot interleave between files.
+  recoverPendingDataWrite();
+  const previous = {};
+  const replacements = {};
+  for (const key of keys) {
+    previous[key] = JSON.parse(fs.readFileSync(FILES[key], 'utf8'));
+    replacements[key] = prepareCriticalReplacement(key, changes[key], previous[key], options);
+  }
+  const snapshotId = crypto.randomUUID();
+  const snapshotDirectory = path.join(DATA_DIR, '.snapshots');
+  fs.mkdirSync(snapshotDirectory, { recursive: true });
+  atomicWriteFile(path.join(snapshotDirectory, snapshotId + '.json'), JSON.stringify({
+    snapshotId, createdAt: new Date().toISOString(), actor: options.actor || '', documents: previous,
+  }));
+  const journalFile = path.join(DATA_DIR, '.inventory-write-journal.json');
+  atomicWriteFile(journalFile, JSON.stringify({ version: 1, previous }));
+  try {
+    for (const key of keys) {
+      atomicWriteFile(FILES[key], JSON.stringify(replacements[key], null, 2));
+      result[key] = { fingerprint: datasetFingerprint(replacements[key]), count: replacements[key].length };
+    }
+    fs.unlinkSync(journalFile);
+  } catch (error) {
+    recoverPendingDataWrite();
+    throw error;
+  }
+  return result;
+}
+
+async function dbSave(key, data, options = {}) {
+  if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) throw new Error(`Generic save forbidden for protected collection: ${key}`);
+  if (!Array.isArray(data)) throw dataWriteError('INVALID_DATA', 'Expected an array');
+  if (CRITICAL_DATA_KEYS.has(key)) {
+    const results = await replaceCriticalDatasets({ [key]: data }, {
+      expectedFingerprints: { [key]: options.expectedFingerprint }, actor: options.actor,
+    });
+    return results[key];
+  }
+  if (USE_MONGO) {
+    const coll = db.collection(dataCollectionName(key));
+    await coll.deleteMany({});
+    if (data.length) await coll.insertMany(data);
+  } else {
+    atomicWriteFile(FILES[key], JSON.stringify(data, null, 2));
+  }
+  return { fingerprint: datasetFingerprint(data), count: data.length };
 }
 
 function uniqueProductTypes(products) {
@@ -733,28 +854,32 @@ function inspectBackupBuffer(buffer) {
   };
 }
 
-async function restoreBackup(buffer, sections) {
+async function restoreBackup(buffer, sections, options = {}) {
   const inspected = inspectBackupBuffer(buffer);
   const selected = normalizeBackupSections(sections, RESTORABLE_BACKUP_SECTIONS)
     .filter(section => inspected.restorableCollections.includes(section));
   const restored = [];
-
+  const changes = {};
+  const textUpdates = {};
   if (selected.includes('products')) {
-    await dbSave('products', jsonEntry(inspected.entries, 'products.json'));
+    changes.products = jsonEntry(inspected.entries, 'products.json');
     restored.push('products');
   }
   if (selected.includes('sales')) {
-    await dbSave('transactions', jsonEntry(inspected.entries, 'sales.json'));
+    changes.transactions = jsonEntry(inspected.entries, 'sales.json');
+    if (!Array.isArray(changes.transactions) || changes.transactions.some(row => row?.type !== 'sale')) {
+      throw new Error('Invalid sales payload');
+    }
     restored.push('sales');
   }
   if (selected.includes('settings')) {
     const settings = jsonEntry(inspected.entries, 'settings.json');
-    await dbSave('subAccounts', settings.subAccounts || []);
-    await dbSave('hostSubscriptions', settings.hostSubscriptions || []);
+    changes.subAccounts = settings.subAccounts;
+    changes.hostSubscriptions = settings.hostSubscriptions;
     restored.push('settings');
   }
   if (selected.includes('faq')) {
-    writeTextFile('faq.json', jsonText(jsonEntry(inspected.entries, 'faq.json')));
+    textUpdates['faq.json'] = jsonText(jsonEntry(inspected.entries, 'faq.json'));
     restored.push('faq');
   }
   if (selected.includes('translations')) {
@@ -762,10 +887,23 @@ async function restoreBackup(buffer, sections) {
     if (translations.file !== 'i18n.js' || typeof translations.content !== 'string') {
       throw new Error('Invalid translations payload');
     }
-    writeTextFile('i18n.js', translations.content);
+    textUpdates['i18n.js'] = translations.content;
     restored.push('translations');
   }
 
+  // Reject every malformed selected section before changing any data or assets.
+  for (const [key, rows] of Object.entries(changes)) validateCriticalDataset(key, rows);
+  if (Object.keys(changes).length && Object.keys(textUpdates).length) {
+    throw dataWriteError('MIXED_BACKUP_RESTORE', 'Восстанавливайте данные склада и FAQ/переводы отдельными операциями.');
+  }
+  if (Object.keys(textUpdates).length) {
+    // No awaits: another request cannot interleave a filesystem restore.
+    replaceAssetFiles(textUpdates);
+  } else {
+    await replaceCriticalDatasets(changes, {
+      ...options, restoreSales: selected.includes('sales'),
+    });
+  }
   return { manifest: inspected.manifest, restored };
 }
 
@@ -1303,6 +1441,16 @@ function buildSalesReport(transactions, options = {}) {
 app.use(setSecurityHeaders);
 app.use(setCorsHeaders);
 app.use(express.json({ limit: '30mb' }));
+app.use((req, res, next) => {
+  try {
+    if (!USE_MONGO) recoverPendingDataWrite();
+    recoverPendingAssetWrite();
+    next();
+  } catch (error) {
+    console.error('Storage recovery pending:', error.message);
+    sendGenericError(res, 503);
+  }
+});
 
 function requestHost(req) {
   const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
@@ -1567,14 +1715,19 @@ process.once('SIGTERM', () => { shutdown('SIGTERM').catch(() => process.exit(1))
 process.once('SIGINT', () => { shutdown('SIGINT').catch(() => process.exit(1)); });
 
 // ── LOGIN ────────────────────────────────────────────────────
-app.post('/api/login', requireInventoryHost, async (req, res) => {
+app.post('/api/login', requireInventoryHost, async (req, res, next) => {
   const { username, password } = req.body || {};
-  if (!username || !password) {
+  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
     return res.status(400).json({ error: 'Username and password required' });
   }
   const user = USERS.find(u => u.username === username);
   if (!user || !user.hash) return res.status(401).json({ error: 'Invalid credentials' });
-  const ok = await bcrypt.compare(password, user.hash);
+  let ok;
+  try {
+    ok = await bcrypt.compare(password, user.hash);
+  } catch (error) {
+    return next(error);
+  }
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign(
     { username: user.username, role: user.role },
@@ -3985,8 +4138,8 @@ app.get('/api/data', requireInventoryHost, requireAuth, async (req, res) => {
     if (req.user.role !== 'admin') {
       ADMIN_ONLY_KEYS.forEach(key => delete data[key]);
     }
-    if (req.user.role === 'admin' && USE_MONGO) {
-      data._meta = await currentCriticalDataMeta();
+    if (req.user.role === 'admin') {
+      data._meta = currentCriticalDataMeta(data);
     }
     res.json(data);
   } catch (e) {
@@ -4019,75 +4172,29 @@ app.post('/api/inventory/movement', requireInventoryHost, requireAuth, requireAd
   }
 
   try {
-    validateCriticalDataset('products', products);
-    validateCriticalDataset('transactions', transactions);
-
-    if (!USE_MONGO) {
-      const productResult = await dbSave('products', products);
-      const transactionResult = await dbSave('transactions', transactions);
-      return res.json({
-        ok: true,
-        fingerprints: {
-          products: productResult.fingerprint,
-          transactions: transactionResult.fingerprint,
-        },
-      });
-    }
-
-    const productColl = db.collection(dataCollectionName('products'));
-    const transactionColl = db.collection(dataCollectionName('transactions'));
-    const [existingProducts, existingTransactions] = await Promise.all([
-      productColl.find({}, { projection: { _id: 0 } }).toArray(),
-      transactionColl.find({}, { projection: { _id: 0 } }).toArray(),
-    ]);
-
-    if (datasetFingerprint(existingProducts) !== expectedProducts ||
-        datasetFingerprint(existingTransactions) !== expectedTransactions) {
-      return res.status(409).json({ error: 'Inventory data changed in another session. Reload and retry.' });
-    }
-
-    await Promise.all([
-      createDataSnapshot('products', existingProducts, req.user.username),
-      createDataSnapshot('transactions', existingTransactions, req.user.username),
-    ]);
-
-    const session = mongoClient.startSession();
-    try {
-      await session.withTransaction(async () => {
-        await productColl.deleteMany({}, { session });
-        if (products.length) await productColl.insertMany(products, { session });
-        await transactionColl.deleteMany({}, { session });
-        if (transactions.length) await transactionColl.insertMany(transactions, { session });
-      });
-    } finally {
-      await session.endSession();
-    }
-
-    const [writtenProducts, writtenTransactions] = await Promise.all([
-      productColl.find({}, { projection: { _id: 0 } }).toArray(),
-      transactionColl.find({}, { projection: { _id: 0 } }).toArray(),
-    ]);
-    if (datasetFingerprint(writtenProducts) !== datasetFingerprint(products) ||
-        datasetFingerprint(writtenTransactions) !== datasetFingerprint(transactions)) {
-      throw new Error('Inventory movement post-write verification failed');
-    }
-
+    const results = await replaceCriticalDatasets({ products, transactions }, {
+      expectedFingerprints: { products: expectedProducts, transactions: expectedTransactions },
+      actor: req.user.username,
+    });
     res.json({
       ok: true,
       fingerprints: {
-        products: datasetFingerprint(products),
-        transactions: datasetFingerprint(transactions),
+        products: results.products.fingerprint,
+        transactions: results.transactions.fingerprint,
       },
     });
   } catch (e) {
+    if (e.code === 'STALE_DATA') return res.status(409).json({ error: 'Inventory data changed in another session. Reload and retry.' });
+    if (e.code === 'INVALID_DATA') return res.status(400).json({ error: e.message });
     console.error('Inventory movement save error:', e.message);
     sendGenericError(res);
   }
 });
 
 app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
-  const { key, data, expectedFingerprint } = req.body;
-  if (!COLL[key]) return res.status(400).json({ error: 'Unknown key: ' + key });
+  const { key, data, expectedFingerprint } = req.body || {};
+  if (!Object.hasOwn(COLL, key)) return res.status(400).json({ error: 'Unknown key: ' + key });
+  if (!Array.isArray(data)) return res.status(400).json({ error: 'Expected an array' });
   if (GENERIC_SAVE_BLOCKED_KEYS.has(key)) {
     return res.status(403).json({ error: 'Protected collection: use dedicated API' });
   }
@@ -4100,6 +4207,7 @@ app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (re
   } catch (e) {
     if (e.code === 'STALE_DATA') return res.status(409).json({ error: 'Data changed in another session. Reload and retry.' });
     if (e.code === 'MISSING_DATA_VERSION') return res.status(428).json({ error: 'Data version required. Reload and retry.' });
+    if (e.code === 'INVALID_DATA') return res.status(400).json({ error: e.message });
     console.error('Save route error:', e.message);
     sendGenericError(res);
   }
@@ -4138,9 +4246,15 @@ app.post('/api/backups/import', requireInventoryHost, requireAuth, requireAdmin,
     const backupBase64 = String(req.body?.backupBase64 || '');
     if (!req.body?.confirm) return res.status(400).json({ error: 'Import confirmation required' });
     if (!backupBase64) return res.status(400).json({ error: 'backupBase64 required' });
-    const result = await restoreBackup(Buffer.from(backupBase64, 'base64'), req.body?.sections);
+    const result = await restoreBackup(Buffer.from(backupBase64, 'base64'), req.body?.sections, {
+      expectedFingerprints: req.body?.expectedFingerprints,
+      actor: req.user.username,
+    });
     res.json({ ok: true, restored: result.restored, manifest: result.manifest });
   } catch (e) {
+    if (e.code === 'STALE_DATA') return res.status(409).json({ error: 'Data changed in another session. Reload before restoring.' });
+    if (e.code === 'MISSING_DATA_VERSION') return res.status(428).json({ error: 'Data versions required. Reload before restoring.' });
+    if (e.code === 'MIXED_BACKUP_RESTORE') return res.status(400).json({ error: e.message });
     console.error('Backup import error:', e.message);
     res.status(400).json({ error: 'Invalid backup import' });
   }
@@ -4171,6 +4285,7 @@ app.use((err, req, res, next) => {
 });
 
 async function start() {
+  recoverPendingAssetWrite();
   if (USE_MONGO) {
     await connectMongo();
     await migrateEmbeddedFinanceToStandalone();
@@ -4179,6 +4294,7 @@ async function start() {
     await ensureDataIntegrityIndexes();
     await mail.ensureMailIndexes(db);
   } else {
+    recoverPendingDataWrite();
     console.log('📁  Using local JSON files (no MONGODB_URI set)');
   }
   app.listen(PORT, () => {
