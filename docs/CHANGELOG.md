@@ -4,6 +4,10 @@ This file records the current high-level state of the project. It is not a relea
 
 ## Current State
 
+### Catalog Purchase Questions
+
+* A visible RU/EN/LV question-and-answer section explains using Alice in Latvia, Yandex Plus requirements, and initial setup. RU/EN answers are included in server-rendered HTML.
+
 ### Riga Purchase Steps
 
 * The existing local purchase section includes a three-step ordering guide in RU/EN/LV and a Contact button that opens the existing contact panel for the selected model and colour.
