@@ -1171,7 +1171,20 @@ function productSeoContent(page) {
     '</ul><p><a href="'+otherUrl+'">'+escapeHtml(compare)+'</a></p></section>';
 }
 
-function renderCatalogSsrLocale(template, page, initial) {
+function quickOfferHtml(modelId, products, locale) {
+  const en = locale === 'en';
+  const model = CATALOG_INITIAL_PRODUCTS.find(item => item.id === modelId);
+  const available = products === null ? [] : productsForCatalogModel(products, model).filter(item => item.inStock);
+  const prices = available.map(item => Number(item.sellPrice)).filter(price => Number.isFinite(price) && price > 0);
+  const varied = new Set(prices).size > 1 || prices.length < available.length;
+  const price = prices.length ? `${varied ? (en ? 'From ' : 'от ') : ''}${Math.min(...prices).toLocaleString(en ? 'en-US' : 'ru')} €` : '';
+  const status = products === null ? 'unknown' : available.length ? 'available' : 'unavailable';
+  const stock = status === 'unknown' ? (en ? 'Availability to be confirmed' : 'Наличие уточняется')
+    : status === 'available' ? (en ? 'In stock' : 'В наличии') : (en ? 'Currently unavailable' : 'Сейчас нет в наличии');
+  return `<div class="quick-offer" data-status="${status}"><span class="quick-price"${price ? '' : ' hidden'}>${escapeHtml(price)}</span><span class="quick-stock">${escapeHtml(stock)}</span></div>`;
+}
+
+function renderCatalogSsrLocale(template, page, initial, products = null) {
   const locale = page.locale;
   const text = path => catalogTranslation(locale, path);
   const initialTitle = page.copy?.name || (initial ? text(`models.${initial.model.id}.title`) || initial.model.title : text('meta.title'));
@@ -1197,6 +1210,8 @@ function renderCatalogSsrLocale(template, page, initial) {
     .replace(/__PRODUCT_MINIPRO_URL__/g, `/${locale}/yandex-station-mini-3-pro`)
     .replace(/__PRODUCT_MIDI_URL__/g, `/${locale}#model=midi&color=black`)
     .replace(/__PRODUCT_STREET_URL__/g, `/${locale}/yandex-station-street`)
+    .replace(/__QUICK_(LIGHT2|MINI3|MINIPRO|MIDI|STREET)_OFFER__/g, (_, key) =>
+      quickOfferHtml({ LIGHT2: 'light2', MINI3: 'mini3', MINIPRO: 'miniPro', MIDI: 'midi', STREET: 'street' }[key], products, locale))
     .replace(/__QUICK_(LIGHT2|MINI3|MINIPRO|MIDI|STREET)_(NAME|ALT)__/g, (_, modelKey, field) => {
       const modelId = { LIGHT2: 'light2', MINI3: 'mini3', MINIPRO: 'miniPro', STREET: 'street' }[modelKey];
       const name = modelId
@@ -1241,13 +1256,14 @@ async function sendCatalogPage(req, res, next, productModel = null) {
     const fallbackProduct = { id: 'fallback-light2-blue', productType: 'Light 2', color: 'голубой', label: 'Light 2 / голубой', sellPrice: 90, inStock: true };
     data = {
       products: [fallbackProduct],
+      productsVerified: false,
       initial: requestedCatalogProduct([fallbackProduct], req.query) || firstCatalogProduct([fallbackProduct]),
     };
   }
 
   try {
     const initial = data.initial;
-    let template = renderCatalogSsrLocale(readTextFile('catalog.html'), page, initial);
+    let template = renderCatalogSsrLocale(readTextFile('catalog.html'), page, initial, data.productsVerified === false ? null : data.products);
     const structuredData = page.structuredData || productPages.catalogItemList(page.locale, page.canonicalUrl);
     template = template.replace(
       /<script type="application\/ld\+json">[\s\S]*?<\/script>/,

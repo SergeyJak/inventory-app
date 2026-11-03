@@ -947,11 +947,30 @@ function catalogLocaleHref(locale) {
   return `/${locale}#model=${encodeURIComponent(model.id)}&color=${encodeURIComponent(photo.colorKey)}`;
 }
 
+let quickProducts = window.catalogInitialData?.productsVerified === false ? null
+  : Array.isArray(window.catalogInitialData?.products) ? window.catalogInitialData.products : null;
+
 function syncQuickChooseCards() {
   quickChoose?.querySelectorAll('[data-quick-model]').forEach(card => {
     const isActive = models[activeModel]?.id === card.dataset.quickModel;
     card.classList.toggle('active', isActive);
     card.setAttribute('aria-pressed', String(isActive));
+    const model = PHOTO_MODELS.find(item => item.id === card.dataset.quickModel);
+    const available = (quickProducts || []).filter(product => product.inStock && matchesModel(product, model));
+    const prices = available.map(product => Number(product.sellPrice)).filter(price => Number.isFinite(price) && price > 0);
+    const varied = new Set(prices).size > 1 || prices.length < available.length;
+    const prefix = currentLang === 'en' ? 'From ' : currentLang === 'lv' ? 'No ' : 'от ';
+    const price = prices.length ? `${varied ? prefix : ''}${money(Math.min(...prices))}` : '';
+    const status = quickProducts === null ? 'unknown' : available.length ? 'available' : 'unavailable';
+    const stock = status === 'unknown' ? dict('common.stockUnknown') : available.length ? dict('common.inStock') : unavailableText();
+    let offer = card.querySelector('.quick-offer');
+    if (!offer) {
+      offer = document.createElement('div');
+      offer.className = 'quick-offer';
+      card.querySelector('h3').after(offer);
+    }
+    offer.dataset.status = status;
+    offer.innerHTML = `<span class="quick-price"${price ? '' : ' hidden'}>${escapeHtml(price)}</span><span class="quick-stock">${escapeHtml(stock)}</span>`;
   });
 }
 
@@ -1146,7 +1165,10 @@ async function refreshCatalog() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-    const products = Array.isArray(data.products) ? data.products : [];
+    if (!Array.isArray(data.products)) throw new Error('Invalid product response');
+    const products = data.products;
+    quickProducts = products;
+    syncQuickChooseCards();
     showCatalog(buildModels(products));
   } catch (err) {
     console.error('Catalog load error:', err);
@@ -1155,6 +1177,7 @@ async function refreshCatalog() {
 }
 
 function loadCatalog() {
+  syncQuickChooseCards();
   const bootModels = buildModels(initialProducts());
   if (bootModels.length) {
     showCatalog(bootModels);
@@ -1192,6 +1215,7 @@ detailsExtrasGrid.addEventListener('click', event => {
 });
 
 quickChoose?.addEventListener('click', event => {
+  if (event.target.closest('a')) return;
   const card = event.target.closest('[data-quick-model]');
   if (!card) return;
   if (selectModelById(card.dataset.quickModel)) {
@@ -1200,6 +1224,7 @@ quickChoose?.addEventListener('click', event => {
 });
 
 quickChoose?.addEventListener('keydown', event => {
+  if (event.target.closest('a')) return;
   if (event.key !== 'Enter' && event.key !== ' ') return;
   const card = event.target.closest('[data-quick-model]');
   if (!card) return;

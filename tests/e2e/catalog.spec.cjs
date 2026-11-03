@@ -43,6 +43,40 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(page.locator('#hero-image')).toHaveAttribute('src', /\/images\/catalog\/light-2\/pink\//);
   });
 
+  test('comparison cards show live offers and refresh without stale prices', async ({ page }) => {
+    const lite = page.locator('[data-quick-model="light2"]');
+    const pro = page.locator('[data-quick-model="miniPro"]');
+    await expect(lite.locator('.quick-price')).toHaveText('от 90 €');
+    await expect(lite.locator('.quick-stock')).toHaveText('В наличии');
+    await expect(pro.locator('.quick-stock')).toHaveText('Сейчас нет в наличии');
+    await expect(pro.locator('.quick-price')).toBeHidden();
+    await page.route('**/api/public/products', route => route.fulfill({ json: { products: [
+      { id: 'pro', productType: 'Mini 3 Pro', color: 'gray', sellPrice: 175, inStock: true },
+      { id: 'lite-old', productType: 'Lite 2', color: 'blue', sellPrice: 50, inStock: false },
+      { id: 'mini', productType: 'Mini 3', color: 'gray', sellPrice: 0, inStock: true },
+    ] } }));
+    await page.evaluate(() => refreshCatalog());
+    await expect(pro.locator('.quick-price')).toHaveText('175 €');
+    await expect(pro.locator('.quick-stock')).toHaveText('В наличии');
+    await expect(lite.locator('.quick-price')).toBeHidden();
+    await expect(lite.locator('.quick-stock')).toHaveText('Сейчас нет в наличии');
+    await expect(page.locator('[data-quick-model="mini3"] .quick-price')).toBeHidden();
+    await page.evaluate(() => { currentLang = 'en'; syncQuickChooseCards(); });
+    await expect(pro.locator('.quick-stock')).toHaveText('In stock');
+    await expect(lite.locator('.quick-stock')).toHaveText('Currently unavailable');
+  });
+
+  test('Enter on a comparison product link follows the link', async ({ page }) => {
+    const href = '/ru/yandex-station-mini-3';
+    await page.route(`**${href}`, route => route.fulfill({ contentType: 'text/html', body: '<h1>Mini 3</h1>' }));
+    const link = page.locator('[data-quick-model="mini3"] h3 a');
+    // The static fixture does not render server-side URL placeholders.
+    await link.evaluate((element, href) => element.setAttribute('href', href), href);
+    await link.focus();
+    await link.press('Enter');
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+  });
+
   test('assistant routes observed contact requests to human handoff in the real storefront runtime', async ({ page }) => {
     await page.locator('#assistant-fab').click();
     const input = page.locator('#faq-input');
