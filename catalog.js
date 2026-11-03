@@ -1235,6 +1235,7 @@ quickChoose?.addEventListener('keydown', event => {
 });
 
 contactCta.addEventListener('click', () => openContactPanel('availability'));
+document.getElementById('local-order-contact')?.addEventListener('click', () => openContactPanel('availability'));
 heroImage.addEventListener('click', () => setActiveAngle(activeAngle + 1));
 anglePrev.addEventListener('click', event => {
   event.stopPropagation();
