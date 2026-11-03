@@ -659,6 +659,21 @@ const CATALOG_SSR_TEXT = {
     assistant: { fab: 'Alice will help you choose', kicker: 'Assistant', title: 'I can help you choose a Station.', intro: 'Choose a scenario and I’ll suggest a suitable model from the current selection.' },
     faq: { kicker: 'Questions', inputLabel: 'Your question', placeholder: 'Your question...', send: 'Ask' },
     sections: {
+      purchaseFaq: {
+        "title": "Questions before buying Alice in Riga",
+        "latvia": {
+          "question": "Does an Alice speaker work in Latvia?",
+          "answer": "Yes, Alice works in Latvia: voice commands, questions, timers and alarms are available. Music and individual services may depend on the region, account and subscription."
+        },
+        "plus": {
+          "question": "Do I need a Yandex Plus subscription?",
+          "answer": "Many music and entertainment features require Yandex Plus. Some features work without a subscription, such as timers and audio playback via Bluetooth. Before buying, check whether the services you need are available for your account."
+        },
+        "setup": {
+          "question": "What do I need to set up the speaker?",
+          "answer": "Setup requires power, stable Wi-Fi with internet access, a phone with the app and a Yandex account. Connect the Station to power, sign in and follow the setup steps in the app."
+        }
+      },
       quickChoose: {
         kicker: 'Quick choice', title: 'Which smart speaker should you choose?',
         lite: { recommend: 'For a first speaker', lead: 'Best as a first smart speaker for a bedroom, children\'s room, or small desk where simple setup and compact size matter most.', point1: 'Easy way to start with Alice.', point2: 'Fits comfortably in small spaces.', point3: 'Good gift for everyday tasks.', final: 'Choose it for the simplest start.' },

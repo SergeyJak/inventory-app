@@ -84,6 +84,21 @@ window.catalogTranslations = {
       colors: { blue: '\u0441\u0438\u043d\u0438\u0439', red: '\u043a\u0440\u0430\u0441\u043d\u044b\u0439', black: '\u0447\u0451\u0440\u043d\u044b\u0439', white: '\u0431\u0435\u043b\u044b\u0439', green: '\u0437\u0435\u043b\u0451\u043d\u044b\u0439', violet: '\u0444\u0438\u043e\u043b\u0435\u0442\u043e\u0432\u044b\u0439', beige: '\u0431\u0435\u0436\u0435\u0432\u044b\u0439', gray: '\u0441\u0435\u0440\u044b\u0439', pink: '\u0440\u043e\u0437\u043e\u0432\u044b\u0439', coral: '\u043a\u043e\u0440\u0430\u043b\u043b\u043e\u0432\u044b\u0439' },
     },
     sections: {
+      purchaseFaq: {
+        "title": "Вопросы перед покупкой Алисы в Риге",
+        "latvia": {
+          "question": "Работает ли колонка Алиса в Латвии?",
+          "answer": "Да, Алиса работает в Латвии: доступны голосовые команды, вопросы, таймеры и будильники. Музыка и отдельные сервисы могут зависеть от региона, аккаунта и подписки."
+        },
+        "plus": {
+          "question": "Нужна ли подписка Яндекс Плюс?",
+          "answer": "Для многих музыкальных и развлекательных функций нужен Яндекс Плюс. Часть возможностей доступна без подписки — например, таймеры и воспроизведение звука по Bluetooth. Перед покупкой проверьте доступность нужных сервисов для вашего аккаунта."
+        },
+        "setup": {
+          "question": "Что потребуется для подключения?",
+          "answer": "Для настройки нужны питание, стабильный Wi-Fi с интернетом, телефон с приложением и аккаунт Яндекса. Подключите Станцию к питанию, войдите в аккаунт и следуйте шагам настройки в приложении."
+        }
+      },
       quickChoose: {
         kicker: 'Быстрый выбор',
         title: 'Какую умную колонку выбрать?',
@@ -288,6 +303,21 @@ window.catalogTranslations = {
       colors: { blue: 'zila', red: 'sarkana', black: 'melna', white: 'balta', green: 'za\u013ca', violet: 'violeta', beige: 'b\u0113\u0161a', gray: 'pel\u0113ka', pink: 'roz\u0101', coral: 'kora\u013c\u013cu' },
     },
     sections: {
+      purchaseFaq: {
+        "title": "Jautājumi pirms Alises iegādes Rīgā",
+        "latvia": {
+          "question": "Vai skaļrunis ar Alisi darbojas Latvijā?",
+          "answer": "Jā, Alise darbojas Latvijā: ir pieejamas balss komandas, atbildes uz jautājumiem, taimeri un modinātāji. Mūzika un atsevišķi pakalpojumi var būt atkarīgi no reģiona, konta un abonementa."
+        },
+        "plus": {
+          "question": "Vai ir nepieciešams Yandex Plus abonements?",
+          "answer": "Daudzām mūzikas un izklaides funkcijām ir nepieciešams Yandex Plus. Daļa iespēju darbojas bez abonementa, piemēram, taimeri un skaņas atskaņošana, izmantojot Bluetooth. Pirms pirkuma pārbaudiet, vai jūsu kontam ir pieejami vajadzīgie pakalpojumi."
+        },
+        "setup": {
+          "question": "Kas nepieciešams skaļruņa iestatīšanai?",
+          "answer": "Iestatīšanai nepieciešama strāvas padeve, stabils Wi-Fi ar piekļuvi internetam, tālrunis ar lietotni un Yandex konts. Pievienojiet Station strāvai, pierakstieties kontā un izpildiet iestatīšanas norādījumus lietotnē."
+        }
+      },
       quickChoose: {
         kicker: 'Ātrā izvēle',
         title: 'Kuru viedo skaļruni izvēlēties?',
@@ -460,6 +490,21 @@ window.catalogTranslations = {
       colors: { blue: 'blue', red: 'red', black: 'black', white: 'white', green: 'green', violet: 'purple', beige: 'beige', gray: 'gray', pink: 'pink', coral: 'coral' },
     },
     sections: {
+      purchaseFaq: {
+        "title": "Questions before buying Alice in Riga",
+        "latvia": {
+          "question": "Does an Alice speaker work in Latvia?",
+          "answer": "Yes, Alice works in Latvia: voice commands, questions, timers and alarms are available. Music and individual services may depend on the region, account and subscription."
+        },
+        "plus": {
+          "question": "Do I need a Yandex Plus subscription?",
+          "answer": "Many music and entertainment features require Yandex Plus. Some features work without a subscription, such as timers and audio playback via Bluetooth. Before buying, check whether the services you need are available for your account."
+        },
+        "setup": {
+          "question": "What do I need to set up the speaker?",
+          "answer": "Setup requires power, stable Wi-Fi with internet access, a phone with the app and a Yandex account. Connect the Station to power, sign in and follow the setup steps in the app."
+        }
+      },
       quickChoose: {
         kicker: 'Quick choice',
         title: 'Which smart speaker should you choose?',
