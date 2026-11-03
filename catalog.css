@@ -1210,6 +1210,47 @@ p {
   letter-spacing: -.02em;
 }
 
+.purchase-steps {
+  width: min(100%, 1080px);
+  margin: 0 auto 28px;
+  padding: clamp(22px, 3vw, 32px);
+  border: 1px solid rgba(17, 17, 20, .08);
+  border-radius: 28px;
+  background: #fff;
+}
+
+.purchase-steps h3 {
+  margin: 0 0 20px;
+  color: #111114;
+  font-size: 26px;
+  letter-spacing: -.035em;
+}
+
+.purchase-steps ol {
+  display: grid;
+  gap: 16px 36px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 24px;
+  padding-left: 22px;
+  color: #555860;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.purchase-steps li {
+  padding-left: 4px;
+}
+
+.purchase-steps li::marker {
+  color: #111114;
+  font-weight: 800;
+}
+
+@media (max-width: 700px) {
+  .purchase-steps ol { grid-template-columns: 1fr; }
+  .purchase-steps .cta { width: 100%; }
+}
+
 .local-info-grid {
   width: min(100%, 1080px);
   margin: 0 auto;

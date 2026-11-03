@@ -96,6 +96,12 @@ window.catalogTranslations = {
       localInfo: {
         kicker: 'Рига и Латвия',
         title: 'Покупка в Риге',
+        order: {
+          title: 'Как заказать',
+          choose: 'Выберите модель и цвет в каталоге.',
+          contact: 'Нажмите «Связаться», чтобы уточнить наличие и договориться о получении.',
+          receive: 'Выберите самовывоз в Риге или согласуйте доставку по Латвии.',
+        },
         intro: 'Поможем выбрать подходящую умную колонку, расскажем о наличии и ответим на вопросы перед покупкой.',
         pickup: { title: 'Самовывоз в Риге', text: 'Встречу и передачу товара согласуем заранее в удобное время. Актуальные модели и цвета лучше уточнить перед договорённостью.' },
         help: { title: 'Помощь с выбором', text: 'Подскажем, какая модель подойдёт для комнаты, музыки, подарка или базового умного дома, без лишних обещаний и давления.' },
@@ -294,6 +300,12 @@ window.catalogTranslations = {
       localInfo: {
         kicker: 'Rīga un Latvija',
         title: 'Pirkums Rīgā',
+        order: {
+          title: 'Kā pasūtīt',
+          choose: 'Izvēlieties modeli un krāsu katalogā.',
+          contact: 'Nospiediet “Sazināties”, lai precizētu pieejamību un vienotos par saņemšanu.',
+          receive: 'Izvēlieties saņemšanu Rīgā vai vienojieties par piegādi Latvijā.',
+        },
         intro: 'Palīdzēsim izvēlēties piemērotu viedo skaļruni, pastāstīsim par pieejamību un atbildēsim uz jautājumiem pirms pirkuma.',
         pickup: { title: 'Pašizņemšana Rīgā', text: 'Tikšanos un preces nodošanu saskaņojam iepriekš ērtā laikā. Aktuālos modeļus un krāsas labāk precizēt pirms vienošanās.' },
         help: { title: 'Palīdzība izvēlē', text: 'Ieteiksim, kurš modelis derēs istabai, mūzikai, dāvanai vai pamata viedajai mājai, bez liekiem solījumiem un spiediena.' },
@@ -460,6 +472,12 @@ window.catalogTranslations = {
       localInfo: {
         kicker: 'Riga and Latvia',
         title: 'Buying in Riga',
+        order: {
+          title: 'How to order',
+          choose: 'Choose a model and colour in the catalogue.',
+          contact: 'Select “Contact” to confirm availability and arrange collection or delivery.',
+          receive: 'Choose pickup in Riga or arrange delivery within Latvia.',
+        },
         intro: 'We will help you choose a suitable smart speaker, explain availability, and answer questions before purchase.',
         pickup: { title: 'Pickup in Riga', text: 'The meeting and handover are arranged in advance at a convenient time. Current models and colors are best confirmed before arranging pickup.' },
         help: { title: 'Help choosing', text: 'We will suggest which model fits a room, music, a gift, or a basic smart home setup without overpromising or pressure.' },

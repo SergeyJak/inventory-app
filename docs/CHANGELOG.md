@@ -4,6 +4,10 @@ This file records the current high-level state of the project. It is not a relea
 
 ## Current State
 
+### Riga Purchase Steps
+
+* The existing local purchase section includes a three-step ordering guide in RU/EN/LV and a Contact button that opens the existing contact panel for the selected model and colour.
+
 ### Catalog Comparison Offers
 
 * Model comparison cards show inventory-backed prices and availability in server-rendered HTML and refresh them from the existing public products API.

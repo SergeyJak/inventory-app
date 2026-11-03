@@ -669,6 +669,12 @@ const CATALOG_SSR_TEXT = {
       },
       localInfo: {
         kicker: 'Riga and Latvia', title: 'Buying in Riga', intro: 'We will help you choose a suitable smart speaker, explain availability, and answer questions before purchase.',
+        order: {
+          title: 'How to order',
+          choose: 'Choose a model and colour in the catalogue.',
+          contact: 'Select “Contact” to confirm availability and arrange collection or delivery.',
+          receive: 'Choose pickup in Riga or arrange delivery within Latvia.',
+        },
         pickup: { title: 'Pickup in Riga', text: 'The meeting and handover are arranged in advance at a convenient time. Current models and colors are best confirmed before arranging pickup.' },
         help: { title: 'Help choosing', text: 'We will suggest which model fits a room, music, a gift, or a basic smart home setup without overpromising or pressure.' },
         shipping: { title: 'Shipping across Europe', text: 'If needed, shipping across Europe by courier is possible. Cost and delivery time are calculated individually.' },
