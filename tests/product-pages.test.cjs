@@ -126,6 +126,19 @@ async function main() {
     assert.match(catalog.text, /catalog\.js\?v=[0-9]{8}-[a-z0-9-]+/, 'catalog serves the updated JavaScript asset URL');
     assert.match(catalog.text, /<img class="quick-product"[^>]*alt="Яндекс Станция Мини 3 Про, умная колонка с Алисой"/);
     const enCatalog = await request('/en');
+    for (const [locale, html] of [['ru', catalog.text], ['en', enCatalog.text]]) {
+      const card = id => html.match(new RegExp(`<article[^>]*data-quick-model="${id}"[\\s\\S]*?<\\/article>`))[0];
+      assert.match(card('light2'), /class="quick-price">100 €<\/span>/);
+      assert.match(card('mini3'), /class="quick-price">140 €<\/span>/, 'Mini 3 must not include Pro prices');
+      assert.ok(card('miniPro').includes(`${locale === 'en' ? 'From' : 'от'} 170 €`), 'lowest available colour price is shown with a prefix');
+      assert.ok(card('miniPro').includes(locale === 'en' ? 'In stock' : 'В наличии'));
+      for (const id of ['street', 'midi']) {
+        assert.match(card(id), /data-status="unavailable"/);
+        assert.match(card(id), /class="quick-price" hidden><\/span>/, 'sold-out prices are not advertised');
+        assert.ok(card(id).includes(locale === 'en' ? 'Currently unavailable' : 'Сейчас нет в наличии'));
+      }
+      assert.doesNotMatch(html, /__QUICK_\w+_OFFER__/);
+    }
     assert.match(enCatalog.text, /<h3><a href="\/en\/yandex-station-mini-3-pro">Yandex Station Mini 3 Pro<\/a><\/h3>/);
     assert.match(enCatalog.text, /<img class="quick-product"[^>]*alt="Yandex Station Mini 3 Pro smart speaker with Alice"/);
     assert.doesNotMatch(enCatalog.text, /__QUICK_(?:LIGHT2|MINI3|MINIPRO|MIDI|STREET)_(?:NAME|ALT)__/);

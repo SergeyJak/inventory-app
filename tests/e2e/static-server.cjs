@@ -46,6 +46,7 @@ function safeFile(urlPath) {
 function renderCatalogHtml() {
   const file = path.join(root, 'catalog.html');
   return fs.readFileSync(file, 'utf8')
+    .replace(/__QUICK_\w+_OFFER__/g, '')
     .replace('__CATALOG_PAGE_LOCALE__', JSON.stringify('ru'))
     .replace('__CATALOG_INITIAL_DATA__', 'null');
 }

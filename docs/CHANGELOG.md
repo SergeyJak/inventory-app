@@ -4,6 +4,12 @@ This file records the current high-level state of the project. It is not a relea
 
 ## Current State
 
+### Catalog Comparison Offers
+
+* Model comparison cards show inventory-backed prices and availability in server-rendered HTML and refresh them from the existing public products API.
+* Different available colour prices use a minimum-price prefix; unavailable models omit historical prices. Missing or invalid prices are not displayed, and unverified fallback inventory does not advertise availability in comparison cards.
+* Product links retain native mouse and keyboard navigation. Offer labels follow the RU/EN/LV interface language.
+
 ### Data Safety And Session Fixes
 
 * Inventory login rejects non-string credentials without terminating the Express process.
