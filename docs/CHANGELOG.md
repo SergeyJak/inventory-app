@@ -4,6 +4,10 @@ This file records the current high-level state of the project. It is not a relea
 
 ## Current State
 
+### Russian Catalog Title Consistency
+
+* The Russian browser translation retains the server-rendered “Купить колонку Алиса в Риге и Латвии | HeySmart” title on the catalog homepage and when returning to Russian. Product page titles remain route-specific.
+
 ### Catalog Purchase Questions
 
 * A visible RU/EN/LV question-and-answer section explains using Alice in Latvia, Yandex Plus requirements, and initial setup. RU/EN answers are included in server-rendered HTML.

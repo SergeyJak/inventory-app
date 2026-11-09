@@ -18,7 +18,7 @@ test.describe('HeySmart storefront safety net', () => {
     await page.evaluate(() => localStorage.setItem('catalogLanguage', 'en'));
     await page.reload({ waitUntil: 'domcontentloaded' });
 
-    await expect(page).toHaveTitle('Умные колонки с Алисой в Риге и Латвии | HeySmart');
+    await expect(page).toHaveTitle('Купить колонку Алиса в Риге и Латвии | HeySmart');
     await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
     await expect(page.locator('#language-switcher a[hreflang="en"]')).toBeVisible();
   });
