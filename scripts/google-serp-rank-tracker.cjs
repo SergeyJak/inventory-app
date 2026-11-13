@@ -7,16 +7,17 @@ const { MongoClient } = require('mongodb');
 const ruQueries = [
   // Priority: actual Latvia GSC queries, lost terms and high-intent Riga phrases (17–30 Oct 2026).
   // First 16 RU queries run within the default 40-check budget (mobile + desktop).
-  'яндекс в латвии', 'алиса колонка',
+  // Keep proven Riga purchase terms and Lite 2 in the default paid-check window.
+  'яндекс алиса колонка', 'алиса рига купить',
+  'купить алису в риге', 'колонка алиса купить в риге',
   'купить алису в латвии', 'алиса купить в латвии',
-  'купить алису в риге', 'алиса рига купить',
-  'яндекс алиса колонка', 'умная колонка алиса купить латвия',
   'колонка алиса купить рига', 'яндекс станция рига',
-  'купить умную колонку алиса', 'алиса лайт 2',
+  'умная колонка алиса купить латвия', 'алиса лайт 2',
+  'алиса лайт 2 цена', 'яндекс станция лайт 2 купить рига',
   'алиса мини 3 цена', 'алиса мини 3 про купить',
-  'яндекс станция лайт 2 купить рига', 'яндекс станция стрит рига',
+  'яндекс станция стрит рига', 'купить умную колонку алиса',
   // Broader RU keyword coverage when SERP_MAX_CHECKS is increased.
-  'колонка алиса', 'колонка алиса купить в риге',
+  'яндекс в латвии', 'алиса колонка', 'колонка алиса',
   'купить колонку алиса в риге', 'алиса купить латвия',
   'яндекс станция латвия', 'купить яндекс станцию в латвии',
   'купить яндекс станцию рига', 'умная колонка алиса рига',
@@ -45,8 +46,8 @@ const ruQueries = [
   'алиса колонка латвия'
 ];
 const enQueries = [
-  'yandex alice speaker', 'yandex alice smart speaker',
   'buy yandex station riga', 'yandex station riga buy',
+  'yandex alice speaker', 'yandex alice smart speaker',
   'yandex station latvia', 'buy yandex station latvia',
   'alice smart speaker latvia', 'buy alice smart speaker latvia',
   'yandex alice riga', 'yandex smart speaker riga',
