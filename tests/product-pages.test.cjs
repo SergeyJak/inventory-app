@@ -59,7 +59,7 @@ async function main() {
       assert.ok(text.includes(`<h1 class="sr-only">${copy.name}</h1>`));
       assert.ok(text.includes(`<h2 id="model-title">${copy.name}</h2>`));
       assert.doesNotMatch(text, /__CATALOG_PRODUCT_SEO_CONTENT__/);
-      if (['light2', 'mini3', 'miniPro'].includes(model.id)) {
+      if (['light2', 'mini3', 'miniPro', 'street'].includes(model.id)) {
         assert.match(text, /class="product-seo-details"/);
         assert.match(text, /<h2>(?:Характеристики|Yandex Station)/);
         assert.match(text, /<ul><li>/);
@@ -67,6 +67,16 @@ async function main() {
         if (model.id === 'light2') {
           assert.match(text, locale === 'ru' ? /LED-дисплей с часами/ : /LED display with a clock/);
           assert.match(text, locale === 'ru' ? /для детской или подарка/ : /for a child’s room or gift/);
+        }
+        if (model.id === 'street') {
+          const details = text.match(/<section class="product-seo-details"[\s\S]*?<\/section>/)?.[0];
+          assert.ok(details, 'Street has model-specific server-rendered content');
+          assert.match(details, locale === 'ru' ? /Встроенный аккумулятор/ : /Built-in battery/);
+          assert.match(details, /Bluetooth/);
+          assert.match(details, locale === 'ru' ? /Защита от влаги/ : /Moisture protection/);
+          assert.match(details, locale === 'ru' ? /Уточните актуальную цену, наличие и доставку по Латвии/ : /Ask about the current price, availability and delivery across Latvia/);
+          assert.ok(details.includes('href="/' + locale + '/yandex-station-mini-3"'), 'Street has a localized comparison link');
+          assert.doesNotMatch(details, /В наличии|In stock|\d+\s*€/i, 'Street SEO content must not advertise unverified availability or prices');
         }
         assert.ok(text.includes('href="/' + locale + '/' + otherSlug + '"'), 'product has crawlable comparison link');
         assert.ok(text.includes(locale === 'ru' ? 'Латвии' : 'Latvia'));
@@ -154,6 +164,9 @@ async function main() {
     assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-lite-2<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/);
     assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
     assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3-pro<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
+    for (const locale of ['ru', 'en']) {
+      assert.ok(sitemap.text.includes('<loc>https://heysmart.lv/' + locale + '/yandex-station-street</loc>\n    <lastmod>2026-11-11</lastmod>'), 'Street sitemap lastmod tracks the new SSR content');
+    }
     for (const locale of ['ru', 'en']) {
       const page = await request(`/${locale}`);
       assert.ok(page.text.includes(`rel="canonical" href="https://heysmart.lv/${locale}"`));

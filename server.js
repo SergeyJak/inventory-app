@@ -1170,6 +1170,21 @@ function productSeoContent(page) {
       bullets.map(item => '<li>'+escapeHtml(item)+'</li>').join('')+
       '</ul><p><a href="/'+page.locale+'/yandex-station-mini-3">'+escapeHtml(compare)+'</a></p></section>';
   }
+  if (page.model?.id === 'street') {
+    const en = page.locale === 'en';
+    const heading = en ? 'Yandex Station Street features' : 'Характеристики Яндекс Станции Стрит';
+    const introduction = en
+      ? 'Looking to buy Yandex Station Street with Alice in Riga? Ask about the current price, availability and delivery across Latvia. This portable speaker is designed for trips and time outdoors.'
+      : 'Хотите купить Яндекс Станцию Стрит с Алисой в Риге? Уточните актуальную цену, наличие и доставку по Латвии. Портативная колонка подходит для прогулок, поездок и отдыха на улице.';
+    const bullets = en
+      ? ['Built-in battery for use away from a power socket', 'Bluetooth for listening to music from a phone', 'Moisture protection for outdoor use', 'Voice control with Alice']
+      : ['Встроенный аккумулятор для использования вдали от розетки', 'Bluetooth для музыки с телефона', 'Защита от влаги для прогулок и отдыха', 'Голосовое управление с Алисой'];
+    const compare = en ? 'Compare with Mini 3 for home use' : 'Сравнить с Мини 3 для дома';
+    return '<section class="product-seo-details" aria-label="'+escapeHtml(heading)+'">'+
+      '<h2>'+escapeHtml(heading)+'</h2><p>'+escapeHtml(introduction)+'</p><ul>'+
+      bullets.map(item => '<li>'+escapeHtml(item)+'</li>').join('')+
+      '</ul><p><a href="/'+page.locale+'/yandex-station-mini-3">'+escapeHtml(compare)+'</a></p></section>';
+  }
   if (!['mini3', 'miniPro'].includes(page.model?.id)) return '';
   const pro = page.model.id === 'miniPro';
   const en = page.locale === 'en';
