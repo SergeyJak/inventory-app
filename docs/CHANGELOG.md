@@ -4,6 +4,10 @@ This file records the current high-level state of the project. It is not a relea
 
 ## Current State
 
+### CI Browser Compatibility
+
+* The main CI job uses Ubuntu 24.04 so the pinned Playwright 1.55 browser installation remains supported when GitHub changes `ubuntu-latest`.
+
 ### Russian Catalog Title Consistency
 
 * The Russian browser translation retains the server-rendered “Купить колонку Алиса в Риге и Латвии | HeySmart” title on the catalog homepage and when returning to Russian. Product page titles remain route-specific.
