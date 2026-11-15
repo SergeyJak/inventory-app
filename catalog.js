@@ -81,6 +81,7 @@ const PHOTO_MODELS = [
     photos: [
       { colorKey: 'gray', photos: ['/images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
       { colorKey: 'black', photos: ['/images/catalog/1000139772-1.png'], aliases: ['черн', 'чёрн', 'black'], transparent: true },
+      { colorKey: 'violet', photos: ['/images/catalog/mini-3/violet/01.png'], aliases: ['фиолет', 'лилов', 'purple', 'lilac'], transparent: true },
     ],
   },
   {
