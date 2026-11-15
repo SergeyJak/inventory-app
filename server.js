@@ -1358,7 +1358,7 @@ function setSecurityHeaders(req, res, next) {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://www.google-analytics.com",
+      "img-src 'self' data: https://www.google-analytics.com https://cdn-viewer.diplodoc.com",
       "font-src 'self' data:",
       "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com",
       "object-src 'none'",
