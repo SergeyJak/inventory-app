@@ -81,7 +81,7 @@ const PHOTO_MODELS = [
     photos: [
       { colorKey: 'gray', photos: ['/images/catalog/mini-3/gray/01.webp'], aliases: ['сер', 'сереб'], transparent: true },
       { colorKey: 'black', photos: ['/images/catalog/1000139772-1.png'], aliases: ['черн', 'чёрн', 'black'], transparent: true },
-      { colorKey: 'violet', photos: ['/images/catalog/mini-3/violet/01.png'], aliases: ['фиолет', 'лилов', 'purple', 'lilac'], transparent: true },
+      { colorKey: 'violet', photos: ['/images/catalog/mini-3/violet/02.jpg'], aliases: ['фиолет', 'лилов', 'purple', 'lilac'], transparent: true },
     ],
   },
   {
@@ -114,7 +114,7 @@ const PHOTO_MODELS = [
       { colorKey: 'gray', photos: ['/images/catalog/street/gray/01.webp'], aliases: ['сер', 'сереб'] },
       { colorKey: 'violet', photos: ['/images/catalog/street/violet/01.webp'], aliases: ['фиолет'] },
       { colorKey: 'green', photos: ['/images/catalog/street/green/01.webp', '/images/catalog/street/green/02.webp', '/images/catalog/street/green/03.webp'], aliases: ['зелен', 'зелён', 'олив'], transparent: true },
-      { colorKey: 'black', photos: ['/images/catalog/street/black/01.webp'], aliases: ['черн', 'чёрн', 'графит'] },
+      { colorKey: 'black', photos: ['/images/catalog/street/black/02.png'], aliases: ['черн', 'чёрн', 'графит'] },
     ],
   },
 ];

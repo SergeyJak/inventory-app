@@ -366,6 +366,14 @@ p {
   z-index: 1;
 }
 
+/* Product-source photos have a white studio backdrop: blend it into the page
+   rather than displaying a bright rectangular tile around the speaker. */
+.hero-photo img[src*="/mini-3/violet/02.jpg"],
+.hero-photo img[src*="/street/black/02.png"] {
+  mix-blend-mode: multiply;
+  filter: none;
+}
+
 .hero-photo img.is-switching {
   opacity: 0;
   transform: translate3d(var(--parallax-x, 0), var(--parallax-y, 0), 0) scale(.98);

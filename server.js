@@ -1221,6 +1221,25 @@ function quickOfferHtml(modelId, products, locale) {
   return `<div class="quick-offer" data-status="${status}"><span class="quick-price"${price ? '' : ' hidden'}>${escapeHtml(price)}</span><span class="quick-stock">${escapeHtml(stock)}</span></div>`;
 }
 
+function renderStockedCatalogColors(initial, publicProducts, locale) {
+  const model = CATALOG_INITIAL_PRODUCTS.find(item => item.id === initial?.model?.id);
+  if (!model || !Array.isArray(publicProducts)) return '';
+  const stocked = productsForCatalogModel(publicProducts, model).filter(item => item.inStock);
+  let displayed = 0;
+  return model.colors.map(color => {
+    const product = productForCatalogColor(stocked, color);
+    if (!product) return '';
+    const colorIndex = displayed++;
+    const active = color.key === initial?.color?.key;
+    const label = catalogTranslation(locale, `colors.${color.key}`) || color.label;
+    const stockText = locale === 'en' ? 'In stock' : 'В наличии';
+    return `<button class="thumb${active ? ' active' : ''}" data-color="${colorIndex}" type="button" aria-pressed="${active}">
+      <img src="/${escapeHtml(color.image)}" alt="" width="76" height="86" loading="lazy" decoding="async" />
+      <span><strong>${escapeHtml(label)}</strong><span>${stockText}</span></span>
+    </button>`;
+  }).join('');
+}
+
 function renderCatalogSsrLocale(template, page, initial, products = null) {
   const locale = page.locale;
   const text = path => catalogTranslation(locale, path);
@@ -1259,6 +1278,7 @@ function renderCatalogSsrLocale(template, page, initial, products = null) {
         : name);
     })
     .replace('__CATALOG_PRODUCT_SEO_CONTENT__', productSeoContent(page))
+    .replace('__CATALOG_INITIAL_COLOR_THUMBS__', renderStockedCatalogColors(initial, products, locale))
     .replace('__CATALOG_INITIAL_STOCK__', escapeHtml(page.stockText || ''))
     .replace('__CATALOG_STOCK_HIDDEN__', page.stockText ? '' : 'hidden')
     .replace(/__CATALOG_INITIAL_TITLE__/g, escapeHtml(initialTitle))
@@ -1283,7 +1303,8 @@ async function sendCatalogPage(req, res, next, productModel = null) {
     if (productModel) {
       const { products } = await dbGetAll();
       const structuredDataProducts = (products || []).map(publicProduct);
-      page = productPages.pageOptions(productModel, req.params.locale, structuredDataProducts);
+      page = productPages.pageOptions(productModel, req.params.locale, structuredDataProducts,
+        typeof req.query.color === 'string' ? req.query.color.toLowerCase() : '');
       data.initial = page.initial;
       data.route = { modelId: productModel.id, slug: productModel.slug };
     }
@@ -1674,11 +1695,75 @@ app.use('/icons', (req, res, next) => {
   return next();
 });
 
-// Mini 3 lilac product photograph; preserve the catalog URL for SSR and clients.
+// Serve correct product photos through HeySmart, without third-party image redirects.
+// Remote image sources are verified product photos; short-lived in-memory caching
+// avoids refetches for each shopper while keeping catalog URLs stable.
+const CATALOG_PHOTO_SOURCES = {
+  '/images/catalog/mini-3/violet/02.jpg': [
+    'https://texnohome.az/image/cache/catalog/20.05.2025/4khju-g3jpg-ezgifcom-webp-to-jpg-converter-1500x1500.jpg',
+    'https://techmart.ru/image/cache/catalog/Yandex%20station/mini%203/purple/purple-840x840.jpg',
+  ],
+  '/images/catalog/street/black/02.png': [
+    'https://alice.yandex.ru/support/docs-assets/alice/rev/r19361476/ru/_assets/device-card/station/station-street.png',
+    'https://syomastore.ru/wa-data/public/shop/products/85/37/3785/images/22657/22657.970.jpg',
+  ],
+};
+const catalogPhotoCache = new Map();
+const catalogPhotoLoads = new Map();
+async function loadCatalogPhoto(filePath) {
+  const cached = catalogPhotoCache.get(filePath);
+  if (cached) return cached;
+  if (catalogPhotoLoads.has(filePath)) return catalogPhotoLoads.get(filePath);
+  const pending = (async () => {
+    for (const url of CATALOG_PHOTO_SOURCES[filePath] || []) {
+      try {
+        const response = await fetch(url, {
+          headers: { Accept: 'image/*' },
+          signal: AbortSignal.timeout(6000),
+        });
+        const contentType = (response.headers.get('content-type') || '').split(';')[0];
+        if (!response.ok || !/^image\/(png|jpeg|webp)$/i.test(contentType)) continue;
+        const data = Buffer.from(await response.arrayBuffer());
+        if (data.length < 1024 || data.length > 5 * 1024 * 1024) continue;
+        const photo = { data, type: contentType };
+        catalogPhotoCache.set(filePath, photo);
+        return photo;
+      } catch (error) {
+        console.warn('[catalog-photo] source unavailable:', error.message);
+      }
+    }
+    return null;
+  })();
+  catalogPhotoLoads.set(filePath, pending);
+  try { return await pending; }
+  finally { catalogPhotoLoads.delete(filePath); }
+}
+app.get(['/images/catalog/mini-3/violet/02.jpg', '/images/catalog/street/black/02.png'], async (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  const photo = await loadCatalogPhoto(req.path);
+  if (!photo) {
+    console.error('[catalog-photo] no usable image for', req.path);
+    return res.status(502).end();
+  }
+  res.set('Cache-Control', 'public, max-age=86400');
+  return res.type(photo.type).send(photo.data);
+});
+// Preload and verify the actual image bytes on production; product pages
+// can serve the cache immediately, and deploy logs reveal any broken source.
+if (process.env.RAILWAY_ENVIRONMENT_ID === '2442c956-dbf2-4a43-b30c-9c3939e374d6') {
+  setTimeout(() => {
+    for (const filePath of Object.keys(CATALOG_PHOTO_SOURCES)) {
+      loadCatalogPhoto(filePath).then(photo => {
+        if (photo) console.log('[catalog-photo] READY', filePath, photo.data.length);
+        else console.error('[catalog-photo] FAILED to preload', filePath);
+      }).catch(error => console.error('[catalog-photo] preload error:', error.message));
+    }
+  }, 1000).unref();
+}
+// Old Mini 3 image URL was a broken third-party redirect; replace it with the new local route.
 app.get('/images/catalog/mini-3/violet/01.png', (req, res, next) => {
   if (!(isCatalogHost(req) || isLocalHost(req))) return next();
-  res.set('Cache-Control', 'public, max-age=86400');
-  return res.redirect(302, 'https://castore.uz/upload/iblock/aae/o3j190w5t5srprptp8s10kgokn6i5y5v/umnaya-kolonka-yandeks-stantsiya-mini-3-lilovaya-yndx-00027gry.jpg');
+  return res.redirect(302, '/images/catalog/mini-3/violet/02.jpg');
 });
 
 app.use('/images/catalog', (req, res, next) => {

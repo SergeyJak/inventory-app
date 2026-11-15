@@ -152,6 +152,44 @@ async function run() {
   assert.equal('renewalDate' in publicLight, false, 'renewal date must never leak publicly');
   assert.equal('lots' in publicLight, false, 'stock lots must never leak publicly');
 
+  // Regression: real warehouse inventory must expose violet Mini 3 and
+  // Black Street in public API and server-rendered product pages.
+  const newStock = [
+    { id: 'mini3-gray', productType: 'Мини 3', color: 'Серый',
+      sellPrice: 150, lots: [{ qty: 2, buyPrice: 97, date: '2026-10-23' }] },
+    { id: 'mini3-violet', productType: 'Мини 3', color: 'Фиолетовый',
+      sellPrice: 140, lots: [{ qty: 2, buyPrice: 105, date: '2026-11-15' }] },
+    { id: 'street-black', productType: 'Street', color: 'Чёрный',
+      sellPrice: 180, lots: [{ qty: 2, buyPrice: 102, date: '2026-11-15' }] },
+  ];
+  response = await request('/api/save', {
+    method: 'POST', token: adminToken, body: { key: 'products', data: [...products, ...newStock] },
+  });
+  assert.equal(response.status, 200, 'warehouse seed should be accepted');
+  response = await request('/api/public/products');
+  publicData = await json(response);
+  assert.equal(publicData.products.find(p => p.id === 'mini3-violet')?.sellPrice, 140);
+  assert.equal(publicData.products.find(p => p.id === 'street-black')?.sellPrice, 180);
+  assert.equal(publicData.products.find(p => p.id === 'mini3-violet')?.inStock, true);
+
+  response = await request('/ru/yandex-station-mini-3?color=violet');
+  assert.equal(response.status, 200, 'violet Mini 3 product page should render');
+  const mini3Html = await response.text();
+  assert.ok(mini3Html.includes('id="hero-image" src="/images/catalog/mini-3/violet/02.jpg"'));
+  assert.match(mini3Html, /id="model-price">140 €/);
+  assert.ok(mini3Html.toLowerCase().includes('фиолетовый'), 'server HTML should name violet stock');
+
+  response = await request('/ru/yandex-station-street?color=black');
+  assert.equal(response.status, 200, 'black Street product page should render');
+  const streetHtml = await response.text();
+  assert.ok(streetHtml.includes('id="hero-image" src="/images/catalog/street/black/02.png"'));
+  assert.match(streetHtml, /id="model-price">180 €/);
+
+  response = await request('/api/save', {
+    method: 'POST', token: adminToken, body: { key: 'products', data: products },
+  });
+  assert.equal(response.status, 200, 'restore original seeded products after catalog checks');
+
   const updatedProducts = products.map(product => product.id === 'yandex-plus-12m'
     ? { ...product, sellPrice: 49 }
     : product);

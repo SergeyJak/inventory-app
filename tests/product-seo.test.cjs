@@ -47,9 +47,32 @@ for (const color of ['Фиолетовый', 'Лиловый', 'Purple', 'Lilac'
   ]);
   assert.equal(page.initial.color.key, 'violet', `Mini 3 color ${color} resolves to violet`);
   assert.equal(page.initial.price, 155, 'Violet offer price comes from inventory');
-  assert.ok(page.structuredData.image.some(url => url.endsWith('/images/catalog/mini-3/violet/01.png')));
+  assert.ok(page.structuredData.image.some(url => url.endsWith('/images/catalog/mini-3/violet/02.jpg')));
   assert.equal(page.structuredData.offers.price, '155');
 }
+
+
+// A direct color URL must render the currently stocked variant from the server,
+// even if a visitor has an older catalog JavaScript cached.
+const stockedMini3 = [
+  { id: 'mini3-gray', productType: 'Мини 3', color: 'Серый', sellPrice: 150, inStock: true },
+  { id: 'mini3-violet', productType: 'Мини 3', color: 'Фиолетовый', sellPrice: 140, inStock: true },
+];
+const violetPage = pages.pageOptions(pages.findById('mini3'), 'ru', stockedMini3, 'violet');
+assert.equal(violetPage.initial.color.key, 'violet');
+assert.equal(violetPage.initial.price, 140);
+assert.equal(violetPage.initial.product.id, 'mini3-violet');
+assert.equal(violetPage.structuredData.offers.lowPrice, '140');
+assert.ok(violetPage.initial.color.image.endsWith('/mini-3/violet/02.jpg'));
+
+const streetPage = pages.pageOptions(pages.findById('street'), 'ru', [
+  { id: 'street-black', productType: 'Street', color: 'Чёрный', sellPrice: 180, inStock: true },
+  { id: 'street-green', productType: 'Street', color: 'Зелёный', sellPrice: 180, inStock: true },
+], 'black');
+assert.equal(streetPage.initial.color.key, 'black');
+assert.equal(streetPage.initial.product.id, 'street-black');
+assert.equal(streetPage.initial.price, 180);
+assert.ok(streetPage.initial.color.image.endsWith('/street/black/02.png'));
 
 console.log('Product SEO structured data checks passed');
 
