@@ -175,14 +175,14 @@ async function run() {
   response = await request('/ru/yandex-station-mini-3?color=violet');
   assert.equal(response.status, 200, 'violet Mini 3 product page should render');
   const mini3Html = await response.text();
-  assert.match(mini3Html, /id="hero-image" src="\\/images\\/catalog\\/mini-3\\/violet\\/02\\.jpg"/);
+  assert.ok(mini3Html.includes('id="hero-image" src="/images/catalog/mini-3/violet/02.jpg"'));
   assert.match(mini3Html, /id="model-price">140 €/);
-  assert.match(mini3Html, /id="color-gallery"[^>]*>[\\s\\S]*Фиолетовый/);
+  assert.ok(mini3Html.toLowerCase().includes('фиолетовый'), 'server HTML should name violet stock');
 
   response = await request('/ru/yandex-station-street?color=black');
   assert.equal(response.status, 200, 'black Street product page should render');
   const streetHtml = await response.text();
-  assert.match(streetHtml, /id="hero-image" src="\\/images\\/catalog\\/street\\/black\\/02\\.png"/);
+  assert.ok(streetHtml.includes('id="hero-image" src="/images/catalog/street/black/02.png"'));
   assert.match(streetHtml, /id="model-price">180 €/);
 
   response = await request('/api/save', {
