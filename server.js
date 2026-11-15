@@ -1709,35 +1709,57 @@ const CATALOG_PHOTO_SOURCES = {
   ],
 };
 const catalogPhotoCache = new Map();
-app.get(['/images/catalog/mini-3/violet/02.jpg', '/images/catalog/street/black/02.png'], async (req, res, next) => {
-  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
-  const filePath = req.path;
-  let photo = catalogPhotoCache.get(filePath);
-  if (!photo) {
-    for (const url of CATALOG_PHOTO_SOURCES[filePath]) {
+const catalogPhotoLoads = new Map();
+async function loadCatalogPhoto(filePath) {
+  const cached = catalogPhotoCache.get(filePath);
+  if (cached) return cached;
+  if (catalogPhotoLoads.has(filePath)) return catalogPhotoLoads.get(filePath);
+  const pending = (async () => {
+    for (const url of CATALOG_PHOTO_SOURCES[filePath] || []) {
       try {
         const response = await fetch(url, {
           headers: { Accept: 'image/*' },
           signal: AbortSignal.timeout(6000),
         });
-        if (!response.ok || !/^image\/(png|jpeg|webp)$/i.test((response.headers.get('content-type') || '').split(';')[0])) continue;
+        const contentType = (response.headers.get('content-type') || '').split(';')[0];
+        if (!response.ok || !/^image\/(png|jpeg|webp)$/i.test(contentType)) continue;
         const data = Buffer.from(await response.arrayBuffer());
         if (data.length < 1024 || data.length > 5 * 1024 * 1024) continue;
-        photo = { data, type: response.headers.get('content-type').split(';')[0] };
+        const photo = { data, type: contentType };
         catalogPhotoCache.set(filePath, photo);
-        break;
+        return photo;
       } catch (error) {
         console.warn('[catalog-photo] source unavailable:', error.message);
       }
     }
-  }
+    return null;
+  })();
+  catalogPhotoLoads.set(filePath, pending);
+  try { return await pending; }
+  finally { catalogPhotoLoads.delete(filePath); }
+}
+app.get(['/images/catalog/mini-3/violet/02.jpg', '/images/catalog/street/black/02.png'], async (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  const photo = await loadCatalogPhoto(req.path);
   if (!photo) {
-    console.error('[catalog-photo] no usable image for', filePath);
+    console.error('[catalog-photo] no usable image for', req.path);
     return res.status(502).end();
   }
   res.set('Cache-Control', 'public, max-age=86400');
   return res.type(photo.type).send(photo.data);
 });
+// Preload and verify the actual image bytes on production; product pages
+// can serve the cache immediately, and deploy logs reveal any broken source.
+if (process.env.RAILWAY_ENVIRONMENT_ID === '2442c956-dbf2-4a43-b30c-9c3939e374d6') {
+  setTimeout(() => {
+    for (const filePath of Object.keys(CATALOG_PHOTO_SOURCES)) {
+      loadCatalogPhoto(filePath).then(photo => {
+        if (photo) console.log('[catalog-photo] READY', filePath, photo.data.length);
+        else console.error('[catalog-photo] FAILED to preload', filePath);
+      }).catch(error => console.error('[catalog-photo] preload error:', error.message));
+    }
+  }, 1000).unref();
+}
 // Old Mini 3 image URL was a broken third-party redirect; replace it with the new local route.
 app.get('/images/catalog/mini-3/violet/01.png', (req, res, next) => {
   if (!(isCatalogHost(req) || isLocalHost(req))) return next();
