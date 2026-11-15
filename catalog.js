@@ -942,10 +942,7 @@ function renderLanguageSwitcher() {
 
 function catalogLocaleHref(locale) {
   const route = window.catalogInitialData?.route;
-  if (route) {
-    const selectedColor = currentSelection().photo?.colorKey;
-    return `/${locale}/${route.slug}${selectedColor ? `?color=${encodeURIComponent(selectedColor)}` : ''}`;
-  }
+  if (route) return `/${locale}/${route.slug}`;
   const { model, photo } = currentSelection();
   if (!model?.id || !photo?.colorKey) return `/${locale}`;
   return `/${locale}#model=${encodeURIComponent(model.id)}&color=${encodeURIComponent(photo.colorKey)}`;
