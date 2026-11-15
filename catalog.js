@@ -942,7 +942,10 @@ function renderLanguageSwitcher() {
 
 function catalogLocaleHref(locale) {
   const route = window.catalogInitialData?.route;
-  if (route) return `/${locale}/${route.slug}`;
+  if (route) {
+    const selectedColor = currentSelection().photo?.colorKey;
+    return `/${locale}/${route.slug}${selectedColor ? `?color=${encodeURIComponent(selectedColor)}` : ''}`;
+  }
   const { model, photo } = currentSelection();
   if (!model?.id || !photo?.colorKey) return `/${locale}`;
   return `/${locale}#model=${encodeURIComponent(model.id)}&color=${encodeURIComponent(photo.colorKey)}`;
@@ -1214,6 +1217,13 @@ colorGallery.addEventListener('click', event => {
   activeAngle = 0;
   render();
   const { model, photo } = currentSelection();
+  if (window.catalogInitialData?.route && photo?.colorKey) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('color', photo.colorKey);
+    // Keep a formerly shared hash from overriding this new choice on reload.
+    if (url.hash.startsWith('#model=')) url.hash = '';
+    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }
   trackVisitorEvent('color_change', { modelId: model?.id || '', color: photo?.colorKey || '' });
 });
 
