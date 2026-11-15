@@ -66,16 +66,20 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(lite.locator('.quick-stock')).toHaveText('Currently unavailable');
   });
 
-  test('Mini 3 violet stock renders the matching color and official product image', async ({ page }) => {
+  test('Mini 3 violet is selectable alongside gray when both variants are stocked', async ({ page }) => {
     await page.route('**/api/public/products', route => route.fulfill({ json: { products: [
-      { id: 'mini3-violet', productType: 'Мини 3', color: 'Лиловый', sellPrice: 155, inStock: true },
+      { id: 'mini3-gray', productType: 'Мини 3', color: 'Серый', sellPrice: 150, inStock: true },
+      { id: 'mini3-violet', productType: 'Мини 3', color: 'Фиолетовый', sellPrice: 140, inStock: true },
     ] } }));
     await page.evaluate(() => refreshCatalog());
     await page.evaluate(() => selectModelById('mini3'));
-    await expect(page.locator('#color-gallery .thumb')).toHaveCount(1);
-    await expect(page.locator('#color-gallery .thumb')).toContainText('Фиолетовый');
-    await expect(page.locator('#hero-image')).toHaveAttribute('src', '/images/catalog/mini-3/violet/01.png');
-    await expect(page.locator('#model-price')).toHaveText('155 €');
+    const thumbs = page.locator('#color-gallery .thumb');
+    await expect(thumbs).toHaveCount(2);
+    await expect(thumbs.nth(1)).toContainText('Фиолетовый');
+    await thumbs.nth(1).click();
+    await expect(thumbs.nth(1)).toHaveClass(/active/);
+    await expect(page.locator('#hero-image')).toHaveAttribute('src', '/images/catalog/mini-3/violet/02.jpg');
+    await expect(page.locator('#model-price')).toHaveText('140 €');
   });
 
   test('Mini 3 product-page color deep link selects the in-stock violet variant', async ({ page }) => {
@@ -92,7 +96,7 @@ test.describe('HeySmart storefront safety net', () => {
     });
     await expect(page.locator('#color-gallery .thumb')).toHaveCount(2);
     await expect(page.locator('#color-gallery .thumb.active')).toContainText('Фиолетовый');
-    await expect(page.locator('#hero-image')).toHaveAttribute('src', '/images/catalog/mini-3/violet/01.png');
+    await expect(page.locator('#hero-image')).toHaveAttribute('src', '/images/catalog/mini-3/violet/02.jpg');
     await expect(page.locator('#model-price')).toHaveText('140 €');
   });
 
