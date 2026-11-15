@@ -1089,6 +1089,16 @@ function applyUrlSelection() {
       const color = models[index].photos.findIndex(photo => photo.colorKey === window.catalogInitialData.initial?.color?.key);
       activeColor = color >= 0 ? color : 0;
     }
+    // Product pages have a fixed route, but an explicit color hash must still
+    // select the requested in-stock variant (e.g. #model=mini3&color=violet).
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    if (hash.get('model') === route.modelId && hash.has('color')) {
+      const requestedColor = String(hash.get('color') || '').toLowerCase();
+      const selectedColor = models[activeModel]?.photos.findIndex(photo =>
+        String(photo.colorKey || '').toLowerCase() === requestedColor
+      ) ?? -1;
+      if (selectedColor >= 0) activeColor = selectedColor;
+    }
     activeAngle = 0;
     return;
   }
