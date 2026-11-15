@@ -41,6 +41,16 @@ assert.equal(offer('mini3', [
   product('invalid', 'Мини 3', 0, true),
 ]), undefined, 'Zero-priced variant is not a valid offer');
 
+for (const color of ['Фиолетовый', 'Лиловый', 'Purple', 'Lilac']) {
+  const page = pages.pageOptions(pages.findById('mini3'), 'ru', [
+    { id: 'mini3-lilac', productType: 'Мини 3', color, sellPrice: 155, inStock: true },
+  ]);
+  assert.equal(page.initial.color.key, 'violet', `Mini 3 color ${color} resolves to violet`);
+  assert.equal(page.initial.price, 155, 'Violet offer price comes from inventory');
+  assert.ok(page.structuredData.image.some(url => url.endsWith('/images/catalog/mini-3/violet/01.png')));
+  assert.equal(page.structuredData.offers.price, '155');
+}
+
 console.log('Product SEO structured data checks passed');
 
 // Comparison snippet stays targeted to model differences and purchasing in Latvia.

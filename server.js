@@ -966,6 +966,7 @@ const CATALOG_INITIAL_PRODUCTS = [
   { id: 'mini3', aliases: ['мини 3', 'mini 3', 'mini3'], title: 'Станция Мини 3', line: 'Компактная колонка с более уверенным звуком для кухни, спальни или гостиной.', colors: [
     { key: 'gray', aliases: ['сер', 'сереб'], image: 'images/catalog/mini-3/gray/01.webp', label: 'серый' },
     { key: 'black', aliases: ['черн', 'чёрн', 'black'], image: 'images/catalog/1000139772-1.png', label: 'чёрный' },
+    { key: 'violet', aliases: ['фиолет', 'лилов', 'purple', 'lilac'], image: 'images/catalog/mini-3/violet/01.png', label: 'фиолетовый' },
   ] },
   { id: 'miniPro', aliases: ['мини 3 про', 'мини про', 'mini 3 pro', 'mini3 pro', 'mini pro', 'minipro'], title: 'Станция Мини 3 Про', line: 'Колонка для умного дома с насыщенным звуком и управлением совместимыми устройствами.', colors: [
     { key: 'green', aliases: ['зелен', 'зелён'], image: 'images/catalog/mini-pro/green/01.webp', label: 'зелёный' },
@@ -1357,7 +1358,7 @@ function setSecurityHeaders(req, res, next) {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://www.google-analytics.com",
+      "img-src 'self' data: https://www.google-analytics.com https://cdn-viewer.diplodoc.com",
       "font-src 'self' data:",
       "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com",
       "object-src 'none'",
@@ -1671,6 +1672,13 @@ app.use('/icons', (req, res, next) => {
     })(req, res, next);
   }
   return next();
+});
+
+// Yandex's official Mini 3 lilac product photograph; use a stable catalog URL for SSR and clients.
+app.get('/images/catalog/mini-3/violet/01.png', (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  res.set('Cache-Control', 'public, max-age=86400');
+  return res.redirect(302, 'https://cdn-viewer.diplodoc.com/docs-assets/alice/rev/r20125441/ru/_assets/device-card/station/station-mini3.png');
 });
 
 app.use('/images/catalog', (req, res, next) => {

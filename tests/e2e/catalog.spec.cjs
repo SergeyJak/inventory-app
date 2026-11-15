@@ -66,6 +66,18 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(lite.locator('.quick-stock')).toHaveText('Currently unavailable');
   });
 
+  test('Mini 3 violet stock renders the matching color and official product image', async ({ page }) => {
+    await page.route('**/api/public/products', route => route.fulfill({ json: { products: [
+      { id: 'mini3-violet', productType: 'Мини 3', color: 'Лиловый', sellPrice: 155, inStock: true },
+    ] } }));
+    await page.evaluate(() => refreshCatalog());
+    await page.evaluate(() => selectModelById('mini3'));
+    await expect(page.locator('#color-gallery .thumb')).toHaveCount(1);
+    await expect(page.locator('#color-gallery .thumb')).toContainText('Фиолетовый');
+    await expect(page.locator('#hero-image')).toHaveAttribute('src', '/images/catalog/mini-3/violet/01.png');
+    await expect(page.locator('#model-price')).toHaveText('155 €');
+  });
+
   test('Enter on a comparison product link follows the link', async ({ page }) => {
     const href = '/ru/yandex-station-mini-3';
     await page.route(`**${href}`, route => route.fulfill({ contentType: 'text/html', body: '<h1>Mini 3</h1>' }));
