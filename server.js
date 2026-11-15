@@ -1358,7 +1358,7 @@ function setSecurityHeaders(req, res, next) {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://www.google-analytics.com https://cdn-viewer.diplodoc.com",
+      "img-src 'self' data: https://www.google-analytics.com https://castore.uz",
       "font-src 'self' data:",
       "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com",
       "object-src 'none'",
@@ -1674,11 +1674,11 @@ app.use('/icons', (req, res, next) => {
   return next();
 });
 
-// Yandex's official Mini 3 lilac product photograph; use a stable catalog URL for SSR and clients.
+// Mini 3 lilac product photograph; preserve the catalog URL for SSR and clients.
 app.get('/images/catalog/mini-3/violet/01.png', (req, res, next) => {
   if (!(isCatalogHost(req) || isLocalHost(req))) return next();
   res.set('Cache-Control', 'public, max-age=86400');
-  return res.redirect(302, 'https://cdn-viewer.diplodoc.com/docs-assets/alice/rev/r20125441/ru/_assets/device-card/station/station-mini3.png');
+  return res.redirect(302, 'https://castore.uz/upload/iblock/aae/o3j190w5t5srprptp8s10kgokn6i5y5v/umnaya-kolonka-yandeks-stantsiya-mini-3-lilovaya-yndx-00027gry.jpg');
 });
 
 app.use('/images/catalog', (req, res, next) => {
