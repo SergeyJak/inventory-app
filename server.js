@@ -1283,7 +1283,8 @@ async function sendCatalogPage(req, res, next, productModel = null) {
     if (productModel) {
       const { products } = await dbGetAll();
       const structuredDataProducts = (products || []).map(publicProduct);
-      page = productPages.pageOptions(productModel, req.params.locale, structuredDataProducts);
+      page = productPages.pageOptions(productModel, req.params.locale, structuredDataProducts,
+        typeof req.query.color === 'string' ? req.query.color.toLowerCase() : '');
       data.initial = page.initial;
       data.route = { modelId: productModel.id, slug: productModel.slug };
     }
@@ -1674,11 +1675,53 @@ app.use('/icons', (req, res, next) => {
   return next();
 });
 
-// Mini 3 lilac product photograph; preserve the catalog URL for SSR and clients.
+// Serve correct product photos through HeySmart, without third-party image redirects.
+// Remote image sources are verified product photos; short-lived in-memory caching
+// avoids refetches for each shopper while keeping catalog URLs stable.
+const CATALOG_PHOTO_SOURCES = {
+  '/images/catalog/mini-3/violet/02.jpg': [
+    'https://texnohome.az/image/cache/catalog/20.05.2025/4khju-g3jpg-ezgifcom-webp-to-jpg-converter-1500x1500.jpg',
+    'https://techmart.ru/image/cache/catalog/Yandex%20station/mini%203/purple/purple-840x840.jpg',
+  ],
+  '/images/catalog/street/black/02.png': [
+    'https://alice.yandex.ru/support/docs-assets/alice/rev/r19361476/ru/_assets/device-card/station/station-street.png',
+    'https://syomastore.ru/wa-data/public/shop/products/85/37/3785/images/22657/22657.970.jpg',
+  ],
+};
+const catalogPhotoCache = new Map();
+app.get(['/images/catalog/mini-3/violet/02.jpg', '/images/catalog/street/black/02.png'], async (req, res, next) => {
+  if (!(isCatalogHost(req) || isLocalHost(req))) return next();
+  const filePath = req.path;
+  let photo = catalogPhotoCache.get(filePath);
+  if (!photo) {
+    for (const url of CATALOG_PHOTO_SOURCES[filePath]) {
+      try {
+        const response = await fetch(url, {
+          headers: { Accept: 'image/*' },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!response.ok || !/^image\/(png|jpeg|webp)$/i.test((response.headers.get('content-type') || '').split(';')[0])) continue;
+        const data = Buffer.from(await response.arrayBuffer());
+        if (data.length < 1024 || data.length > 5 * 1024 * 1024) continue;
+        photo = { data, type: response.headers.get('content-type').split(';')[0] };
+        catalogPhotoCache.set(filePath, photo);
+        break;
+      } catch (error) {
+        console.warn('[catalog-photo] source unavailable:', error.message);
+      }
+    }
+  }
+  if (!photo) {
+    console.error('[catalog-photo] no usable image for', filePath);
+    return res.status(502).end();
+  }
+  res.set('Cache-Control', 'public, max-age=86400');
+  return res.type(photo.type).send(photo.data);
+});
+// Old Mini 3 image URL was a broken third-party redirect; replace it with the new local route.
 app.get('/images/catalog/mini-3/violet/01.png', (req, res, next) => {
   if (!(isCatalogHost(req) || isLocalHost(req))) return next();
-  res.set('Cache-Control', 'public, max-age=86400');
-  return res.redirect(302, 'https://castore.uz/upload/iblock/aae/o3j190w5t5srprptp8s10kgokn6i5y5v/umnaya-kolonka-yandeks-stantsiya-mini-3-lilovaya-yndx-00027gry.jpg');
+  return res.redirect(302, '/images/catalog/mini-3/violet/02.jpg');
 });
 
 app.use('/images/catalog', (req, res, next) => {
