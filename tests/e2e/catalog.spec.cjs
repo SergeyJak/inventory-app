@@ -78,6 +78,24 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(page.locator('#model-price')).toHaveText('155 €');
   });
 
+  test('Mini 3 product-page color deep link selects the in-stock violet variant', async ({ page }) => {
+    await page.route('**/api/public/products', route => route.fulfill({ json: { products: [
+      { id: 'mini3-gray', productType: 'Мини 3', color: 'Серый', sellPrice: 150, inStock: true },
+      { id: 'mini3-violet', productType: 'Мини 3', color: 'Фиолетовый', sellPrice: 140, inStock: true },
+    ] } }));
+    await page.evaluate(async () => {
+      await refreshCatalog();
+      window.catalogInitialData = { route: { modelId: 'mini3' }, initial: { color: { key: 'gray' } } };
+      history.replaceState(null, '', '#model=mini3&color=violet');
+      applyUrlSelection();
+      render();
+    });
+    await expect(page.locator('#color-gallery .thumb')).toHaveCount(2);
+    await expect(page.locator('#color-gallery .thumb.active')).toContainText('Фиолетовый');
+    await expect(page.locator('#hero-image')).toHaveAttribute('src', '/images/catalog/mini-3/violet/01.png');
+    await expect(page.locator('#model-price')).toHaveText('140 €');
+  });
+
   test('Enter on a comparison product link follows the link', async ({ page }) => {
     const href = '/ru/yandex-station-mini-3';
     await page.route(`**${href}`, route => route.fulfill({ contentType: 'text/html', body: '<h1>Mini 3</h1>' }));
