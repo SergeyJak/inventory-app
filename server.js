@@ -1221,6 +1221,25 @@ function quickOfferHtml(modelId, products, locale) {
   return `<div class="quick-offer" data-status="${status}"><span class="quick-price"${price ? '' : ' hidden'}>${escapeHtml(price)}</span><span class="quick-stock">${escapeHtml(stock)}</span></div>`;
 }
 
+function renderStockedCatalogColors(initial, publicProducts, locale) {
+  const model = CATALOG_INITIAL_PRODUCTS.find(item => item.id === initial?.model?.id);
+  if (!model || !Array.isArray(publicProducts)) return '';
+  const stocked = productsForCatalogModel(publicProducts, model).filter(item => item.inStock);
+  let displayed = 0;
+  return model.colors.map(color => {
+    const product = productForCatalogColor(stocked, color);
+    if (!product) return '';
+    const colorIndex = displayed++;
+    const active = color.key === initial?.color?.key;
+    const label = catalogTranslation(locale, `colors.${color.key}`) || color.label;
+    const stockText = locale === 'en' ? 'In stock' : 'В наличии';
+    return `<button class="thumb${active ? ' active' : ''}" data-color="${colorIndex}" type="button" aria-pressed="${active}">
+      <img src="/${escapeHtml(color.image)}" alt="" width="76" height="86" loading="lazy" decoding="async" />
+      <span><strong>${escapeHtml(label)}</strong><span>${stockText}</span></span>
+    </button>`;
+  }).join('');
+}
+
 function renderCatalogSsrLocale(template, page, initial, products = null) {
   const locale = page.locale;
   const text = path => catalogTranslation(locale, path);
@@ -1259,6 +1278,7 @@ function renderCatalogSsrLocale(template, page, initial, products = null) {
         : name);
     })
     .replace('__CATALOG_PRODUCT_SEO_CONTENT__', productSeoContent(page))
+    .replace('__CATALOG_INITIAL_COLOR_THUMBS__', renderStockedCatalogColors(initial, products, locale))
     .replace('__CATALOG_INITIAL_STOCK__', escapeHtml(page.stockText || ''))
     .replace('__CATALOG_STOCK_HIDDEN__', page.stockText ? '' : 'hidden')
     .replace(/__CATALOG_INITIAL_TITLE__/g, escapeHtml(initialTitle))
