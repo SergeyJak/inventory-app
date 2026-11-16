@@ -134,6 +134,21 @@ function waitForServer(proc) {
     });
     assert.strictEqual(viewerExport.res.status, 403, 'viewer must not export backups');
 
+    const anonymousFull = await request('/api/backups/full/export', { method: 'POST' });
+    assert.strictEqual(anonymousFull.res.status, 401, 'anonymous full download must require login');
+
+    const viewerFull = await request('/api/backups/full/export', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${viewerToken}` },
+    });
+    assert.strictEqual(viewerFull.res.status, 403, 'viewer must not download a full backup');
+
+    const localAdminFull = await request('/api/backups/full/export', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert.strictEqual(localAdminFull.res.status, 503, 'full download must fail closed without MongoDB');
+
     const exported = await request('/api/backups/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
