@@ -4358,6 +4358,34 @@ app.post('/api/save', requireInventoryHost, requireAuth, requireAdmin, async (re
   }
 });
 
+let fullBackupDownloadRunning = false;
+app.post('/api/backups/full/export', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
+  if (!USE_MONGO || !mongoClient) {
+    return res.status(503).json({ error: 'Full MongoDB backup is unavailable' });
+  }
+  if (fullBackupDownloadRunning) {
+    return res.status(409).json({ error: 'A full backup is already in progress' });
+  }
+
+  fullBackupDownloadRunning = true;
+  try {
+    const { createVerifiedFullBackup } = require('./scripts/full-backup-export');
+    const backup = await createVerifiedFullBackup(mongoClient);
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + backup.filename + '"');
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('X-Backup-Collection-Count', String(backup.collectionCount));
+    res.setHeader('X-Backup-Document-Count', String(backup.documentCount));
+    res.send(backup.content);
+  } catch (error) {
+    console.error('Full backup export failed:', error.message);
+    res.status(500).json({ error: 'Unable to create and verify a full backup' });
+  } finally {
+    fullBackupDownloadRunning = false;
+  }
+});
+
 app.post('/api/backups/export', requireInventoryHost, requireAuth, requireAdmin, async (req, res) => {
   try {
     const zip = await buildBackup(req.body?.sections);
