@@ -7,6 +7,7 @@
 1. The administrator has downloaded and securely stored a fresh **full production** backup from the HeySmart Backups page. That archive deliberately excludes preview collections, so it does not restore PR-specific data.
 2. Use the production inventory-app Railway service, which has \`MONGODB_URI\` and the **persistent** \`/data/backups\` volume mounted. An ephemeral local computer path is not accepted in apply mode.
 3. Make sure there are no open PRs whose preview data you wish to delete. The script independently queries the GitHub API and excludes open PRs.
+4. Open a **remote** shell inside the deployed Railway service with `railway ssh --service inventory-app --environment production` (after linking the correct Railway project). This requires a registered SSH key. Do **not** use `railway run` or `railway shell`: those execute on your local machine, without the mounted persistent volume.
 
 ## Preview (non-destructive, default)
 
