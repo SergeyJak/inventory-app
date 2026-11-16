@@ -174,6 +174,8 @@ async function main(argv = process.argv.slice(2)) {
       perPR: plan.prCounts,
     }));
 
+    if (!apply) console.log('[preview-cleanup] candidate names: ' + JSON.stringify(plan.candidates));
+
     if (!validateApplyArgs(argv, plan)) {
       console.log('[preview-cleanup] Dry-run only. No collections modified.');
       return plan;
