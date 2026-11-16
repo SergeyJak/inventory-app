@@ -2628,6 +2628,43 @@ async function exportBackup() {
   }
 }
 
+async function exportFullBackup() {
+  const btn = document.getElementById('backup-full-export-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/backups/full/export', {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const response = await res.json().catch(() => ({}));
+      throw new Error(response.error || ('HTTP ' + res.status));
+    }
+
+    const blob = await res.blob();
+    if (!blob.size) throw new Error('Пустой архив');
+    const filename = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]
+      || 'heysmart-full-inventory.backup.json.gz';
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+    const collections = res.headers.get('X-Backup-Collection-Count');
+    showToast('Полная копия скачана' + (collections ? ': ' + collections + ' коллекций' : ''));
+  } catch (e) {
+    showToast('Ошибка полного бэкапа: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = '';
