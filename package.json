@@ -16,7 +16,7 @@
     "test:assistant": "node tests/assistant-engine-v2.test.cjs && node tests/assistant-unmatched-replay.test.cjs",
     "test:assistant-analytics": "node tests/assistant-analytics.test.cjs",
     "test:visitor-analytics": "node tests/visitor-analytics.test.cjs",
-    "test:backup": "node tests/backup-flow.test.cjs && node tests/automated-backup.test.cjs",
+    "test:backup": "node tests/backup-flow.test.cjs && node tests/automated-backup.test.cjs && node tests/full-backup-download.test.cjs",
     "test:mail": "node tests/mail-service.test.cjs && node tests/mail-host-onboarding.test.cjs",
     "test:api": "node tests/api-integration.test.cjs",
     "test:finance": "node tests/finance-invoice.test.cjs && node tests/finance-invoice-workflow.test.cjs && node tests/finance-history-pages.test.cjs && node tests/finance-data-protection.test.cjs && node tests/finance-standalone-storage.test.cjs && node tests/finance-combo.test.cjs",
