@@ -68,7 +68,7 @@
   // A purchase request for a spare battery is not proof that we sell one.
   function batteryAvailabilityResponse(input, options) {
     const raw = String(input || '');
-    if (!/(?:аккумулятор|акумулятор|батаре[йию]|battery|akumulator)/i.test(raw) ||
+    if (!/(?:аккумулятор|акумулятор|батаре[яйию]|battery|akumulator)/i.test(raw) ||
         !/(?:прода|купить|заказать|заказ|налич|отдельн|sell|buy|purchase|stock|order|p[aā]rdod|pirkt)/i.test(raw)) return null;
     const locale = detectInputLocale(input);
     const messages = {
