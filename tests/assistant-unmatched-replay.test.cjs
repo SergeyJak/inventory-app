@@ -101,7 +101,8 @@ test('replays all 23 historically unmatched messages without generic fallback', 
 
 test('ambiguous 2 Pro follows previous recommendation and confirms quantity without inventing inventory', () => {
   const engine = context.AssistantEngine.createAssistantEngine(options);
-  engine.handle('Для дома');
+  engine.handle('Для дома'); // asks purpose
+  engine.handle('Для дома'); // follows up and recommends Mini 3 Pro
   const clarify = engine.handle('я хочу 2 про');
   assert.equal(clarify.type, 'product_clarification');
   assert.match(clarify.text, /Ранее мы обсуждали Мини 3 Про/);
