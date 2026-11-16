@@ -420,6 +420,15 @@
 <section id="tab-backups" class="tab-content admin-only">
   <h2>Резервные копии</h2>
 
+  <div class="form-card backup-card" style="margin-bottom: 16px">
+    <h3>Полная копия рабочих данных MongoDB</h3>
+    <p class="backup-muted">Создаёт свежий архив всех основных коллекций: товары, транзакции, финансы, почта, вопросы ассистенту и служебные данные. Перед скачиванием проверяются целостность и состав архива. Временные коллекции PR не включаются.</p>
+    <div class="form-actions">
+      <button onclick="exportFullBackup()" class="btn-primary" id="backup-full-export-btn">Скачать полную копию (.json.gz)</button>
+    </div>
+    <p class="backup-muted">Архив содержит конфиденциальные данные. Храните его в защищённом месте. Это не ZIP для формы восстановления ниже, а полная копия базы для аварийного восстановления.</p>
+  </div>
+
   <div class="backup-grid">
     <div class="form-card backup-card">
       <h3>Создать ZIP</h3>
@@ -472,6 +481,6 @@
 <div id="toast"></div>
 
 <script src="navigation.js"></script>
-<script src="app.js?v=20260920-1"></script>
+<script src="app.js?v=20261116-full-backup-1"></script>
 </body>
 </html>
