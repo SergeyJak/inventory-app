@@ -31,7 +31,7 @@
 
   function unsupportedLanguageResponse(input) {
     const normalized = String(input || '').toLowerCase();
-    const asksAboutEnglish = /(?:english|английск|angļu|anglu)/i.test(normalized) &&
+    const asksAboutEnglish = /(?:english|engleesh|английск|angļu|anglu)/i.test(normalized) &&
       /(?:alice|alisa|station|speaker|алис|станц|колон|understand|speak|language|язык|valod)/i.test(normalized);
     if (asksAboutEnglish) {
       const text = {
@@ -53,7 +53,7 @@
   function wifiCapabilitiesResponse(input) {
     const raw = String(input || '');
     const wifi = /(?:wi[\s-]?fi|вай\s?фай|вайфай|wifi|вай\s?фай)/i.test(raw);
-    const question = /(?:есть|имеется|поддерж|работает|можно|умеет|нужен|нужна|у нее|у неё|does|have|has|support|work|vai|atbalsta|ir)/i.test(raw);
+    const question = /(?:есть|имеется|поддерж|работает|можно|умеет|нужен|нужна|у нее|у неё|хочу|ищу|подключ|надо|want|looking|need|does|have|has|support|work|vai|atbalsta|ir)/i.test(raw);
     if (!wifi || !question) return null;
     const lang = detectInputLocale(input);
     const text = {
@@ -62,6 +62,69 @@
       lv: 'Jā, Yandex Station skaļruņi atbalsta Wi-Fi. Alises darbībai un mūzikas straumēšanai nepieciešams internets. Iestatīšana notiek Yandex lietotnē.',
     }[lang];
     return { type: 'wifi_capabilities', intent: 'faq_question', locale: lang, text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
+  }
+
+
+  // A purchase request for a spare battery is not proof that we sell one.
+  function batteryAvailabilityResponse(input, options) {
+    const raw = String(input || '');
+    if (!/(?:аккумулятор|акумулятор|батаре[яйию]|battery|akumulator)/i.test(raw) ||
+        !/(?:прода|купить|заказать|заказ|налич|отдельн|sell|buy|purchase|stock|order|p[aā]rdod|pirkt)/i.test(raw)) return null;
+    const locale = detectInputLocale(input);
+    const messages = {
+      ru: 'Уточните, пожалуйста, для какой модели нужен аккумулятор. Наличие отдельного аккумулятора пока не подтверждено. Мы можем уточнить возможность заказа через WhatsApp или Telegram.',
+      en: 'Which speaker model do you need a battery for? We have not confirmed that a separate battery is available. Please contact us via WhatsApp or Telegram so we can check.',
+      lv: 'Kādam skaļruņa modelim nepieciešams akumulators? Atsevišķa akumulatora pieejamība nav apstiprināta. Sazinieties ar mums WhatsApp vai Telegram, lai to precizētu.',
+    };
+    const text = messages[locale];
+    const methods = (typeof options.contactMethods === 'function' ? options.contactMethods() : [])
+      .filter(item => item?.id === 'whatsapp' || item?.id === 'telegram');
+    return {
+      type: 'accessory_clarification', intent: 'accessory_availability', locale, text,
+      actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
+      faq: { matched: false, confidence: 0, faq: null, answer: text },
+    };
+  }
+
+  function ambiguousProResponse(input, previousContext) {
+    const normalized = normalize(input);
+    if (!/(?:^| )(?:2|две|два) про(?:$| )/.test(normalized) ||
+        /(?:мини|mini) (?:3 )?(?:про|pro)/.test(normalized)) return null;
+    const locale = detectInputLocale(input);
+    const wasMiniPro = previousContext?.lastModelId === 'miniPro';
+    const messages = {
+      ru: wasMiniPro
+        ? 'Ранее мы обсуждали Мини 3 Про. Вы хотите две колонки Мини 3 Про или спрашиваете о другой модели «2 Про»?'
+        : 'Уточните: вы хотите две колонки Мини 3 Про или спрашиваете о модели «2 Про»?',
+      en: 'Do you mean two Mini 3 Pro speakers, or a different model called “2 Pro”?',
+      lv: 'Vai vēlaties divas Mini 3 Pro skandas vai jautājat par citu modeli “2 Pro”?',
+    };
+    const text = messages[locale];
+    return {
+      type: 'product_clarification', intent: 'product_selection', locale, text, actions: [],
+      faq: { matched: false, confidence: 0, faq: null, answer: text },
+    };
+  }
+
+  function twoMiniProQuantityResponse(input, options, awaitingConfirmation) {
+    const normalized = normalize(input);
+    const explicitTwoMiniPro = /(?:^| )(?:2|две|два) (?:мини|mini) (?:3 )?(?:про|pro)(?:$| )/.test(normalized);
+    const shortConfirmation = awaitingConfirmation && /^(?:2|две|два)(?: штуки| шт| колонки)?$/.test(normalized);
+    if (!explicitTwoMiniPro && !shortConfirmation) return null;
+    const locale = detectInputLocale(input);
+    const messages = {
+      ru: 'Понял, вам нужны две Станции Мини 3 Про. Наличие именно двух штук необходимо подтвердить. Напишите в WhatsApp или Telegram, и мы проверим заказ.',
+      en: 'You would like two Mini 3 Pro speakers. We need to confirm that two units are available. Contact us via WhatsApp or Telegram to check your order.',
+      lv: 'Jums nepieciešamas divas Mini 3 Pro skandas. Divu vienību pieejamība ir jāapstiprina. Sazinieties WhatsApp vai Telegram, lai pārbaudītu pasūtījumu.',
+    };
+    const text = messages[locale];
+    const methods = (typeof options.contactMethods === 'function' ? options.contactMethods() : [])
+      .filter(item => item?.id === 'whatsapp' || item?.id === 'telegram');
+    return {
+      type: 'quantity_handoff', intent: 'product_selection', locale, text, modelId: 'miniPro',
+      actions: methods.map(item => ({ id: 'contact', channel: item.id, label: item.label })),
+      faq: { matched: true, confidence: 1, faq: null, answer: text },
+    };
   }
 
   function handoffResponse(input, options) {
@@ -261,10 +324,25 @@
       const engine = originalCreate(localizedOptions);
       if (!engine?.handle) return engine;
       const originalHandle = engine.handle.bind(engine);
+      let awaitingProClarification = false;
       return {
         ...engine,
+        reset() {
+          awaitingProClarification = false;
+          return engine.reset?.();
+        },
         handle(input) {
           activeLocale = detectInputLocale(input);
+          const quantity = twoMiniProQuantityResponse(input, localizedOptions, awaitingProClarification);
+          if (quantity) {
+            awaitingProClarification = false;
+            return quantity;
+          }
+          const ambiguousPro = ambiguousProResponse(input, engine.snapshot?.());
+          awaitingProClarification = Boolean(ambiguousPro);
+          if (ambiguousPro) return ambiguousPro;
+          const battery = batteryAvailabilityResponse(input, localizedOptions);
+          if (battery) return battery;
           const directHandoff = handoffResponse(input, localizedOptions);
           if (directHandoff) return directHandoff;
           const wifi = wifiCapabilitiesResponse(input);
@@ -286,5 +364,5 @@
   }
 
   if (root?.AssistantEngine) install();
-  return { install, detectInputLocale, wifiCapabilitiesResponse, unsupportedLanguageResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
+  return { install, detectInputLocale, wifiCapabilitiesResponse, unsupportedLanguageResponse, batteryAvailabilityResponse, ambiguousProResponse, twoMiniProQuantityResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
 });
