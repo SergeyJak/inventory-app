@@ -1886,6 +1886,9 @@ app.use(mail.router);
 
 // ── DATA ROUTES ──────────────────────────────────────────────
 app.get('/api/public/products', async (req, res) => {
+  // Inventory changes must be visible immediately, not served from browser or CDN cache.
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Surrogate-Control', 'no-store');
   try {
     const { products } = await dbGetAll();
     res.json({ products: publicProductsFromData(products) });
