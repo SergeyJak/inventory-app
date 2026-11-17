@@ -74,6 +74,16 @@ assert.equal(streetPage.initial.product.id, 'street-black');
 assert.equal(streetPage.initial.price, 180);
 assert.ok(streetPage.initial.color.image.endsWith('/street/black/02.png'));
 
+// Actual warehouse naming: Mini Pro / Голубой must resolve to blue Mini 3 Pro.
+const blueMiniPro = pages.pageOptions(pages.findById('miniPro'), 'ru', [
+  { id: 'mini-pro-blue', productType: 'Мини Про', color: 'Голубой', sellPrice: 180, inStock: true },
+], 'blue');
+assert.equal(blueMiniPro.initial.product.id, 'mini-pro-blue');
+assert.equal(blueMiniPro.initial.color.key, 'blue');
+assert.equal(blueMiniPro.initial.price, 180);
+assert.ok(blueMiniPro.initial.color.image.endsWith('/mini-pro/blue/01.webp'));
+assert.equal(blueMiniPro.structuredData.offers.price, '180');
+
 console.log('Product SEO structured data checks passed');
 
 // Comparison snippet stays targeted to model differences and purchasing in Latvia.
