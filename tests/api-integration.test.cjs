@@ -196,10 +196,12 @@ async function run() {
   assert.match(blueMiniProHtml, /id="model-price">180 €/);
   assert.ok(blueMiniProHtml.toLowerCase().includes('голубой'));
 
-  response = await request('/?model=miniPro&color=1');
-  assert.equal(response.status, 200, 'stocked blue Mini Pro direct catalog link should render');
-  const blueCatalogHtml = await response.text();
-  assert.ok(blueCatalogHtml.includes('id="hero-image" src="/images/catalog/mini-pro/blue/01.webp"'));
+  response = await request('/?model=miniPro&color=1', {
+    headers: { host: 'heysmart.lv' }, redirect: 'manual',
+  });
+  assert.equal(response.status, 301, 'legacy Mini Pro catalog link should redirect');
+  assert.equal(response.headers.get('location'), '/ru/yandex-station-mini-3-pro?color=blue',
+    'redirect must preserve the selected stocked blue color');
 
   response = await request('/api/save', {
     method: 'POST', token: adminToken, body: { key: 'products', data: products },
