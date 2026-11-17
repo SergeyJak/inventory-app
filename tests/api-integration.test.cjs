@@ -197,7 +197,7 @@ async function run() {
   assert.ok(blueMiniProHtml.toLowerCase().includes('голубой'));
 
   response = await request('/?model=miniPro&color=1', {
-    headers: { host: 'heysmart.lv' }, redirect: 'manual',
+    headers: { 'x-forwarded-host': 'heysmart.lv' }, redirect: 'manual',
   });
   assert.equal(response.status, 301, 'legacy Mini Pro catalog link should redirect');
   assert.equal(response.headers.get('location'), '/ru/yandex-station-mini-3-pro?color=blue',
