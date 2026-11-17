@@ -1579,7 +1579,14 @@ function legacyProductRedirect(req, res) {
   const model = productPages.findById(String(req.query.model || ''));
   if (!model) return false;
   const locale = req.path === '/en' ? 'en' : 'ru';
-  res.redirect(301, `/${locale}/${model.slug}`);
+  // Keep the chosen color when old shared catalog links redirect to product pages.
+  const stockModel = CATALOG_INITIAL_PRODUCTS.find(item => item.id === model.id);
+  const requested = typeof req.query.color === 'string' ? req.query.color : '';
+  const index = /^\\d+$/.test(requested) ? Number(requested) : -1;
+  const colorKey = (index >= 0 ? stockModel?.colors[index]?.key : '') ||
+    (stockModel?.colors.some(item => item.key === requested) ? requested : '');
+  const colorQuery = colorKey ? `?color=${encodeURIComponent(colorKey)}` : '';
+  res.redirect(301, `/${locale}/${model.slug}${colorQuery}`);
   return true;
 }
 
