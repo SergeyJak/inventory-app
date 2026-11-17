@@ -1172,7 +1172,7 @@ function initialProducts() {
 
 async function refreshCatalog() {
   try {
-    const res = await fetch('/api/public/products');
+    const res = await fetch('/api/public/products', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
@@ -1197,6 +1197,11 @@ function loadCatalog() {
   }
   refreshCatalog();
 }
+
+// Refresh live availability when a visitor returns to a tab kept in browser history.
+window.addEventListener('pageshow', event => {
+  if (event.persisted) refreshCatalog();
+});
 
 modelSwitcher.addEventListener('click', event => {
   const btn = event.target.closest('[data-model]');
