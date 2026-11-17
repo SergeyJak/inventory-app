@@ -161,6 +161,8 @@ async function run() {
       sellPrice: 140, lots: [{ qty: 2, buyPrice: 105, date: '2026-11-15' }] },
     { id: 'street-black', productType: 'Street', color: 'Чёрный',
       sellPrice: 180, lots: [{ qty: 2, buyPrice: 102, date: '2026-11-15' }] },
+    { id: 'mini-pro-blue', productType: 'Мини Про', color: 'Голубой',
+      sellPrice: 180, lots: [{ qty: 1, buyPrice: 125, date: '2026-11-17' }] },
   ];
   response = await request('/api/save', {
     method: 'POST', token: adminToken, body: { key: 'products', data: [...products, ...newStock] },
@@ -171,6 +173,8 @@ async function run() {
   assert.equal(publicData.products.find(p => p.id === 'mini3-violet')?.sellPrice, 140);
   assert.equal(publicData.products.find(p => p.id === 'street-black')?.sellPrice, 180);
   assert.equal(publicData.products.find(p => p.id === 'mini3-violet')?.inStock, true);
+  assert.equal(response.headers.get('cache-control'), 'no-store, max-age=0', 'stock API must never cache availability');
+  assert.equal(publicData.products.find(p => p.id === 'mini-pro-blue')?.sellPrice, 180);
 
   response = await request('/ru/yandex-station-mini-3?color=violet');
   assert.equal(response.status, 200, 'violet Mini 3 product page should render');
@@ -184,6 +188,20 @@ async function run() {
   const streetHtml = await response.text();
   assert.ok(streetHtml.includes('id="hero-image" src="/images/catalog/street/black/02.png"'));
   assert.match(streetHtml, /id="model-price">180 €/);
+
+  response = await request('/ru/yandex-station-mini-3-pro?color=blue');
+  assert.equal(response.status, 200, 'blue Mini Pro product page should render');
+  const blueMiniProHtml = await response.text();
+  assert.ok(blueMiniProHtml.includes('id="hero-image" src="/images/catalog/mini-pro/blue/01.webp"'));
+  assert.match(blueMiniProHtml, /id="model-price">180 €/);
+  assert.ok(blueMiniProHtml.toLowerCase().includes('голубой'));
+
+  response = await request('/?model=miniPro&color=1', {
+    headers: { 'x-forwarded-host': 'heysmart.lv' }, redirect: 'manual',
+  });
+  assert.equal(response.status, 301, 'legacy Mini Pro catalog link should redirect');
+  assert.equal(response.headers.get('location'), '/ru/yandex-station-mini-3-pro?color=blue',
+    'redirect must preserve the selected stocked blue color');
 
   response = await request('/api/save', {
     method: 'POST', token: adminToken, body: { key: 'products', data: products },

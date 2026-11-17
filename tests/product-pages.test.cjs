@@ -126,7 +126,7 @@ async function main() {
     const unknown = await request('/ru/yandex-station-nope');
     assert.strictEqual(unknown.res.status, 404); assert.match(unknown.text, /noindex/);
     const knownRedirect = await request('/en?model=mini3&color=0');
-    assert.strictEqual(knownRedirect.res.status, 301); assert.strictEqual(knownRedirect.res.headers.get('location'), '/en/yandex-station-mini-3');
+    assert.strictEqual(knownRedirect.res.status, 301); assert.strictEqual(knownRedirect.res.headers.get('location'), '/en/yandex-station-mini-3?color=gray');
     const unknownQuery = await request('/ru?model=midi');
     assert.strictEqual(unknownQuery.res.status, 200);
     const sitemap = await request('/sitemap.xml');
