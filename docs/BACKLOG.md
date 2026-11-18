@@ -29,6 +29,14 @@ Status: ongoing.
 * Improve report copy/localization if the page should be customer-facing.
 * Review Chart.js CDN dependency if stricter CSP or offline operation is needed.
 
+
+### HeySmart Latvia classifieds distribution
+
+* Publish truthful one-product listings for stocked Lite 2, Mini 3 and Mini 3 Pro on the most relevant Latvian marketplaces, beginning with SS.LV and MM.LV.
+* Use the checked channel rules and ready RU/EN copy in [the 18 November 2026 outreach kit](./SEO_EXTERNAL_2026-11-18.md); no listing is live until its actual URL has been verified.
+* Track real visits and buyer contacts by channel; do not confuse classifieds traffic with earned SEO backlinks.
+* Avoid inventing company registration, physical storefront or Google Business Profile eligibility. Confirm current prices, stock, exact colour and real product photos before publication.
+
 ## Future Ideas
 
 ### Export
