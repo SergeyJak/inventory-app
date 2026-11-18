@@ -77,7 +77,7 @@ async function main() {
     assert.strictEqual(russianCatalog.res.status, 200, 'Russian catalog returns 200');
     assert.match(russianCatalog.text, /<html lang="ru">/, 'Russian catalog has a Russian document language');
     assert.match(russianCatalog.text, /<title>Купить колонку Алиса в Риге и Латвии \| HeySmart<\/title>/, 'Russian catalog has a Russian title');
-    assert.match(russianCatalog.text, /<h1[^>]*>Яндекс Станции с Алисой в Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
+    assert.match(russianCatalog.text, /<h1[^>]*>Купить колонку Алиса в Риге и Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
     assert.match(russianCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog self-canonicalizes');
     assert.match(russianCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes RU hreflang');
     assert.match(russianCatalog.text, /hreflang="en" href="https:\/\/heysmart\.lv\/en"/, 'Russian catalog exposes EN hreflang');
@@ -94,8 +94,8 @@ async function main() {
     const englishCatalog = await request('/en', catalogRequest);
     assert.strictEqual(englishCatalog.res.status, 200, 'English catalog returns 200');
     assert.match(englishCatalog.text, /<html lang="en">/, 'English catalog has an English document language');
-    assert.match(englishCatalog.text, /<title>Smart speakers with Alice in Riga and Latvia \| HeySmart<\/title>/, 'English catalog has an English title');
-    assert.match(englishCatalog.text, /<h1[^>]*>Smart speakers with Alice in Riga and Latvia<\/h1>/, 'English catalog has an English SSR H1');
+    assert.match(englishCatalog.text, /<title>Buy Yandex smart speakers with Alice in Riga, Latvia \| HeySmart<\/title>/, 'English catalog has an English title');
+    assert.match(englishCatalog.text, /<h1[^>]*>Buy Yandex smart speakers with Alice in Riga and Latvia<\/h1>/, 'English catalog has an English SSR H1');
     assert.match(englishCatalog.text, /Buying in Riga/, 'English catalog SSR includes English commercial copy');
     assert.match(englishCatalog.text, /Station Lite 2/, 'English catalog SSR includes English product content');
     assert.match(englishCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/en"/, 'English catalog self-canonicalizes');
@@ -165,9 +165,9 @@ async function main() {
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/rabotaet-li-alisa-v-latvii/, 'sitemap includes published KB article');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru<\/loc>/, 'sitemap includes the Russian catalog URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/en<\/loc>/, 'sitemap includes the English catalog URL');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/, 'root catalog lastmod matches the verified SSR content update');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/, 'Russian catalog lastmod matches the verified SSR content update');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/en<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/, 'English catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/, 'root catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/, 'Russian catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/en<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/, 'English catalog lastmod matches the verified SSR content update');
     assert.doesNotMatch(sitemap.text, /https:\/\/heysmart\.lv\/lv(?:<|\/)/, 'sitemap does not include a Latvian commercial URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/category\/gid-pokupatelya/, 'sitemap includes KB category');
     assert.doesNotMatch(sitemap.text, /unpublished-kb-test/, 'sitemap excludes unpublished article');

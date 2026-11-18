@@ -644,14 +644,14 @@ const CATALOG_SSR_TEXT = {
   ru: {
     meta: {
       title: 'Купить колонку Алиса в Риге и Латвии | HeySmart',
-      description: 'Купить Яндекс Станцию с Алисой в Риге: Лайт 2, Мини 3, Мини 3 Про и Стрит. Цены и цвета, самовывоз по договорённости, доставка по Латвии и помощь с настройкой.',
+      description: 'Выберите Яндекс Станцию с Алисой в Риге: Лайт 2, Мини 3 или Мини 3 Про. Проверьте цены и цвета, договоритесь о передаче или доставке по Латвии.',
     },
     nav: { lang: 'Язык', help: 'База знаний' },
   },
   en: {
     meta: {
-      title: 'Smart speakers with Alice in Riga and Latvia | HeySmart',
-      description: 'Smart speakers with Alice available in Riga. Pickup by prior arrangement, help with choosing and setup. Courier delivery across Latvia.',
+      title: 'Buy Yandex smart speakers with Alice in Riga, Latvia | HeySmart',
+      description: 'Compare Yandex Station Lite 2, Mini 3 and Mini 3 Pro in Riga, Latvia. Check prices and colours, arrange pickup or delivery, and get setup help.',
     },
     nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language' },
     common: { selectedModel: 'Selected model', aboutModel: 'About the model', moreAboutModel: 'More about this model', contact: 'Contact' },
@@ -1129,13 +1129,11 @@ function catalogPageOptions(req) {
   const forcedLocale = req.path === '/ru' ? 'ru' : req.path === '/en' ? 'en' : '';
   const locale = forcedLocale || 'ru';
   const canonicalUrl = forcedLocale ? `https://heysmart.lv/${forcedLocale}` : 'https://heysmart.lv/';
-  const hreflang = forcedLocale
-    ? [
-      '<link rel="alternate" hreflang="ru" href="https://heysmart.lv/ru">',
-      '<link rel="alternate" hreflang="en" href="https://heysmart.lv/en">',
-      '<link rel="alternate" hreflang="x-default" href="https://heysmart.lv/">',
-    ].join('\n  ')
-    : '';
+  const hreflang = [
+    '<link rel="alternate" hreflang="ru" href="https://heysmart.lv/ru">',
+    '<link rel="alternate" hreflang="en" href="https://heysmart.lv/en">',
+    '<link rel="alternate" hreflang="x-default" href="https://heysmart.lv/">',
+  ].join('\n  ');
   return {
     canonicalUrl,
     forcedLocale,
@@ -1248,7 +1246,7 @@ function renderCatalogSsrLocale(template, page, initial, products = null) {
   const colorNames = { ru: { blue: 'синий', gray: 'серый', green: 'зелёный', black: 'чёрный', white: 'белый', pink: 'розовый', coral: 'коралловый', violet: 'фиолетовый', red: 'красный', graphite: 'графитовый', beige: 'бежевый' }, en: { blue: 'blue', gray: 'gray', green: 'green', black: 'black', white: 'white', pink: 'pink', coral: 'coral', violet: 'violet', red: 'red', graphite: 'graphite', beige: 'beige' } };
   const colorKey = initial?.color?.key;
   const initialColor = colorKey ? (text(`colors.${colorKey}`) || initial?.color?.label || colorNames[locale]?.[colorKey] || colorKey) : '';
-  const heading = locale === 'en' ? 'Smart speakers with Alice in Riga and Latvia' : 'Яндекс Станции с Алисой в Латвии';
+  const heading = locale === 'en' ? 'Buy Yandex smart speakers with Alice in Riga and Latvia' : 'Купить колонку Алиса в Риге и Латвии';
   const helpLink = locale === 'ru'
     ? `<a class="help-link" id="help-link" href="/ru/help">${escapeHtml(text('nav.help'))}</a>`
     : '';

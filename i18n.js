@@ -2,7 +2,7 @@ window.catalogTranslations = {
   ru: {
     meta: {
       title: 'Купить колонку Алиса в Риге и Латвии | HeySmart',
-      description: 'Умные колонки с Алисой в наличии в Риге. Самовывоз по предварительной договорённости, помощь с выбором и настройкой. Курьерская доставка по Латвии.',
+      description: 'Выберите Яндекс Станцию с Алисой в Риге: Лайт 2, Мини 3 или Мини 3 Про. Проверьте цены и цвета, договоритесь о передаче или доставке по Латвии.',
     },
     nav: { brand: 'Умная колонка', consultation: 'Консультация', lang: 'Язык', help: 'База знаний' },
     state: {
@@ -424,8 +424,8 @@ window.catalogTranslations = {
   },
   en: {
     meta: {
-      title: 'Smart speakers with Alice in Riga and Latvia | HeySmart',
-      description: 'Smart speakers with Alice available in Riga. Pickup by prior arrangement, help with choosing and setup. Courier delivery across Latvia.',
+      title: 'Buy Yandex smart speakers with Alice in Riga, Latvia | HeySmart',
+      description: 'Compare Yandex Station Lite 2, Mini 3 and Mini 3 Pro in Riga, Latvia. Check prices and colours, arrange pickup or delivery, and get setup help.',
     },
     nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language', help: 'Knowledge Base' },
     state: { loading: 'Loading models...', empty: 'No available models with photos right now.', error: 'Could not load models. Please refresh the page.' },
