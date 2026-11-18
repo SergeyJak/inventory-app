@@ -1200,10 +1200,11 @@ function productSeoContent(page) {
     ? (pro ? 'Compare with Mini 3' : 'Compare with Mini 3 Pro')
     : (pro ? 'Сравнить с Мини 3' : 'Сравнить с Мини 3 Про');
   const otherUrl = pro ? miniUrl : proUrl;
+  const guideLink = en ? '' : '<p><a href="/ru/help/mini-3-ili-mini-3-pro-chto-vybrat">Мини 3 или Мини 3 Про: подробное сравнение для покупки в Латвии</a></p>';
   return '<section class="product-seo-details" aria-label="'+escapeHtml(heading)+'">'+
     '<h2>'+escapeHtml(heading)+'</h2><p>'+escapeHtml(introduction)+'</p><ul>'+
     bullets.map(item => '<li>'+escapeHtml(item)+'</li>').join('')+
-    '</ul><p><a href="'+otherUrl+'">'+escapeHtml(compare)+'</a></p></section>';
+    '</ul><p><a href="'+otherUrl+'">'+escapeHtml(compare)+'</a></p>'+guideLink+'</section>';
 }
 
 function quickOfferHtml(modelId, products, locale) {
