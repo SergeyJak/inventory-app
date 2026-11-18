@@ -77,7 +77,7 @@ async function main() {
     assert.strictEqual(russianCatalog.res.status, 200, 'Russian catalog returns 200');
     assert.match(russianCatalog.text, /<html lang="ru">/, 'Russian catalog has a Russian document language');
     assert.match(russianCatalog.text, /<title>Купить колонку Алиса в Риге и Латвии \| HeySmart<\/title>/, 'Russian catalog has a Russian title');
-    assert.match(russianCatalog.text, /<h1[^>]*>Яндекс Станции с Алисой в Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
+    assert.match(russianCatalog.text, /<h1[^>]*>Купить колонку Алиса в Риге и Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
     assert.match(russianCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog self-canonicalizes');
     assert.match(russianCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes RU hreflang');
     assert.match(russianCatalog.text, /hreflang="en" href="https:\/\/heysmart\.lv\/en"/, 'Russian catalog exposes EN hreflang');
@@ -94,8 +94,8 @@ async function main() {
     const englishCatalog = await request('/en', catalogRequest);
     assert.strictEqual(englishCatalog.res.status, 200, 'English catalog returns 200');
     assert.match(englishCatalog.text, /<html lang="en">/, 'English catalog has an English document language');
-    assert.match(englishCatalog.text, /<title>Smart speakers with Alice in Riga and Latvia \| HeySmart<\/title>/, 'English catalog has an English title');
-    assert.match(englishCatalog.text, /<h1[^>]*>Smart speakers with Alice in Riga and Latvia<\/h1>/, 'English catalog has an English SSR H1');
+    assert.match(englishCatalog.text, /<title>Buy Yandex smart speakers with Alice in Riga, Latvia \| HeySmart<\/title>/, 'English catalog has an English title');
+    assert.match(englishCatalog.text, /<h1[^>]*>Buy Yandex smart speakers with Alice in Riga and Latvia<\/h1>/, 'English catalog has an English SSR H1');
     assert.match(englishCatalog.text, /Buying in Riga/, 'English catalog SSR includes English commercial copy');
     assert.match(englishCatalog.text, /Station Lite 2/, 'English catalog SSR includes English product content');
     assert.match(englishCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/en"/, 'English catalog self-canonicalizes');
