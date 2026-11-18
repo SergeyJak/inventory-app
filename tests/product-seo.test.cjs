@@ -84,6 +84,26 @@ assert.equal(blueMiniPro.initial.price, 180);
 assert.ok(blueMiniPro.initial.color.image.endsWith('/mini-pro/blue/01.webp'));
 assert.equal(blueMiniPro.structuredData.offers.price, '180');
 
+
+// Commercial search snippets must reflect verified in-stock prices, never stale sold-out values.
+const miniSnippet = pages.pageOptions(pages.findById('mini3'), 'ru', [
+  { id: 'current-mini3', productType: 'Мини 3', color: 'Серый', sellPrice: 150, inStock: true },
+  { id: 'old-mini3', productType: 'Мини 3', color: 'Чёрный', sellPrice: 70, inStock: false },
+]);
+assert.match(miniSnippet.copy.description, /от 150 €/);
+assert.doesNotMatch(miniSnippet.copy.description, /70 €/);
+assert.match(miniSnippet.copy.title, /Алиса Мини 3.*Яндекс Станция/);
+const proSnippet = pages.pageOptions(pages.findById('miniPro'), 'en', [
+  { id: 'current-pro', productType: 'Мини 3 Про', color: 'Голубой', sellPrice: 180, inStock: true },
+]);
+assert.match(proSnippet.copy.description, /from €180/);
+assert.match(proSnippet.copy.description, /Zigbee, Matter/);
+const unavailableSnippet = pages.pageOptions(pages.findById('miniPro'), 'ru', [
+  { id: 'sold-pro', productType: 'Мини 3 Про', color: 'Серый', sellPrice: 100, inStock: false },
+]);
+assert.match(unavailableSnippet.copy.description, /уточните цену и наличие/);
+assert.doesNotMatch(unavailableSnippet.copy.description, /100 €/);
+
 console.log('Product SEO structured data checks passed');
 
 // Comparison snippet stays targeted to model differences and purchasing in Latvia.
