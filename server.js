@@ -1153,6 +1153,38 @@ function catalogLanguageSwitcher(locale, slug = '') {
   ).join('') + '<button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV</button>';
 }
 
+function modelPurchaseQuestions(page) {
+  const modelId = page.model?.id;
+  if (!['light2', 'mini3', 'miniPro'].includes(modelId)) return '';
+  const en = page.locale === 'en';
+  const modelName = page.copy.name;
+  const tips = {
+    light2: {
+      ru: ['Подойдёт ли Станция Лайт 2 для детской?', 'Компактная Лайт 2 с часами и голосовым управлением подойдёт для таймеров, будильников и домашних задач. Доступность музыки и отдельных сервисов зависит от региона и аккаунта.'],
+      en: ['Is Station Lite 2 suitable for a child’s room?', 'Its compact design, clock display, timers and alarms work well in a child’s room. Music and some services depend on the account and region.'],
+    },
+    mini3: {
+      ru: ['Кому лучше купить Мини 3?', 'Мини 3 подойдёт, если нужны Алиса, музыка, таймеры и компактная колонка с 12 Вт звука. Если планируете подключать устройства через Zigbee или Matter, рассмотрите Мини 3 Про.'],
+      en: ['Who should choose Mini 3?', 'Mini 3 is a compact 12 W choice for Alice, music, timers and everyday use. For a smart home using Zigbee or Matter, compare it with Mini 3 Pro.'],
+    },
+    miniPro: {
+      ru: ['Когда стоит выбирать Мини 3 Про?', 'Версия Про предлагает 18 Вт звука и поддержку Zigbee и Matter для совместимых устройств. Внешний аккумулятор и климатический модуль не входят в стандартный комплект.'],
+      en: ['When is Mini 3 Pro worth choosing?', 'Mini 3 Pro adds 18 W sound plus Zigbee and Matter for compatible smart-home devices. The external battery and climate modules are optional extras, not included.'],
+    },
+  };
+  const [question, answer] = tips[modelId][page.locale];
+  const orderName = en ? modelName : modelName.replace('Яндекс Станция', 'Яндекс Станцию');
+  const orderQuestion = en ? `How can I buy ${orderName} in Riga?` : `Как купить ${orderName} в Риге?`;
+  const orderAnswer = en
+    ? 'Check the current price and colours on this page, then use Contact to arrange pickup in Riga or ask about delivery across Latvia. Confirm stock before travelling.'
+    : 'Проверьте актуальную цену и цвета на странице, затем нажмите «Связаться», чтобы договориться о передаче в Риге или уточнить доставку по Латвии. Наличие лучше подтвердить перед встречей.';
+  const help = en ? '' : '<p><a href="/ru/help/rabotaet-li-alisa-v-latvii">Подробнее: работает ли Алиса в Латвии?</a></p>';
+  return '<div class="product-buying-questions">'+
+    '<h3>'+escapeHtml(question)+'</h3><p>'+escapeHtml(answer)+'</p>'+
+    '<h3>'+escapeHtml(orderQuestion)+'</h3><p>'+escapeHtml(orderAnswer)+'</p>'+
+    help+'</div>';
+}
+
 function productSeoContent(page) {
   if (page.model?.id === 'light2') {
     const en = page.locale === 'en';
@@ -1167,7 +1199,7 @@ function productSeoContent(page) {
     return '<section class="product-seo-details" aria-label="'+escapeHtml(heading)+'">'+
       '<h2>'+escapeHtml(heading)+'</h2><p>'+escapeHtml(introduction)+'</p><ul>'+
       bullets.map(item => '<li>'+escapeHtml(item)+'</li>').join('')+
-      '</ul><p><a href="/'+page.locale+'/yandex-station-mini-3">'+escapeHtml(compare)+'</a></p></section>';
+      '</ul><p><a href="/'+page.locale+'/yandex-station-mini-3">'+escapeHtml(compare)+'</a></p>'+modelPurchaseQuestions(page)+'</section>';
   }
   if (page.model?.id === 'street') {
     const en = page.locale === 'en';
@@ -1204,7 +1236,7 @@ function productSeoContent(page) {
   return '<section class="product-seo-details" aria-label="'+escapeHtml(heading)+'">'+
     '<h2>'+escapeHtml(heading)+'</h2><p>'+escapeHtml(introduction)+'</p><ul>'+
     bullets.map(item => '<li>'+escapeHtml(item)+'</li>').join('')+
-    '</ul><p><a href="'+otherUrl+'">'+escapeHtml(compare)+'</a></p>'+guideLink+'</section>';
+    '</ul><p><a href="'+otherUrl+'">'+escapeHtml(compare)+'</a></p>'+guideLink+modelPurchaseQuestions(page)+'</section>';
 }
 
 function quickOfferHtml(modelId, products, locale) {
