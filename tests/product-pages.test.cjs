@@ -67,6 +67,17 @@ async function main() {
       }
       assert.ok(text.includes(`<h1 class="sr-only">${copy.name}</h1>`));
       assert.ok(text.includes(`<h2 id="model-title">${copy.name}</h2>`));
+
+      if (['light2', 'mini3', 'miniPro'].includes(model.id)) {
+        const showroomEnd = text.indexOf('</section>', text.indexOf('<nav class="color-gallery"'));
+        const guideStart = text.indexOf('<section class="product-seo-details"');
+        assert.ok(guideStart > showroomEnd, 'buyer guidance follows interactive showroom');
+        assert.match(text, /class="product-buying-questions"/, 'localized buying advice is server-rendered');
+        assert.ok(text.includes(locale === 'ru' ? 'Как купить Яндекс Станцию' : 'How can I buy Yandex Station'));
+        assert.ok(text.includes(locale === 'ru' ? 'Наличие лучше подтвердить перед встречей' : 'Confirm stock before travelling'));
+        if (locale === 'ru') assert.ok(text.includes('href="/ru/help/rabotaet-li-alisa-v-latvii"'));
+      }
+
       assert.doesNotMatch(text, /__CATALOG_PRODUCT_SEO_CONTENT__/);
       if (['light2', 'mini3', 'miniPro', 'street'].includes(model.id)) {
         assert.match(text, /class="product-seo-details"/);
@@ -141,6 +152,8 @@ async function main() {
     const sitemap = await request('/sitemap.xml');
     assert.match(sitemap.text, /yandex-station-street/); assert.doesNotMatch(sitemap.text, /\?model=/);
     const catalog = await request('/ru');
+    assert.doesNotMatch(catalog.text, /class="product-buying-questions"/);
+    assert.match(fs.readFileSync(path.join(__dirname, '..', 'catalog.css'), 'utf8'), /\.product-seo-details\s*\{/);
     assert.match(catalog.text, /<h3><a href="\/ru\/yandex-station-lite-2">Яндекс Станция Лайт 2<\/a><\/h3>/); assert.doesNotMatch(catalog.text, /catalog-product-links|"@type":"Product"/);
     assert.match(catalog.text, /catalog\.js\?v=[0-9]{8}-[a-z0-9-]+/, 'catalog serves the updated JavaScript asset URL');
     assert.match(catalog.text, /<img class="quick-product"[^>]*alt="Яндекс Станция Мини 3 Про, умная колонка с Алисой"/);
