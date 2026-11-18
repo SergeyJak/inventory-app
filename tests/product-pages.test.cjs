@@ -55,7 +55,16 @@ async function main() {
       const canonical = `https://heysmart.lv/${locale}/${slug}`;
       for (const lang of ['ru', 'en']) assert.ok(text.includes(`hreflang="${lang}" href="https://heysmart.lv/${lang}/${slug}"`));
       assert.ok(text.includes(`<title>${copy.title}</title>`));
-      assert.ok(text.includes(`name="description" content="${copy.description}"`));
+      if (['mini3', 'miniPro'].includes(model.id)) {
+        const priced = model.id === 'mini3' ? 140 : 170;
+        const snippetPrice = locale === 'ru' ? `от ${priced} €` : `from €${priced}`;
+        assert.ok(text.includes(snippetPrice), 'live commercial description includes minimum in-stock price');
+        if (locale === 'ru') {
+          assert.ok(text.includes('href="/ru/help/mini-3-ili-mini-3-pro-chto-vybrat"'), 'Mini pages link to the comparison guide');
+        }
+      } else {
+        assert.ok(text.includes(`name="description" content="${copy.description}"`));
+      }
       assert.ok(text.includes(`<h1 class="sr-only">${copy.name}</h1>`));
       assert.ok(text.includes(`<h2 id="model-title">${copy.name}</h2>`));
       assert.doesNotMatch(text, /__CATALOG_PRODUCT_SEO_CONTENT__/);
@@ -165,8 +174,8 @@ async function main() {
     const liteRu = await request('/ru/yandex-station-lite-2');
     for (const [locale, slug] of routes) assert.ok(sitemap.text.includes(`<loc>https://heysmart.lv/${locale}/${slug}</loc>`));
     assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-lite-2<\/loc>\s*<lastmod>2026-10-27<\/lastmod>/);
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3-pro<\/loc>\s*<lastmod>2026-10-17<\/lastmod>/);
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/);
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru\/yandex-station-mini-3-pro<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/);
     for (const locale of ['ru', 'en']) {
       assert.ok(sitemap.text.includes('<loc>https://heysmart.lv/' + locale + '/yandex-station-street</loc>\n    <lastmod>2026-11-11</lastmod>'), 'Street sitemap lastmod tracks the new SSR content');
     }
