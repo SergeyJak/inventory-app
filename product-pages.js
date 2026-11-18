@@ -18,14 +18,14 @@ function modelProducts(model, products) {
     return model.aliases.some(alias => text.includes(normalize(alias)));
   });
 }
-function colorKey(model, product) {
+function colorKey(model, product, fallback = Object.keys(model.images)[0]) {
   const text = normalize([product.color, product.label].join(' '));
   const aliases = {
     gray: ['сер', 'grey'], black: ['черн', 'графит', 'graphite'], violet: ['фиолет', 'лилов', 'purple', 'lilac'],
     green: ['зелен', 'олив'], blue: ['голуб', 'син'], pink: ['розов'], coral: ['корал'],
     graphite: ['черн', 'графит', 'black'],
   };
-  return Object.keys(model.images).find(key => [key, ...aliases[key]].some(alias => text.includes(alias))) || Object.keys(model.images)[0];
+  return Object.keys(model.images).find(key => [key, ...aliases[key]].some(alias => text.includes(alias))) || fallback;
 }
 function absolute(asset) { return `${ORIGIN}/${asset}`; }
 function build(model, products) { const matched = modelProducts(model, products); const stock = matched.filter(product => product.inStock).map(product => ({ ...product, colorKey: colorKey(model, product) })); const gallery = stock.flatMap(product => (model.images[product.colorKey] || []).map(image => ({ image, colorKey: product.colorKey }))); return { stock, prices: stock.map(product => Number(product.sellPrice) || 0).filter(price => price > 0), allPrices: matched.map(product => Number(product.sellPrice) || 0).filter(price => price > 0), gallery: gallery.length ? gallery : Object.entries(model.images).slice(0, 1).flatMap(([colorKey, images]) => images.map(image => ({ image, colorKey }))), images: [...new Set(gallery.map(item => item.image))] }; }
@@ -75,15 +75,19 @@ function commercialDescription(model, locale, data) {
   const pro = model.id === 'miniPro';
   const prices = data.prices;
   const lowestPrice = prices.length ? Math.min(...prices) : null;
+  const stockColours = data.stock.map(item => colorKey(model, item, '')).filter(Boolean);
+  const hasColourChoice = new Set(stockColours).size > 1;
   if (locale === 'en') {
     const name = pro ? 'Yandex Station Mini 3 Pro' : 'Yandex Station Mini 3';
-    const details = pro ? 'Zigbee, Matter and available colours.' : 'Available colours and compact design.';
+    const features = pro ? 'Supports Zigbee and Matter.' : 'Compact design.';
+    const details = hasColourChoice ? `${features} Choice of colours.` : features;
     return lowestPrice === null
       ? `${name} with Alice in Riga, Latvia. Ask about current price and availability. ${details} Pickup by arrangement and delivery across Latvia.`
       : `${name} with Alice in Riga from €${lowestPrice}. ${details} Ask about pickup or delivery across Latvia.`;
   }
   const name = pro ? 'Яндекс Станция Мини 3 Про' : 'Яндекс Станция Мини 3';
-  const details = pro ? 'Zigbee, Matter и доступные цвета.' : 'Цвета на выбор и компактный формат.';
+  const features = pro ? 'Zigbee и Matter.' : 'Компактный формат.';
+  const details = hasColourChoice ? `${features} Цвета на выбор.` : features;
   return lowestPrice === null
     ? `${name} с Алисой в Риге: уточните цену и наличие. ${details} Самовывоз по договорённости и доставка по Латвии.`
     : `${name} с Алисой в Риге от ${lowestPrice} €. ${details} Самовывоз по договорённости и доставка по Латвии.`;

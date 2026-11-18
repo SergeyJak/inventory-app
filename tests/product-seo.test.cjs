@@ -97,12 +97,23 @@ const proSnippet = pages.pageOptions(pages.findById('miniPro'), 'en', [
   { id: 'current-pro', productType: 'Мини 3 Про', color: 'Голубой', sellPrice: 180, inStock: true },
 ]);
 assert.match(proSnippet.copy.description, /from €180/);
-assert.match(proSnippet.copy.description, /Zigbee, Matter/);
-const unavailableSnippet = pages.pageOptions(pages.findById('miniPro'), 'ru', [
-  { id: 'sold-pro', productType: 'Мини 3 Про', color: 'Серый', sellPrice: 100, inStock: false },
-]);
-assert.match(unavailableSnippet.copy.description, /уточните цену и наличие/);
-assert.doesNotMatch(unavailableSnippet.copy.description, /100 €/);
+assert.match(proSnippet.copy.description, /Zigbee and Matter/);
+for (const [modelId, type] of [['mini3', 'Мини 3'], ['miniPro', 'Мини 3 Про']]) {
+  const gray = { ...product('gray', type, 150, true), color: 'Серый' };
+  const other = { ...product('other', type, 100, true), color: modelId === 'mini3' ? 'Фиолетовый' : 'Голубой' };
+  for (const locale of ['ru', 'en']) {
+    const description = products => pages.pageOptions(pages.findById(modelId), locale, products).copy.description;
+    const sold = { ...other, inStock: false };
+    const unavailable = description([sold]);
+    assert.match(unavailable, locale === 'ru' ? /уточните цену и наличие/ : /Ask about current price and availability/);
+    const colours = /цвет|colou?r/i;
+    assert.doesNotMatch(unavailable, colours);
+    assert.doesNotMatch(unavailable, /€/);
+    assert.doesNotMatch(description([gray, { ...gray, id: 'second-gray' }, sold]), colours);
+    assert.doesNotMatch(description([other, { ...gray, color: '' }]), colours);
+    assert.match(description([gray, other]), colours);
+  }
+}
 
 console.log('Product SEO structured data checks passed');
 
