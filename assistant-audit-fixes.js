@@ -50,6 +50,73 @@
     return { type: 'language_uncertain', intent: 'faq_question', locale: detectInputLocale(input), text, actions: [], faq: { matched: true, confidence: 1, faq: null, answer: text } };
   }
 
+
+  function auditedAnswer(input, type, text) {
+    return { type, intent: 'faq_question', locale: detectInputLocale(input), text, actions: [],
+      faq: { matched: true, confidence: 1, faq: null, answer: text } };
+  }
+
+  // Facts from Yandex docs: Street has a built-in 12h battery; Mini 3 Pro
+  // can use a separate, optional 7h battery. Do not promise accessory stock.
+  function powerGuidanceResponse(input, context) {
+    const raw = String(input || '');
+    if (!/(заряж|заряд|аккумулятор|акумулятор|батаре|розетк|battery|charg|power pack|uzl[aā]d|akumulator|baterij)/i.test(raw)) return null;
+    if (/(прода|купить|заказ|налич|sell|buy|purchase|stock|order|p[aā]rdod|pirkt)/i.test(raw)) return null;
+    const n = normalize(input);
+    const model = /стрит|street/.test(n) ? 'street'
+      : /мини\s*(?:3\s*)?(?:про|pro)|mini\s*(?:3\s*)?pro/.test(n) ? 'miniPro'
+      : /мини\s*3|mini\s*3|лайт\s*2|light\s*2|lite\s*2|миди|midi/.test(n) ? 'stationary'
+      : context?.lastModelId || 'unknown';
+    const lasting = /(сколько|хватит|держит|долго|время работы|на сколько|how long|battery life|last|cik ilgi|cik stund)/i.test(n);
+    const messages = {
+      ru: {
+        street: lasting ? 'У Станции Стрит встроенный аккумулятор: до 12 часов музыки. Время зависит от громкости.' : 'Станция Стрит заряжается через USB-C. Полная зарядка занимает около 2,5 часа.',
+        miniPro: lasting ? 'Мини 3 Про без аккумулятора работает от розетки. С отдельно приобретаемым фирменным аккумулятором она играет до 7 часов на средней громкости.' : 'Мини 3 Про работает от розетки. Дополнительный фирменный аккумулятор приобретается отдельно и заряжается через USB-C примерно за 2 часа.',
+        stationary: 'Эта Станция работает от розетки и не имеет встроенного аккумулятора. Заряжать её не нужно, используйте штатный блок питания.',
+        unknown: lasting ? 'Стрит работает до 12 часов от встроенного аккумулятора; Мини 3 Про с отдельным аккумулятором — до 7 часов. Лайт 2, Мини 3 и Миди работают от сети. Какая модель вас интересует?' : 'Стрит заряжается через USB-C; у Мини 3 Про есть отдельный аккумулятор. Лайт 2, Мини 3 и Миди работают от сети и не требуют зарядки. Какая у вас модель?',
+      },
+      en: {
+        street: lasting ? 'Station Street has a built-in battery for up to 12 hours of music, depending on volume.' : 'Charge Station Street via USB-C. A full charge takes about 2.5 hours.',
+        miniPro: lasting ? 'Mini 3 Pro normally uses mains power. With its separately purchased official battery it can play music for up to 7 hours at medium volume.' : 'Mini 3 Pro uses mains power. Its optional official battery is sold separately and charges via USB-C in about 2 hours.',
+        stationary: 'This Station needs mains power and has no built-in rechargeable battery. Keep it connected to its power adapter.',
+        unknown: lasting ? 'Street lasts up to 12 hours on its built-in battery; Mini 3 Pro up to 7 hours with a separate battery. Lite 2, Mini 3 and Midi use mains power. Which model?' : 'Street charges via USB-C; Mini 3 Pro has an optional separate battery. Lite 2, Mini 3 and Midi require mains power. Which model do you have?',
+      },
+      lv: {
+        street: lasting ? 'Station Street iebūvētais akumulators darbojas līdz 12 stundām, atkarībā no skaļuma.' : 'Station Street uzlādē ar USB-C; pilna uzlāde aizņem aptuveni 2,5 stundas.',
+        miniPro: lasting ? 'Mini 3 Pro parasti darbojas no elektrotīkla. Ar atsevišķi nopērkamu oriģinālo akumulatoru tā darbojas līdz 7 stundām.' : 'Mini 3 Pro darbojas no elektrotīkla. Papildu akumulatoru pārdod atsevišķi, un tas uzlādējas ar USB-C aptuveni 2 stundās.',
+        stationary: 'Šī Station darbojas no elektrotīkla, un tai nav iebūvēta akumulatora. Pievienojiet barošanas bloku.',
+        unknown: lasting ? 'Street akumulators darbojas līdz 12 stundām; Mini 3 Pro ar atsevišķu akumulatoru — līdz 7 stundām. Lite 2, Mini 3 un Midi darbojas no elektrotīkla. Kurš modelis?' : 'Street uzlādē ar USB-C, Mini 3 Pro ir atsevišķs akumulators. Lite 2, Mini 3 un Midi darbojas no elektrotīkla. Kurš modelis?',
+      },
+    };
+    const key = model === 'light2' || model === 'mini3' || model === 'midi' ? 'stationary' : model;
+    return auditedAnswer(input, 'power_guidance', messages[detectInputLocale(input)][messages.ru[key] ? key : 'unknown']);
+  }
+
+  function vpnGuidanceResponse(input, options) {
+    if (!/(?:\bvpn\b|впн|вэпээн)/i.test(input)) return null;
+    const text = {
+      ru: 'Для первичной настройки в Латвии иногда нужен VPN с российским IP-адресом. Проверьте доступность сервера в России: она меняется. Можем помочь подобрать и настроить подключение через WhatsApp или Telegram.',
+      en: 'Initial setup in Latvia may require a VPN with a Russian IP address. Check that the provider has a working Russian server, as availability changes. We can help via WhatsApp or Telegram.',
+      lv: 'Sākotnējai iestatīšanai Latvijā dažkārt vajadzīgs VPN ar Krievijas IP adresi. Serveru pieejamība mainās. Varam palīdzēt WhatsApp vai Telegram.',
+    }[detectInputLocale(input)];
+    const methods = (typeof options.contactMethods === 'function' ? options.contactMethods() : [])
+      .filter(item => item?.id === 'whatsapp' || item?.id === 'telegram');
+    const response = auditedAnswer(input, 'vpn_setup', text);
+    response.actions = methods.map(item => ({ id: 'contact', channel: item.id, label: item.label }));
+    return response;
+  }
+
+  function greetingResponse(input) {
+    const n = normalize(input);
+    if (!/^(?:(?:сережа|сергей)\s+)?(?:привет|здравствуйте|добрый день|добрый вечер|hello|hi|hey)(?:\s+(?:сережа|сергей))?$/.test(n)) return null;
+    const text = {
+      ru: 'Здравствуйте! Помогу выбрать колонку, объяснить настройку или уточнить доставку. Что вас интересует?',
+      en: 'Hello! I can help with choosing a speaker, setup or delivery. What would you like to know?',
+      lv: 'Sveiki! Varu palīdzēt izvēlēties skaļruni, iestatīt to vai uzzināt par piegādi. Kā varu palīdzēt?',
+    }[detectInputLocale(input)];
+    return auditedAnswer(input, 'greeting', text);
+  }
+
   function wifiCapabilitiesResponse(input) {
     const raw = String(input || '');
     const wifi = /(?:wi[\s-]?fi|вай\s?фай|вайфай|wifi|вай\s?фай)/i.test(raw);
@@ -345,6 +412,12 @@
           if (battery) return battery;
           const directHandoff = handoffResponse(input, localizedOptions);
           if (directHandoff) return directHandoff;
+          const greeting = greetingResponse(input);
+          if (greeting) return greeting;
+          const power = powerGuidanceResponse(input, engine.snapshot?.());
+          if (power) return power;
+          const vpn = vpnGuidanceResponse(input, localizedOptions);
+          if (vpn) return vpn;
           const wifi = wifiCapabilitiesResponse(input);
           if (wifi) return wifi;
           const language = unsupportedLanguageResponse(input);
@@ -364,5 +437,5 @@
   }
 
   if (root?.AssistantEngine) install();
-  return { install, detectInputLocale, wifiCapabilitiesResponse, unsupportedLanguageResponse, batteryAvailabilityResponse, ambiguousProResponse, twoMiniProQuantityResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
+  return { install, detectInputLocale, greetingResponse, powerGuidanceResponse, vpnGuidanceResponse, wifiCapabilitiesResponse, unsupportedLanguageResponse, batteryAvailabilityResponse, ambiguousProResponse, twoMiniProQuantityResponse, internationalShippingResponse, handoffResponse, directComparisonResponse, recommendationText, normalizeAnalytics, installContactNavigation };
 });

@@ -58,6 +58,11 @@ const options = {
 // Exact historical question strings and expected route (including duplicates).
 // Two responses intentionally remain unconfirmed rather than fabricate stock/intent.
 const historical = [
+  ['Какой впн?', 'vpn_setup', true],
+  ['Сколько держит батарея', 'power_guidance', true],
+  ['Как заряжать Алису?', 'power_guidance', true],
+  ['Нужно ли заряжать Алису', 'power_guidance', true],
+  ['Серёжа привет', 'greeting', true],
   ['я хочу 2 про', 'product_clarification', false],
   ['Аккумулятор продается?', 'accessory_clarification', false],
   ['Я хочу на вайфай', 'wifi_capabilities', true],
@@ -83,8 +88,8 @@ const historical = [
   ['можно поговорить с реальным человеком?', 'human_handoff', true],
 ];
 
-test('replays all 23 historically unmatched messages without generic fallback', () => {
-  assert.equal(historical.length, 23);
+test('replays all 28 historically unmatched messages without generic fallback', () => {
+  assert.equal(historical.length, 28);
   for (const [question, expectedType, isResolved] of historical) {
     const engine = context.AssistantEngine.createAssistantEngine(options);
     if (question === 'я хочу 2 про') {
@@ -140,4 +145,74 @@ test('Wi-Fi conversational phrasing and English typo remain supported', () => {
   const english = engine.handle('Does, Alice understand engleesh?');
   assert.equal(english.type, 'language_unsupported');
   assert.equal(english.locale, 'en');
+});
+
+
+test('power answers distinguish built-in, optional and mains-only batteries', () => {
+  const engine = context.AssistantEngine.createAssistantEngine(options);
+  const generic = engine.handle('Сколько держит батарея');
+  assert.equal(generic.type, 'power_guidance');
+  assert.match(generic.text, /Стрит.*до 12 часов/);
+  assert.match(generic.text, /Мини 3 Про.*до 7 часов/);
+  assert.match(generic.text, /Лайт 2, Мини 3 и Миди/);
+
+  const street = engine.handle('Как заряжать Стрит?');
+  assert.match(street.text, /USB-C/);
+  assert.match(street.text, /2,5 часа/);
+
+  const mini = engine.handle('Нужно ли заряжать Мини 3?');
+  assert.match(mini.text, /работает от розетки/);
+  assert.doesNotMatch(mini.text, /до 7 часов/);
+
+  const pro = engine.handle('Сколько держит батарея Мини 3 Про?');
+  assert.match(pro.text, /отдельно приобретаемым/);
+  assert.match(pro.text, /до 7 часов/);
+});
+
+test('battery questions follow the recommended model in the same conversation', () => {
+  const engine = context.AssistantEngine.createAssistantEngine({ ...options, models: () => models.filter(model => model.id !== 'midi') });
+  const selected = engine.handle('Для музыки');
+  assert.equal(selected.modelId, 'miniPro');
+  const reply = engine.handle('Нужно ли заряжать Алису');
+  assert.equal(reply.type, 'power_guidance');
+  assert.match(reply.text, /Мини 3 Про/);
+  assert.match(reply.text, /от розетки/);
+});
+
+test('VPN, greeting and English battery questions use a helpful language-aware route', () => {
+  const engine = context.AssistantEngine.createAssistantEngine(options);
+  const vpn = engine.handle('Какой впн?');
+  assert.equal(vpn.type, 'vpn_setup');
+  assert.match(vpn.text, /российским IP-адресом/);
+  assert.deepEqual(Array.from(vpn.actions, action => action.channel), ['whatsapp', 'telegram']);
+  assert.equal(engine.handle('Серёжа привет').type, 'greeting');
+  assert.equal(engine.handle('Привет, есть доставка в Грецию?').type, 'international_shipping');
+  const en = engine.handle('How long does Street battery last?');
+  assert.equal(en.type, 'power_guidance');
+  assert.equal(en.locale, 'en');
+  assert.match(en.text, /12 hours/);
+  const lv = engine.handle('Vai Street jāuzlādē?');
+  assert.equal(lv.locale, 'lv');
+  assert.equal(lv.type, 'power_guidance');
+  assert.match(lv.text, /USB-C/);
+});
+
+test('unconfirmed separate battery stock is never invented', () => {
+  const engine = context.AssistantEngine.createAssistantEngine(options);
+  const response = engine.handle('У вас продается аккумулятор для Мини 3 Про?');
+  assert.equal(response.type, 'accessory_clarification');
+  assert.equal(response.faq.matched, false);
+  assert.doesNotMatch(response.text, /есть в наличии/);
+});
+
+
+test('production bootstrap accepts the current assistant scripts without changing catalog', () => {
+  const { execFileSync } = require('node:child_process');
+  const catalogPath = path.join(root, 'catalog.html');
+  const before = fs.readFileSync(catalogPath, 'utf8');
+  const stdout = execFileSync(process.execPath, ['scripts/bust-assistant-loader-cache.js'], {
+    cwd: root, encoding: 'utf8',
+  });
+  assert.match(stdout, /runtime10 scripts already configured/);
+  assert.equal(fs.readFileSync(catalogPath, 'utf8'), before);
 });
