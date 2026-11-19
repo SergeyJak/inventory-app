@@ -204,3 +204,15 @@ test('unconfirmed separate battery stock is never invented', () => {
   assert.equal(response.faq.matched, false);
   assert.doesNotMatch(response.text, /есть в наличии/);
 });
+
+
+test('production bootstrap accepts the current assistant scripts without changing catalog', () => {
+  const { execFileSync } = require('node:child_process');
+  const catalogPath = path.join(root, 'catalog.html');
+  const before = fs.readFileSync(catalogPath, 'utf8');
+  const stdout = execFileSync(process.execPath, ['scripts/bust-assistant-loader-cache.js'], {
+    cwd: root, encoding: 'utf8',
+  });
+  assert.match(stdout, /runtime10 scripts already configured/);
+  assert.equal(fs.readFileSync(catalogPath, 'utf8'), before);
+});
