@@ -44,7 +44,7 @@ const directRuntimeTags = [
 
 const catalog = fs.readFileSync(catalogPath, 'utf8');
 
-if (catalog.includes(directRuntimeTags)) {
+if (directRuntimeTags.split('\n  ').every(tag => catalog.includes(tag))) {
   console.log('[assistant-runtime] runtime10 scripts already configured');
   process.exit(0);
 }
