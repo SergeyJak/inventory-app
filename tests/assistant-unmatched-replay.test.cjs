@@ -170,7 +170,7 @@ test('power answers distinguish built-in, optional and mains-only batteries', ()
 });
 
 test('battery questions follow the recommended model in the same conversation', () => {
-  const engine = context.AssistantEngine.createAssistantEngine(options);
+  const engine = context.AssistantEngine.createAssistantEngine({ ...options, models: () => models.filter(model => model.id !== 'midi') });
   const selected = engine.handle('Для музыки');
   assert.equal(selected.modelId, 'miniPro');
   const reply = engine.handle('Нужно ли заряжать Алису');
