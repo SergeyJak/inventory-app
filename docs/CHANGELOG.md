@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-21: Living catalogue scenarios
+
+* Added an animated, four-scene day-in-the-life storytelling section with real HeySmart product photos, multilingual example commands and stock-safe product links.
+* Added on-scroll entrance motion for existing lower-page cards while preserving content when JavaScript is unavailable or reduced motion is requested.
+* No changes to stock, finance, accounts or catalogue structured data.
+
 ## 2026-11-20: Europe delivery guides (RU/EN)
 
 * Added bilingual Europe courier delivery guides to the indexed Knowledge Base with reciprocal hreflang and sitemap entries.
