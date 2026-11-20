@@ -34,6 +34,50 @@ test.describe('HeySmart storefront safety net', () => {
     expect(switcherText).not.toContain('яндекс плюс');
   });
 
+
+  test('living scenes respond to user input and handle sold-out stock', async ({ page }) => {
+    const stage = page.locator('.living-stage');
+    const link = page.locator('#living-scene-link');
+    await expect(page.locator('#living-scenes')).toBeVisible();
+    await expect(stage).toHaveAttribute('data-scene', 'morning');
+
+    await page.locator('[data-living-scene="music"]').click();
+    await expect(stage).toHaveAttribute('data-scene', 'music');
+    await expect(page.locator('#living-scene-title')).toContainText('настроение');
+    await expect(page.locator('#living-scene-image')).toHaveAttribute('src', /mini-3\/gray\/01\.webp/);
+    await expect(page.locator('[data-living-scene="music"]')).toHaveAttribute('aria-pressed', 'true');
+
+    await page.route('**/api/public/products', route => route.fulfill({ json: { products: [
+      { id: 'light', productType: 'Light 2', color: 'blue', sellPrice: 100, inStock: true },
+      { id: 'mini', productType: 'Mini 3', color: 'gray', sellPrice: 140, inStock: false },
+      { id: 'pro', productType: 'Mini 3 Pro', color: 'green', sellPrice: 180, inStock: true },
+      { id: 'street', productType: 'Street', color: 'black', sellPrice: 180, inStock: false },
+    ] } }));
+    await page.evaluate(() => refreshCatalog());
+    await expect(link).toHaveAttribute('href', '#smart-finder');
+    await expect(link).toHaveAttribute('data-stock-status', 'other');
+
+    await page.locator('[data-living-scene="home"]').click();
+    await expect(stage).toHaveAttribute('data-scene', 'home');
+    await expect(link).toHaveAttribute('href', '/ru/yandex-station-mini-3-pro');
+    await expect(page.locator('#living-scene-note')).toContainText('совместимые');
+    await expect(page.locator('#living-scene-image')).toHaveAttribute('src', /mini-pro\/green\/01\.webp/);
+  });
+
+  test('living scenarios localize and support reduced motion', async ({ page }) => {
+    await page.evaluate(() => { currentLang = 'en'; applyStaticTranslations(); });
+    await expect(page.locator('#living-title')).toHaveText('One day. So many little possibilities.');
+    await page.locator('[data-living-scene="travel"]').click();
+    await expect(page.locator('#living-scene-title')).toContainText('Take familiar moments');
+    await expect(page.locator('#living-scene-link')).toHaveAttribute('href', '#smart-finder');
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#living-pause')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#living-scenes')).not.toHaveClass(/living-playing/);
+    await expect(page.locator('.quick-card').first()).toBeVisible();
+  });
+
   test('colors remain selectable and update the active product image', async ({ page }) => {
     const colors = page.locator('#color-gallery .thumb');
     await expect(colors).toHaveCount(2);
