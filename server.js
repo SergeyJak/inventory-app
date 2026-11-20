@@ -659,6 +659,56 @@ const CATALOG_SSR_TEXT = {
     assistant: { fab: 'Alice will help you choose', kicker: 'Assistant', title: 'I can help you choose a Station.', intro: 'Choose a scenario and I’ll suggest a suitable model from the current selection.' },
     faq: { kicker: 'Questions', inputLabel: 'Your question', placeholder: 'Your question...', send: 'Ask' },
     sections: {
+      living: {
+        "kicker": "Alice in everyday life",
+        "title": "One day. So many little possibilities.",
+        "intro": "Choose a moment to see how Alice could fit into your day. These are example commands, not a recording of the speaker.",
+        "commandLabel": "Example command",
+        "tag": "Alice is close",
+        "open": "View speaker",
+        "findStock": "Browse available models",
+        "pause": "Pause",
+        "resume": "Resume",
+        "controls": "Alice speaker scenarios",
+        "scenes": {
+          "morning": {
+            "short": "Morning",
+            "label": "01 / 04 · Morning",
+            "title": "A more relaxed start to your day",
+            "description": "Timers, alarms and quick answers when your hands are busy with breakfast.",
+            "command": "“Alice, set a timer for seven minutes”",
+            "note": "Voice features require a configured speaker and an internet connection.",
+            "imageAlt": "Blue Yandex Station Lite 2"
+          },
+          "music": {
+            "short": "Music",
+            "label": "02 / 04 · Music",
+            "title": "Set the mood with a few words",
+            "description": "Choose what to listen to without interrupting your day.",
+            "command": "“Alice, play some music”",
+            "note": "Music services may depend on the account region and subscription.",
+            "imageAlt": "Gray Yandex Station Mini 3"
+          },
+          "home": {
+            "short": "Smart home",
+            "label": "03 / 04 · Smart home",
+            "title": "A home that responds to you",
+            "description": "Control compatible lights and devices through voice routines.",
+            "command": "“Alice, turn on the lights”",
+            "note": "Smart home control requires compatible, configured devices.",
+            "imageAlt": "Green Yandex Station Mini 3 Pro"
+          },
+          "travel": {
+            "short": "On the go",
+            "label": "04 / 04 · On the go",
+            "title": "Take familiar moments with you",
+            "description": "A portable speaker for relaxing outdoors and travelling.",
+            "command": "“Alice, what's the weather today?”",
+            "note": "Some voice functions need internet access when you travel.",
+            "imageAlt": "Black Yandex Station Street"
+          }
+        }
+      },
       purchaseFaq: {
         "title": "Questions before buying Alice in Riga",
         "latvia": {
