@@ -32,6 +32,7 @@
   <link rel="preload" href="__CATALOG_PRELOAD_HREF__" as="image" fetchpriority="high" />
   <link rel="preload" href="/catalog.css?v=20261120-europe-delivery" as="style" />
   <link rel="stylesheet" href="/catalog.css?v=20261120-europe-delivery" />
+  <link rel="stylesheet" href="/catalog-motion.css?v=20261121-pause" />
   <link rel="stylesheet" href="/product-finder.css?v=20261120-stock-finder" />
   <meta name="google-site-verification" content="yqezND1j6y1EqMi6j6Dd_-gA88eYzgNFxA4wTfLZVJU" />
   <link rel="preconnect" href="https://www.googletagmanager.com" />
@@ -465,6 +466,58 @@
     </details>
 
 
+
+    <section class="living-scenes" id="living-scenes" aria-labelledby="living-title">
+      <div class="living-inner">
+        <header class="living-intro">
+          <p class="eyebrow" data-i18n="sections.living.kicker">Алиса в жизни</p>
+          <h2 id="living-title" data-i18n="sections.living.title">Один день. Много маленьких возможностей.</h2>
+          <p data-i18n="sections.living.intro">Выберите момент, и посмотрите, как Алиса может вписаться в него. Это примеры команд, а не запись работы колонки.</p>
+        </header>
+        <div class="living-stage" data-scene="morning">
+          <div class="living-copy">
+            <p class="living-scene-label" id="living-scene-label" data-i18n="sections.living.scenes.morning.label">01 / 04 · Утро</p>
+            <h3 id="living-scene-title" data-i18n="sections.living.scenes.morning.title">Пусть утро идёт по вашему плану</h3>
+            <p class="living-scene-description" id="living-scene-description" data-i18n="sections.living.scenes.morning.description">Таймеры, будильники и простые вопросы, когда руки заняты завтраком.</p>
+            <div class="living-voice">
+              <div class="living-voice-body">
+                <span class="living-voice-caption" data-i18n="sections.living.commandLabel">Пример команды</span>
+                <span class="living-scene-command" id="living-scene-command" data-i18n="sections.living.scenes.morning.command">«Алиса, поставь таймер на 7 минут»</span>
+              </div>
+              <span class="living-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
+            <p class="living-note" id="living-scene-note" data-i18n="sections.living.scenes.morning.note">Для обычных голосовых задач нужен подключённый к интернету аккаунт.</p>
+            <a class="living-model-link" id="living-scene-link" href="#smart-finder" data-i18n="sections.living.findStock">Найти колонку в наличии</a>
+          </div>
+          <div class="living-art">
+            <div class="living-orbit" aria-hidden="true"></div>
+            <img id="living-scene-image" src="/images/catalog/light-2/blue/01.webp" alt="Яндекс Станция Лайт 2" width="510" height="415" loading="lazy" decoding="async" />
+            <span class="living-orbit-tag" data-i18n="sections.living.tag">Алиса рядом</span>
+          </div>
+        </div>
+        <div class="living-controls" role="group" aria-label="Сценарии с Алисой" id="living-controls" hidden>
+          <button class="living-option active" type="button" data-living-scene="morning" aria-pressed="true">
+            <span class="living-option-index" aria-hidden="true">01</span>
+            <span class="living-option-name" data-i18n="sections.living.scenes.morning.short">Утро</span>
+          </button>
+          <button class="living-option" type="button" data-living-scene="music" aria-pressed="false">
+            <span class="living-option-index" aria-hidden="true">02</span>
+            <span class="living-option-name" data-i18n="sections.living.scenes.music.short">Музыка</span>
+          </button>
+          <button class="living-option" type="button" data-living-scene="home" aria-pressed="false">
+            <span class="living-option-index" aria-hidden="true">03</span>
+            <span class="living-option-name" data-i18n="sections.living.scenes.home.short">Дом</span>
+          </button>
+          <button class="living-option" type="button" data-living-scene="travel" aria-pressed="false">
+            <span class="living-option-index" aria-hidden="true">04</span>
+            <span class="living-option-name" data-i18n="sections.living.scenes.travel.short">В дороге</span>
+          </button>
+          <button class="living-pause" type="button" id="living-pause" aria-pressed="false" data-i18n="sections.living.pause">Пауза</button>
+        </div>
+        <p class="sr-only" id="living-status" aria-live="polite" aria-atomic="true"></p>
+      </div>
+    </section>
+
     <section class="smart-finder" id="smart-finder" aria-labelledby="smart-finder-title">
       <div class="smart-finder-inner">
         <header class="smart-finder-header">
@@ -670,7 +723,7 @@
     </div>
   </aside>
 
-  <script src="/i18n.js?v=20261109-catalog-title"></script>
+  <script src="/i18n.js?v=20261121-living"></script>
   <script src="/assistant-handoff.js?v=20261119-runtime10"></script>
   <script src="/assistant-engine-core.js?v=20261119-runtime10"></script>
   <script src="/assistant-audit-fixes.js?v=20261119-runtime10"></script>
@@ -681,5 +734,6 @@
   </script>
   <script src="/catalog.js?v=20261120-finder-navigation"></script>
   <script src="/product-finder.js?v=20261120-finder-ranking"></script>
+  <script src="/catalog-motion.js?v=20261121-pause"></script>
 </body>
 </html>

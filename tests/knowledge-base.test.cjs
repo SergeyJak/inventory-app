@@ -97,6 +97,9 @@ async function main() {
     assert.match(englishCatalog.text, /<title>Buy Yandex smart speakers with Alice in Riga, Latvia \| HeySmart<\/title>/, 'English catalog has an English title');
     assert.match(englishCatalog.text, /<h1[^>]*>Buy Yandex smart speakers with Alice in Riga and Latvia<\/h1>/, 'English catalog has an English SSR H1');
     assert.match(englishCatalog.text, /Buying in Riga/, 'English catalog SSR includes English commercial copy');
+    assert.match(englishCatalog.text, /One day\. So many little possibilities\./, 'English living section has server-rendered content');
+    assert.match(englishCatalog.text, /Example command/, 'English voice examples are server-rendered');
+    assert.doesNotMatch(englishCatalog.text, /Один день/, 'English SSR does not include Russian living heading');
     assert.match(englishCatalog.text, /Station Lite 2/, 'English catalog SSR includes English product content');
     assert.match(englishCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/en"/, 'English catalog self-canonicalizes');
     assert.match(englishCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'English catalog exposes RU hreflang');

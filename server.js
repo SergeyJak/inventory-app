@@ -659,6 +659,56 @@ const CATALOG_SSR_TEXT = {
     assistant: { fab: 'Alice will help you choose', kicker: 'Assistant', title: 'I can help you choose a Station.', intro: 'Choose a scenario and I’ll suggest a suitable model from the current selection.' },
     faq: { kicker: 'Questions', inputLabel: 'Your question', placeholder: 'Your question...', send: 'Ask' },
     sections: {
+      living: {
+        "kicker": "Alice in everyday life",
+        "title": "One day. So many little possibilities.",
+        "intro": "Choose a moment to see how Alice could fit into your day. The voice commands are shown in Russian, Alice's primary language.",
+        "commandLabel": "Example command",
+        "tag": "Alice is close",
+        "open": "View speaker",
+        "findStock": "Browse available models",
+        "pause": "Pause",
+        "resume": "Resume",
+        "controls": "Alice speaker scenarios",
+        "scenes": {
+          "morning": {
+            "short": "Morning",
+            "label": "01 / 04 · Morning",
+            "title": "A more relaxed start to your day",
+            "description": "Timers, alarms and quick answers when your hands are busy with breakfast.",
+            "command": "«Алиса, поставь таймер на 7 минут»",
+            "note": "Voice features require a configured speaker and an internet connection.",
+            "imageAlt": "Blue Yandex Station Lite 2"
+          },
+          "music": {
+            "short": "Music",
+            "label": "02 / 04 · Music",
+            "title": "Set the mood with a few words",
+            "description": "Choose what to listen to without interrupting your day.",
+            "command": "«Алиса, включи музыку»",
+            "note": "Music services may depend on the account region and subscription.",
+            "imageAlt": "Gray Yandex Station Mini 3"
+          },
+          "home": {
+            "short": "Smart home",
+            "label": "03 / 04 · Smart home",
+            "title": "A home that responds to you",
+            "description": "Control compatible lights and devices through voice routines.",
+            "command": "«Алиса, включи свет»",
+            "note": "Smart home control requires compatible, configured devices.",
+            "imageAlt": "Green Yandex Station Mini 3 Pro"
+          },
+          "travel": {
+            "short": "On the go",
+            "label": "04 / 04 · On the go",
+            "title": "Take familiar moments with you",
+            "description": "A portable speaker for relaxing outdoors and travelling.",
+            "command": "«Алиса, какая сегодня погода?»",
+            "note": "Some voice functions need internet access when you travel.",
+            "imageAlt": "Black Yandex Station Street"
+          }
+        }
+      },
       purchaseFaq: {
         "title": "Questions before buying Alice in Riga",
         "latvia": {
@@ -1703,7 +1753,7 @@ app.get('/:locale/help/:articleSlug', (req, res, next) => {
   res.type('html').send(knowledgeBase.renderArticlePage(req, article));
 });
 
-app.get(['/catalog.css', '/catalog.js', '/product-finder.css', '/product-finder.js', '/assistant-engine.js', '/assistant-handoff.js', '/assistant-engine-core.js', '/assistant-audit-fixes.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/404.html', '/favicon.ico'], (req, res, next) => {
+app.get(['/catalog.css', '/catalog.js', '/catalog-motion.css', '/catalog-motion.js', '/product-finder.css', '/product-finder.js', '/assistant-engine.js', '/assistant-handoff.js', '/assistant-engine-core.js', '/assistant-audit-fixes.js', '/i18n.js', '/faq.json', '/site.webmanifest', '/robots.txt', '/404.html', '/favicon.ico'], (req, res, next) => {
   if (isCatalogHost(req) || isLocalHost(req)) {
     return res.sendFile(path.join(__dirname, req.path.slice(1)));
   }

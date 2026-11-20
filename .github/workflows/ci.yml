@@ -37,6 +37,7 @@ jobs:
         run: |
           node --check server.js
           node --check catalog.js
+          node --check catalog-motion.js
           node --check product-pages.js
           node --check knowledge-base.js
           node --check knowledge-base-core.js

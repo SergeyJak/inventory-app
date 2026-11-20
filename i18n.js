@@ -84,6 +84,56 @@ window.catalogTranslations = {
       colors: { blue: '\u0441\u0438\u043d\u0438\u0439', red: '\u043a\u0440\u0430\u0441\u043d\u044b\u0439', black: '\u0447\u0451\u0440\u043d\u044b\u0439', white: '\u0431\u0435\u043b\u044b\u0439', green: '\u0437\u0435\u043b\u0451\u043d\u044b\u0439', violet: '\u0444\u0438\u043e\u043b\u0435\u0442\u043e\u0432\u044b\u0439', beige: '\u0431\u0435\u0436\u0435\u0432\u044b\u0439', gray: '\u0441\u0435\u0440\u044b\u0439', pink: '\u0440\u043e\u0437\u043e\u0432\u044b\u0439', coral: '\u043a\u043e\u0440\u0430\u043b\u043b\u043e\u0432\u044b\u0439' },
     },
     sections: {
+      living: {
+        "kicker": "Алиса в жизни",
+        "title": "Один день. Много маленьких возможностей.",
+        "intro": "Выберите момент и посмотрите, как Алиса может вписаться в него. Это примеры команд, а не запись работы колонки.",
+        "commandLabel": "Пример команды",
+        "tag": "Алиса рядом",
+        "open": "Посмотреть модель",
+        "findStock": "Посмотреть доступные модели",
+        "pause": "Пауза",
+        "resume": "Продолжить",
+        "controls": "Сценарии с Алисой",
+        "scenes": {
+          "morning": {
+            "short": "Утро",
+            "label": "01 / 04 · Утро",
+            "title": "Пусть утро идёт по вашему плану",
+            "description": "Таймеры, будильники и простые вопросы, когда руки заняты завтраком.",
+            "command": "«Алиса, поставь таймер на 7 минут»",
+            "note": "Для голосовых задач нужны питание, интернет и настроенная колонка.",
+            "imageAlt": "Яндекс Станция Лайт 2, голубой цвет"
+          },
+          "music": {
+            "short": "Музыка",
+            "label": "02 / 04 · Музыка",
+            "title": "Добавьте настроение одним голосом",
+            "description": "Выбирайте, что слушать, не отвлекаясь от домашних дел.",
+            "command": "«Алиса, включи музыку»",
+            "note": "Музыкальные сервисы могут зависеть от региона аккаунта и подписки.",
+            "imageAlt": "Яндекс Станция Мини 3, серый цвет"
+          },
+          "home": {
+            "short": "Умный дом",
+            "label": "03 / 04 · Умный дом",
+            "title": "Дом откликается на вашу просьбу",
+            "description": "Совместимые лампы и другие устройства можно объединить в голосовые сценарии.",
+            "command": "«Алиса, включи свет»",
+            "note": "Для управления нужны совместимые и настроенные устройства умного дома.",
+            "imageAlt": "Яндекс Станция Мини 3 Про, зелёный цвет"
+          },
+          "travel": {
+            "short": "В дороге",
+            "label": "04 / 04 · В дороге",
+            "title": "Любимые привычки отправляются с вами",
+            "description": "Портативная колонка для отдыха, дачи и поездок.",
+            "command": "«Алиса, какая сегодня погода?»",
+            "note": "Часть голосовых функций в поездке требует доступа к интернету.",
+            "imageAlt": "Яндекс Станция Стрит, чёрный цвет"
+          }
+        }
+      },
       purchaseFaq: {
         "title": "Вопросы перед покупкой Алисы в Риге",
         "latvia": {
@@ -303,6 +353,56 @@ window.catalogTranslations = {
       colors: { blue: 'zila', red: 'sarkana', black: 'melna', white: 'balta', green: 'za\u013ca', violet: 'violeta', beige: 'b\u0113\u0161a', gray: 'pel\u0113ka', pink: 'roz\u0101', coral: 'kora\u013c\u013cu' },
     },
     sections: {
+      living: {
+        "kicker": "Alise ikdienā",
+        "title": "Viena diena. Daudzas mazas iespējas.",
+        "intro": "Izvēlieties mirkli un uzziniet, kā Alise var palīdzēt ikdienā. Tie ir komandu piemēri, nevis skaļruņa ieraksts.",
+        "commandLabel": "Komandas piemērs",
+        "tag": "Alise tepat",
+        "open": "Apskatīt modeli",
+        "findStock": "Skatīt pieejamos modeļus",
+        "pause": "Pauze",
+        "resume": "Turpināt",
+        "controls": "Alises izmantošanas scenāriji",
+        "scenes": {
+          "morning": {
+            "short": "Rīts",
+            "label": "01 / 04 · Rīts",
+            "title": "Lai rīts ritētu pēc plāna",
+            "description": "Taimeri, modinātāji un vienkārši jautājumi brokastu laikā.",
+            "command": "«Алиса, поставь таймер на 7 минут»",
+            "note": "Balss komandām nepieciešams internets un iestatīts skaļrunis.",
+            "imageAlt": "Yandex Station Lite 2, zilā krāsā"
+          },
+          "music": {
+            "short": "Mūzika",
+            "label": "02 / 04 · Mūzika",
+            "title": "Noskaņojums ar vienu komandu",
+            "description": "Izvēlieties mūziku, nepārtraucot ikdienas darbus.",
+            "command": "«Алиса, включи музыку»",
+            "note": "Mūzikas pakalpojumi var būt atkarīgi no reģiona un abonementa.",
+            "imageAlt": "Yandex Station Mini 3, pelēkā krāsā"
+          },
+          "home": {
+            "short": "Viedā māja",
+            "label": "03 / 04 · Viedā māja",
+            "title": "Māja atsaucas jūsu balsij",
+            "description": "Savietojamas lampas un citas ierīces var iekļaut balss scenārijos.",
+            "command": "«Алиса, включи свет»",
+            "note": "Nepieciešamas savietojamas un konfigurētas viedās mājas ierīces.",
+            "imageAlt": "Yandex Station Mini 3 Pro, zaļā krāsā"
+          },
+          "travel": {
+            "short": "Ceļā",
+            "label": "04 / 04 · Ceļā",
+            "title": "Ņemiet savus ieradumus līdzi",
+            "description": "Pārnēsājams skaļrunis atpūtai un ceļojumiem.",
+            "command": "«Алиса, какая сегодня погода?»",
+            "note": "Dažām balss funkcijām ceļā nepieciešams internets.",
+            "imageAlt": "Yandex Station Street, melnā krāsā"
+          }
+        }
+      },
       purchaseFaq: {
         "title": "Jautājumi pirms Alises iegādes Rīgā",
         "latvia": {
@@ -490,6 +590,56 @@ window.catalogTranslations = {
       colors: { blue: 'blue', red: 'red', black: 'black', white: 'white', green: 'green', violet: 'purple', beige: 'beige', gray: 'gray', pink: 'pink', coral: 'coral' },
     },
     sections: {
+      living: {
+        "kicker": "Alice in everyday life",
+        "title": "One day. So many little possibilities.",
+        "intro": "Choose a moment to see how Alice could fit into your day. The voice commands are shown in Russian, Alice's primary language.",
+        "commandLabel": "Example command",
+        "tag": "Alice is close",
+        "open": "View speaker",
+        "findStock": "Browse available models",
+        "pause": "Pause",
+        "resume": "Resume",
+        "controls": "Alice speaker scenarios",
+        "scenes": {
+          "morning": {
+            "short": "Morning",
+            "label": "01 / 04 · Morning",
+            "title": "A more relaxed start to your day",
+            "description": "Timers, alarms and quick answers when your hands are busy with breakfast.",
+            "command": "«Алиса, поставь таймер на 7 минут»",
+            "note": "Voice features require a configured speaker and an internet connection.",
+            "imageAlt": "Blue Yandex Station Lite 2"
+          },
+          "music": {
+            "short": "Music",
+            "label": "02 / 04 · Music",
+            "title": "Set the mood with a few words",
+            "description": "Choose what to listen to without interrupting your day.",
+            "command": "«Алиса, включи музыку»",
+            "note": "Music services may depend on the account region and subscription.",
+            "imageAlt": "Gray Yandex Station Mini 3"
+          },
+          "home": {
+            "short": "Smart home",
+            "label": "03 / 04 · Smart home",
+            "title": "A home that responds to you",
+            "description": "Control compatible lights and devices through voice routines.",
+            "command": "«Алиса, включи свет»",
+            "note": "Smart home control requires compatible, configured devices.",
+            "imageAlt": "Green Yandex Station Mini 3 Pro"
+          },
+          "travel": {
+            "short": "On the go",
+            "label": "04 / 04 · On the go",
+            "title": "Take familiar moments with you",
+            "description": "A portable speaker for relaxing outdoors and travelling.",
+            "command": "«Алиса, какая сегодня погода?»",
+            "note": "Some voice functions need internet access when you travel.",
+            "imageAlt": "Black Yandex Station Street"
+          }
+        }
+      },
       purchaseFaq: {
         "title": "Questions before buying Alice in Riga",
         "latvia": {
