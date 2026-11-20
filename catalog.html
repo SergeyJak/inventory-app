@@ -32,6 +32,7 @@
   <link rel="preload" href="__CATALOG_PRELOAD_HREF__" as="image" fetchpriority="high" />
   <link rel="preload" href="/catalog.css?v=20261118-product-guides" as="style" />
   <link rel="stylesheet" href="/catalog.css?v=20261118-product-guides" />
+  <link rel="stylesheet" href="/product-finder.css?v=20261120-stock-finder" />
   <meta name="google-site-verification" content="yqezND1j6y1EqMi6j6Dd_-gA88eYzgNFxA4wTfLZVJU" />
   <link rel="preconnect" href="https://www.googletagmanager.com" />
   <link rel="preconnect" href="https://www.google-analytics.com" />
@@ -463,6 +464,51 @@
       </div>
     </details>
 
+
+    <section class="smart-finder" id="smart-finder" aria-labelledby="smart-finder-title">
+      <div class="smart-finder-inner">
+        <header class="smart-finder-header">
+          <p class="eyebrow" id="finder-kicker">Поможем с выбором</p>
+          <h2 id="smart-finder-title">Подберите Алису за 30 секунд</h2>
+          <p id="finder-intro">Три вопроса. Результат только из моделей, которые сейчас есть на складе.</p>
+        </header>
+        <form id="smart-finder-form" class="smart-finder-form">
+          <label><span id="finder-purpose-label">Для чего?</span>
+            <select name="purpose" aria-labelledby="finder-purpose-label">
+              <option value="everyday">На каждый день</option>
+              <option value="child">Для ребёнка</option>
+              <option value="music">Для музыки</option>
+              <option value="smart">Умный дом (Zigbee)</option>
+              <option value="travel">На улицу и в поездки</option>
+              <option value="gift">В подарок</option>
+            </select>
+          </label>
+          <label><span id="finder-room-label">Где будет стоять?</span>
+            <select name="room" aria-labelledby="finder-room-label">
+              <option value="small">Спальня / детская</option>
+              <option value="medium" selected>Кухня / кабинет</option>
+              <option value="large">Гостиная</option>
+              <option value="outside">На улице</option>
+            </select>
+          </label>
+          <label><span id="finder-budget-label">Бюджет</span>
+            <select name="budget" aria-labelledby="finder-budget-label">
+              <option value="any" selected>Без ограничений</option>
+              <option value="120">До 120 €</option>
+              <option value="170">До 170 €</option>
+              <option value="220">До 220 €</option>
+            </select>
+          </label>
+          <button type="submit" id="finder-submit">Подобрать колонку</button>
+        </form>
+        <div class="smart-finder-result" id="smart-finder-result" role="status" aria-live="polite"></div>
+        <details>
+          <summary id="finder-comparison-label">Сравнить модели и наличие</summary>
+          <div class="smart-finder-comparison" id="smart-finder-comparison"></div>
+        </details>
+      </div>
+    </section>
+
     <section class="quick-choose" aria-labelledby="quick-choose-title">
       <div class="quick-choose-head">
         <p class="eyebrow" data-i18n="sections.quickChoose.kicker">Быстрый выбор</p>
@@ -632,6 +678,7 @@
     if (!window.catalogPageLocale && window.location.pathname === '/') window.catalogPageLocale = 'ru';
     window.catalogInitialData = __CATALOG_INITIAL_DATA__;
   </script>
-  <script src="/catalog.js?v=20261117-live-mini-pro-stock"></script>
+  <script src="/catalog.js?v=20261120-finder-navigation"></script>
+  <script src="/product-finder.js?v=20261120-finder-ranking"></script>
 </body>
 </html>

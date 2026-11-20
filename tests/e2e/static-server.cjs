@@ -43,11 +43,12 @@ function safeFile(urlPath) {
   return resolved;
 }
 
-function renderCatalogHtml() {
+function renderCatalogHtml(locale) {
   const file = path.join(root, 'catalog.html');
   return fs.readFileSync(file, 'utf8')
     .replace(/__QUICK_\w+_OFFER__/g, '')
-    .replace('__CATALOG_PAGE_LOCALE__', JSON.stringify('ru'))
+    .replace(/__PRODUCT_MIDI_URL__/g, `/${locale}#model=midi&color=black`)
+    .replace('__CATALOG_PAGE_LOCALE__', JSON.stringify(locale))
     .replace('__CATALOG_INITIAL_DATA__', 'null');
 }
 
@@ -72,7 +73,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (url.pathname === '/' || url.pathname === '/ru' || url.pathname === '/lv' || url.pathname === '/en' || url.pathname === '/catalog.html') {
-    return send(res, 200, renderCatalogHtml(), 'text/html; charset=utf-8');
+    return send(res, 200, renderCatalogHtml(url.pathname === '/en' ? 'en' : 'ru'), 'text/html; charset=utf-8');
   }
 
   const file = safeFile(url.pathname);

@@ -1129,6 +1129,26 @@ function applyUrlSelection() {
   activeAngle = 0;
 }
 
+function openCurrentModelHash() {
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const id = hash.get('model');
+  if (!id || (window.catalogInitialData?.route && window.catalogInitialData.route.modelId !== id)) return;
+  if (selectModel(models.findIndex(model => model.id === id), hash.get('color'))) {
+    showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+window.addEventListener('hashchange', openCurrentModelHash);
+// Following the same model link a second time does not fire hashchange.
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link = event.target.closest('a[href*="#model="]');
+  if (link?.href === window.location.href && !link.target) {
+    event.preventDefault();
+    openCurrentModelHash();
+  }
+});
+
 function showCatalog(nextModels) {
   const previousModelId = models[activeModel]?.id;
   const previousColorKey = models[activeModel]?.photos[activeColor]?.colorKey;
@@ -1178,12 +1198,18 @@ async function refreshCatalog() {
     const data = await res.json();
     if (!Array.isArray(data.products)) throw new Error('Invalid product response');
     const products = data.products;
+    window.heysmartLiveProducts = products;
+    window.heysmartLiveProductsVerified = true;
     quickProducts = products;
     syncQuickChooseCards();
     showCatalog(buildModels(products));
+    window.dispatchEvent(new CustomEvent('heysmart:catalog-products', { detail: { products } }));
   } catch (err) {
     console.error('Catalog load error:', err);
+    window.heysmartLiveProducts = null;
+    window.heysmartLiveProductsVerified = false;
     if (!models.length) showCatalog(buildModels(FALLBACK_PRODUCTS));
+    window.dispatchEvent(new Event('heysmart:catalog-products-error'));
   }
 }
 
