@@ -66,6 +66,35 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(lite.locator('.quick-stock')).toHaveText('Currently unavailable');
   });
 
+
+  test('finder recommends only stocked models and shows live comparison', async ({ page }) => {
+    await page.route('**/api/public/products', route => route.fulfill({ json: { products: [
+      { id: 'pro-live', productType: 'Mini 3 Pro', color: 'gray', sellPrice: 170, inStock: true },
+      { id: 'mini-old', productType: 'Mini 3', color: 'gray', sellPrice: 90, inStock: false },
+      { id: 'lite-live', productType: 'Light 2', color: 'blue', sellPrice: 100, inStock: true },
+      { id: 'street-old', productType: 'Street', color: 'black', sellPrice: 100, inStock: false },
+    ] } }));
+    await page.evaluate(() => refreshCatalog());
+
+    await page.locator('#smart-finder-form [name="purpose"]').selectOption('smart');
+    await page.locator('#smart-finder-form [name="room"]').selectOption('medium');
+    await page.locator('#smart-finder-form [name="budget"]').selectOption('170');
+    await page.locator('#finder-submit').click();
+    await expect(page.locator('#smart-finder-result .finder-match')).toHaveCount(1);
+    await expect(page.locator('#smart-finder-result')).toContainText('Мини 3 Про');
+    await expect(page.locator('#smart-finder-result')).toContainText('170');
+
+    await page.locator('#smart-finder details summary').click();
+    await expect(page.locator('#smart-finder-comparison tbody tr').nth(1)).toContainText('Нет в наличии');
+    await expect(page.locator('#smart-finder-comparison tbody tr').nth(2)).toContainText('170');
+
+    await page.locator('#smart-finder-form [name="purpose"]').selectOption('travel');
+    await page.locator('#smart-finder-form [name="room"]').selectOption('outside');
+    await page.locator('#finder-submit').click();
+    await expect(page.locator('#smart-finder-result .finder-match')).toHaveCount(0);
+    await expect(page.locator('#smart-finder-result')).toContainText('нет подходящей модели');
+  });
+
   test('Mini 3 violet is selectable alongside gray when both variants are stocked', async ({ page }) => {
     await page.route('**/api/public/products', route => route.fulfill({ json: { products: [
       { id: 'mini3-gray', productType: 'Мини 3', color: 'Серый', sellPrice: 150, inStock: true },
