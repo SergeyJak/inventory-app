@@ -923,6 +923,9 @@ function applyStaticTranslations() {
   detailsGrid.setAttribute('aria-label', dict('common.aboutModel'));
   languageSwitcher.setAttribute('aria-label', dict('nav.lang'));
   if (helpLink) helpLink.href = `/${currentLang === 'lv' ? 'lv' : forcedPageLocale || currentLang}/help`;
+  const shippingGuideLink = document.getElementById('shipping-guide-link');
+  if (shippingGuideLink) shippingGuideLink.href = currentLang === 'ru'
+    ? '/ru/help/dostavka-yandex-stancii-po-evrope' : '/en/help/yandex-station-delivery-europe';
 }
 
 function renderLanguageSwitcher() {

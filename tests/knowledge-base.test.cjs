@@ -111,6 +111,31 @@ async function main() {
     assert.strictEqual(enSchemas.length, 1, 'English catalog has one structured data block');
     assert.ok(enSchemas[0]['@graph'].every(item => !item.url || item.url === 'https://heysmart.lv/en'), 'English structured data URLs match the English canonical');
 
+
+    assert.match(russianCatalog.text, /id="shipping-guide-link" href="\/ru\/help\/dostavka-yandex-stancii-po-evrope"/, 'Russian catalogue links to the RU guide');
+    assert.match(englishCatalog.text, /id="shipping-guide-link" href="\/en\/help\/yandex-station-delivery-europe"/, 'English catalogue links to the EN guide');
+    assert.match(englishCatalog.text, /How European delivery works/, 'English shipping link is server-rendered in English');
+
+    const httpsCatalogRequest = { headers: { ...catalogRequest.headers, 'x-forwarded-proto': 'https' } };
+    const ruDelivery = await request('/ru/help/dostavka-yandex-stancii-po-evrope', httpsCatalogRequest);
+    const enDelivery = await request('/en/help/yandex-station-delivery-europe', httpsCatalogRequest);
+    assert.strictEqual(ruDelivery.res.status, 200, 'RU Europe delivery guide renders');
+    assert.strictEqual(enDelivery.res.status, 200, 'EN Europe delivery guide renders');
+    assert.match(ruDelivery.text, /<html lang="ru">/);
+    assert.match(enDelivery.text, /<html lang="en">/);
+    assert.match(ruDelivery.text, /<h1>Доставка Яндекс Станции с Алисой по Европе из Латвии<\/h1>/);
+    assert.match(enDelivery.text, /<h1>Buy a Yandex Station with Alice: delivery in Europe<\/h1>/);
+    assert.match(ruDelivery.text, /rel="canonical" href="https:\/\/heysmart\.lv\/ru\/help\/dostavka-yandex-stancii-po-evrope"/);
+    assert.match(enDelivery.text, /rel="canonical" href="https:\/\/heysmart\.lv\/en\/help\/yandex-station-delivery-europe"/);
+    assert.match(ruDelivery.text, /hreflang="en"/);
+    assert.match(enDelivery.text, /hreflang="ru"/);
+    assert.doesNotMatch(ruDelivery.text, /hreflang="lv"/);
+    assert.match(ruDelivery.text, /Финляндии/);
+    assert.match(enDelivery.text, /Belgium/);
+    assert.match(enDelivery.text, /href="\/en"/, 'English guide returns customers to the English catalogue');
+    assert.doesNotMatch(enDelivery.text, /guaranteed delivery|free shipping|fixed price/i);
+    assert.strictEqual(extractJsonLd(ruDelivery.text).filter(item => item['@type'] === 'Article').length, 1);
+
     const help = await request('/ru/help');
     assert.strictEqual(help.res.status, 200, 'help index returns 200');
     assert.match(help.text, /База знаний HeySmart/);
@@ -163,11 +188,13 @@ async function main() {
     const sitemap = await request('/sitemap.xml');
     assert.strictEqual(sitemap.res.status, 200, 'sitemap returns 200');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/rabotaet-li-alisa-v-latvii/, 'sitemap includes published KB article');
+    assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/dostavka-yandex-stancii-po-evrope/, 'sitemap includes RU delivery guide');
+    assert.match(sitemap.text, /https:\/\/heysmart\.lv\/en\/help\/yandex-station-delivery-europe/, 'sitemap includes EN delivery guide');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru<\/loc>/, 'sitemap includes the Russian catalog URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/en<\/loc>/, 'sitemap includes the English catalog URL');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/, 'root catalog lastmod matches the verified SSR content update');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/, 'Russian catalog lastmod matches the verified SSR content update');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/en<\/loc>\s*<lastmod>2026-11-18<\/lastmod>/, 'English catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/<\/loc>\s*<lastmod>2026-11-20<\/lastmod>/, 'root catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru<\/loc>\s*<lastmod>2026-11-20<\/lastmod>/, 'Russian catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/en<\/loc>\s*<lastmod>2026-11-20<\/lastmod>/, 'English catalog lastmod matches the verified SSR content update');
     assert.doesNotMatch(sitemap.text, /https:\/\/heysmart\.lv\/lv(?:<|\/)/, 'sitemap does not include a Latvian commercial URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/category\/gid-pokupatelya/, 'sitemap includes KB category');
     assert.doesNotMatch(sitemap.text, /unpublished-kb-test/, 'sitemap excludes unpublished article');

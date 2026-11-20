@@ -692,7 +692,7 @@ const CATALOG_SSR_TEXT = {
         },
         pickup: { title: 'Pickup in Riga', text: 'The meeting and handover are arranged in advance at a convenient time. Current models and colors are best confirmed before arranging pickup.' },
         help: { title: 'Help choosing', text: 'We will suggest which model fits a room, music, a gift, or a basic smart home setup without overpromising or pressure.' },
-        shipping: { title: 'Shipping across Europe', text: 'If needed, shipping across Europe by courier is possible. Cost and delivery time are calculated individually.' },
+        shipping: { title: 'Shipping across Europe', text: 'If needed, shipping across Europe by courier is possible. Cost and delivery time are calculated individually.', guide: 'How European delivery works' },
       },
     },
     colors: { blue: 'Blue', violet: 'Violet', green: 'Green', pink: 'Pink', coral: 'Coral', black: 'Black', gray: 'Gray', graphite: 'Graphite' },
@@ -1292,6 +1292,7 @@ function renderCatalogSsrLocale(template, page, initial, products = null) {
     .replace('__CATALOG_LANGUAGE_LABEL__', escapeHtml(text('nav.lang')))
     .replace('__CATALOG_LANGUAGE_SWITCHER__', catalogLanguageSwitcher(page.forcedLocale, page.model?.slug))
     .replace('__CATALOG_HELP_LINK__', helpLink)
+    .replace('__CATALOG_EUROPE_DELIVERY_URL__', locale === 'en' ? '/en/help/yandex-station-delivery-europe' : '/ru/help/dostavka-yandex-stancii-po-evrope')
     .replace(/__PRODUCT_LIGHT2_URL__/g, `/${locale}/yandex-station-lite-2`)
     .replace(/__PRODUCT_MINI3_URL__/g, `/${locale}/yandex-station-mini-3`)
     .replace(/__PRODUCT_MINIPRO_URL__/g, `/${locale}/yandex-station-mini-3-pro`)

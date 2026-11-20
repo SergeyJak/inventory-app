@@ -60,4 +60,77 @@ if (!core.ARTICLES.some(article => article.id === ARTICLE_ID)) {
   });
 }
 
+
+const EUROPE_DELIVERY_GROUP = 'europe-delivery';
+const EUROPE_DELIVERY_ARTICLES = [
+  {
+    id: 'ru-europe-delivery',
+    locale: 'ru',
+    slug: 'dostavka-yandex-stancii-po-evrope',
+    title: 'Доставка Яндекс Станции с Алисой по Европе из Латвии',
+    excerpt: 'Как заказать колонку с Алисой из Риги с доставкой в Финляндию, Данию, Бельгию и другие страны: расчёт, сроки, настройка.',
+    summary: 'HeySmart помогает подобрать Яндекс Станцию и по запросу уточняет международную курьерскую доставку из Риги. Стоимость, сроки и возможность отправки согласуются индивидуально.',
+    seoTitle: 'Купить Яндекс Станцию с доставкой по Европе | HeySmart',
+    seoDescription: 'Яндекс Станции с Алисой из Риги: запросите расчёт доставки в Финляндию, Данию, Бельгию и другие страны Европы. Актуальное наличие и условия заказа.',
+    focusKeyword: 'купить яндекс станцию в европе',
+    source: 'delivery-europe-ru.md',
+    relatedArticles: ['alice-latvia', 'choose-station-home', 'yandex-plus-subscription'],
+  },
+  {
+    id: 'en-europe-delivery',
+    locale: 'en',
+    slug: 'yandex-station-delivery-europe',
+    title: 'Buy a Yandex Station with Alice: delivery in Europe',
+    excerpt: 'How to request Yandex Station delivery from Riga, Latvia, to Finland, Denmark, Belgium and other European destinations.',
+    summary: 'HeySmart is based in Riga, Latvia. Ask us about a Yandex Station and a courier shipping quote for your European destination. Availability, cost and timing are confirmed individually.',
+    seoTitle: 'Buy Yandex Station with Alice in Europe | HeySmart',
+    seoDescription: 'Explore Yandex Station speakers with Alice and ask HeySmart in Riga for an individual delivery quote to Finland, Denmark, Belgium or other European destinations.',
+    focusKeyword: 'buy yandex station europe',
+    source: 'delivery-europe-en.md',
+    relatedArticles: [],
+  },
+];
+
+for (const guide of EUROPE_DELIVERY_ARTICLES) {
+  if (core.ARTICLES.some(article => article.id === guide.id)) continue;
+  const contentMarkdown = fs.readFileSync(path.join(__dirname, 'docs', 'articles', guide.source), 'utf8').trim();
+  core.ARTICLES.push({
+    id: guide.id,
+    translationGroupId: EUROPE_DELIVERY_GROUP,
+    locale: guide.locale,
+    slug: guide.slug,
+    categoryId: 'buying-guide',
+    status: 'published',
+    contentType: 'guide',
+    previousSlugs: [],
+    title: guide.title,
+    excerpt: guide.excerpt,
+    summary: guide.summary,
+    content: [],
+    contentMarkdown,
+    faq: [],
+    tags: ['delivery', 'shipping', 'europe', 'yandex-station'],
+    seoTitle: guide.seoTitle,
+    seoDescription: guide.seoDescription,
+    canonicalUrl: '',
+    robots: 'index,follow',
+    focusKeyword: guide.focusKeyword,
+    searchIntent: 'commercial',
+    relatedProducts: ['light2', 'mini3', 'miniPro', 'street'],
+    relatedArticles: guide.relatedArticles,
+    sourceQuestions: ['europe-shipping-from-riga'],
+    author: 'HeySmart',
+    contentOwner: 'HeySmart',
+    reviewStatus: 'not-reviewed',
+    createdAt: '2026-11-20',
+    updatedAt: '2026-11-20',
+    publishedAt: '2026-11-20',
+    lastUpdated: '2026-11-20',
+    changeSummary: 'Added Europe delivery guide based on current quote-on-request service.',
+    ideaSource: 'customer-delivery-inquiries',
+    measurementGoal: 'Answer Europe delivery questions and connect commercial searchers to stocked products.',
+    sourceQuality: 'internal-policy',
+  });
+}
+
 module.exports = core;
