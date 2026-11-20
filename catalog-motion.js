@@ -57,13 +57,13 @@
   }
   function paintImage(scene, animate) {
     const request = ++imageRequest;
-    if (image.getAttribute('src') === scene.image) {
-      image.classList.remove('is-changing');
-      return;
-    }
     if (imageTransitionTimer !== null) {
       clearTimeout(imageTransitionTimer);
       imageTransitionTimer = null;
+    }
+    if (image.getAttribute('src') === scene.image) {
+      image.classList.remove('is-changing');
+      return;
     }
     if (!animate || reduceMotion.matches) {
       image.classList.remove('is-changing');
