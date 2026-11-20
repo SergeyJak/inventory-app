@@ -43,5 +43,7 @@ assert.match(read('catalog.html'), /id="smart-finder"/);
 assert.match(read('catalog.html'), /product-finder\.js\?v=/);
 assert.match(read('catalog.html'), /product-finder\.css\?v=/);
 assert.match(read('catalog.js'), /heysmart:catalog-products/);
+assert.match(read('catalog.js'), /heysmartLiveProductsVerified = true/);
+assert.match(read('product-finder.js'), /heysmartLiveProductsVerified === true/);
 assert.match(read('server.js'), /'\/product-finder\.js', '\/i18n\.js'|\'\/product-finder\.css\', '\/product-finder\.js\'/);
 console.log('Product finder stock, budget, scenario and storefront integration tests passed.');
