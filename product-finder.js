@@ -19,7 +19,7 @@
   const ROOMS = {
     small: ['light2', 'mini3', 'miniPro', 'midi', 'street'],
     medium: ['mini3', 'miniPro', 'light2', 'midi', 'street'],
-    large: ['midi', 'miniPro', 'mini3', 'light2', 'street'],
+    large: ['midi', 'miniPro', 'mini3', 'light2'],
     outside: ['street'],
   };
   const COPY = {
