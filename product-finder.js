@@ -116,10 +116,11 @@
     room: form.querySelector('[name="room"]'),
     budget: form.querySelector('[name="budget"]'),
   };
-  let products = root.catalogInitialData?.productsVerified === false
-    ? null : Array.isArray(root.catalogInitialData?.products) ? root.catalogInitialData.products : null;
+  // Only use the confirmed live response. The script may load after the fetch event.
+  let products = root.heysmartLiveProductsVerified === true && Array.isArray(root.heysmartLiveProducts)
+    ? root.heysmartLiveProducts : null;
   let submitted = false;
-  let failed = false;
+  let failed = root.heysmartLiveProductsVerified === false;
 
   function language() {
     const lang = document.documentElement.lang;
@@ -268,7 +269,7 @@
     if (submitted) renderResults();
   });
   root.addEventListener('heysmart:catalog-products-error', () => {
-    if (products !== null) return;
+    products = null;
     failed = true;
     renderComparison();
     if (submitted) renderResults();
