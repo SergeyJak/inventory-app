@@ -116,8 +116,9 @@ async function main() {
     assert.match(englishCatalog.text, /id="shipping-guide-link" href="\/en\/help\/yandex-station-delivery-europe"/, 'English catalogue links to the EN guide');
     assert.match(englishCatalog.text, /How European delivery works/, 'English shipping link is server-rendered in English');
 
-    const ruDelivery = await request('/ru/help/dostavka-yandex-stancii-po-evrope', catalogRequest);
-    const enDelivery = await request('/en/help/yandex-station-delivery-europe', catalogRequest);
+    const httpsCatalogRequest = { headers: { ...catalogRequest.headers, 'x-forwarded-proto': 'https' } };
+    const ruDelivery = await request('/ru/help/dostavka-yandex-stancii-po-evrope', httpsCatalogRequest);
+    const enDelivery = await request('/en/help/yandex-station-delivery-europe', httpsCatalogRequest);
     assert.strictEqual(ruDelivery.res.status, 200, 'RU Europe delivery guide renders');
     assert.strictEqual(enDelivery.res.status, 200, 'EN Europe delivery guide renders');
     assert.match(ruDelivery.text, /<html lang="ru">/);
