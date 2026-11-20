@@ -77,7 +77,7 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(page.locator('#living-scene-link')).toHaveAttribute('href', '#smart-finder');
   });
 
-  test('pausing the scenes pauses the decorative animations', async ({ page }) => {
+  test('scenes pause and resume while the pointer and focus stay on the button', async ({ page }) => {
     const pause = page.locator('#living-pause');
     await pause.click();
     await expect(pause).toHaveAttribute('aria-pressed', 'true');
@@ -85,6 +85,14 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(page.locator('.living-orbit')).toHaveCSS('animation-play-state', 'paused');
     await expect(page.locator('.living-wave i').first()).toHaveCSS('animation-play-state', 'paused');
     await expect(page.locator('#living-scene-image')).toHaveCSS('animation-play-state', 'paused');
+
+    const stage = page.locator('.living-stage');
+    const pausedScene = await stage.getAttribute('data-scene');
+    await pause.click();
+    await expect(pause).toBeFocused();
+    await expect(pause).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.living-orbit')).toHaveCSS('animation-play-state', 'running');
+    await expect(stage).not.toHaveAttribute('data-scene', pausedScene, { timeout: 12000 });
   });
 
   test('living scenarios localize and support reduced motion', async ({ page }) => {

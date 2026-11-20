@@ -30,8 +30,8 @@
   let active = 0;
   let visible = false;
   let manualPaused = false;
-  let hovered = false;
-  let focused = false;
+  let pausedByHover = false;
+  let pausedByFocus = false;
   let timer = null;
   let imageRequest = 0;
   let imageTransitionTimer = null;
@@ -123,7 +123,7 @@
     syncTimer();
   }
   function canPlay() {
-    return !manualPaused && !reduceMotion.matches && visible && !document.hidden && !hovered && !focused;
+    return !manualPaused && !reduceMotion.matches && visible && !document.hidden && !pausedByHover && !pausedByFocus;
   }
   function syncTimer() {
     if (timer !== null) {
@@ -143,13 +143,18 @@
   }));
   pause.addEventListener('click', () => {
     manualPaused = !manualPaused;
+    if (!manualPaused) {
+      // Resume immediately. A later pointer entry or focus change can pause again.
+      pausedByHover = false;
+      pausedByFocus = false;
+    }
     syncTimer();
   });
-  section.addEventListener('pointerenter', () => { hovered = true; syncTimer(); });
-  section.addEventListener('pointerleave', () => { hovered = false; syncTimer(); });
-  section.addEventListener('focusin', () => { focused = true; syncTimer(); });
+  section.addEventListener('pointerenter', () => { pausedByHover = true; syncTimer(); });
+  section.addEventListener('pointerleave', () => { pausedByHover = false; syncTimer(); });
+  section.addEventListener('focusin', () => { pausedByFocus = true; syncTimer(); });
   section.addEventListener('focusout', event => {
-    if (!section.contains(event.relatedTarget)) { focused = false; syncTimer(); }
+    if (!section.contains(event.relatedTarget)) { pausedByFocus = false; syncTimer(); }
   });
   root.addEventListener('heysmart:catalog-products', () => sceneLink(scenes[active], t()));
   root.addEventListener('heysmart:catalog-products-error', () => sceneLink(scenes[active], t()));
