@@ -204,7 +204,7 @@ async function main() {
     assert.ok(root.text.includes('hreflang="en" href="https://heysmart.lv/en"'));
     assert.ok(root.text.includes('hreflang="x-default" href="https://heysmart.lv/"'));
     assert.ok(root.text.includes('<h1 class="sr-only">Купить колонку Алиса в Риге и Латвии</h1>'));
-    assert.ok(sitemap.text.includes('<loc>https://heysmart.lv/</loc>\n    <lastmod>2026-11-18</lastmod>'));
+    assert.ok(sitemap.text.includes('<loc>https://heysmart.lv/</loc>\n    <lastmod>2026-11-20</lastmod>'));
     assert.strictEqual((await request('/lv/yandex-station-lite-2')).res.status, 404);
     for (const asset of ['/catalog.css', '/catalog.js', '/i18n.js', '/assistant-engine.js', '/images/catalog/mini-pro/green/01.webp', '/images/catalog/light-2/blue/01.webp']) {
       assert.strictEqual((await request(asset)).res.status, 200, `nested catalog asset: ${asset}`);
