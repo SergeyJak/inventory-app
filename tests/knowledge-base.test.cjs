@@ -132,6 +132,7 @@ async function main() {
     assert.doesNotMatch(ruDelivery.text, /hreflang="lv"/);
     assert.match(ruDelivery.text, /Финляндии/);
     assert.match(enDelivery.text, /Belgium/);
+    assert.match(enDelivery.text, /href="\/en"/, 'English guide returns customers to the English catalogue');
     assert.doesNotMatch(enDelivery.text, /guaranteed delivery|free shipping|fixed price/i);
     assert.strictEqual(extractJsonLd(ruDelivery.text).filter(item => item['@type'] === 'Article').length, 1);
 
