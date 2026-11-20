@@ -1,4 +1,4 @@
-# Changelog
+# Changelog\n\n## 2026-11-20: Europe delivery guides (RU/EN)\n\n* Added bilingual Europe courier delivery guides to the indexed Knowledge Base with reciprocal hreflang and sitemap entries.\n* Linked the relevant guide from catalogue shipping information, preserving the active language.\n* Delivery rates and availability are confirmed per destination instead of being invented or promised.\n\n
 
 This file records the current high-level state of the project. It is not a release log with exact dates.
 
