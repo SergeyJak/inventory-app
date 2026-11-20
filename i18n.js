@@ -120,7 +120,7 @@ window.catalogTranslations = {
         intro: 'Поможем выбрать подходящую умную колонку, расскажем о наличии и ответим на вопросы перед покупкой.',
         pickup: { title: 'Самовывоз в Риге', text: 'Встречу и передачу товара согласуем заранее в удобное время. Актуальные модели и цвета лучше уточнить перед договорённостью.' },
         help: { title: 'Помощь с выбором', text: 'Подскажем, какая модель подойдёт для комнаты, музыки, подарка или базового умного дома, без лишних обещаний и давления.' },
-        shipping: { title: 'Отправка по Европе', text: 'При необходимости возможна отправка по Европе курьерской службой. Стоимость и сроки рассчитываются индивидуально.' },
+        shipping: { title: 'Отправка по Европе', text: 'При необходимости возможна отправка по Европе курьерской службой. Стоимость и сроки рассчитываются индивидуально.', guide: 'Подробнее о доставке по Европе' }
       },
       choose: { title: 'Какую Станцию выбрать?', text: 'Коротко о разнице между доступными моделями.' },
       trust: {
@@ -339,7 +339,7 @@ window.catalogTranslations = {
         intro: 'Palīdzēsim izvēlēties piemērotu viedo skaļruni, pastāstīsim par pieejamību un atbildēsim uz jautājumiem pirms pirkuma.',
         pickup: { title: 'Pašizņemšana Rīgā', text: 'Tikšanos un preces nodošanu saskaņojam iepriekš ērtā laikā. Aktuālos modeļus un krāsas labāk precizēt pirms vienošanās.' },
         help: { title: 'Palīdzība izvēlē', text: 'Ieteiksim, kurš modelis derēs istabai, mūzikai, dāvanai vai pamata viedajai mājai, bez liekiem solījumiem un spiediena.' },
-        shipping: { title: 'Nosūtīšana Eiropā', text: 'Ja nepieciešams, iespējama nosūtīšana Eiropā ar kurjeru. Izmaksas un termiņi tiek aprēķināti individuāli.' },
+        shipping: { title: 'Nosūtīšana Eiropā', text: 'Ja nepieciešams, iespējama nosūtīšana Eiropā ar kurjeru. Izmaksas un termiņi tiek aprēķināti individuāli.', guide: 'Piegāde Eiropā: informācija angļu valodā' }
       },
       choose: { title: 'Kuru Station izvēlēties?', text: 'Īsi par atšķirībām starp pieejamajiem modeļiem.' },
       trust: {
@@ -526,7 +526,7 @@ window.catalogTranslations = {
         intro: 'We will help you choose a suitable smart speaker, explain availability, and answer questions before purchase.',
         pickup: { title: 'Pickup in Riga', text: 'The meeting and handover are arranged in advance at a convenient time. Current models and colors are best confirmed before arranging pickup.' },
         help: { title: 'Help choosing', text: 'We will suggest which model fits a room, music, a gift, or a basic smart home setup without overpromising or pressure.' },
-        shipping: { title: 'Shipping across Europe', text: 'If needed, shipping across Europe by courier is possible. Cost and delivery time are calculated individually.' },
+        shipping: { title: 'Shipping across Europe', text: 'If needed, shipping across Europe by courier is possible. Cost and delivery time are calculated individually.', guide: 'How European delivery works' }
       },
       choose: { title: 'Which Station should you choose?', text: 'A quick look at the differences between available models.' },
       trust: {
