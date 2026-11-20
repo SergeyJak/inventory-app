@@ -1181,9 +1181,11 @@ async function refreshCatalog() {
     quickProducts = products;
     syncQuickChooseCards();
     showCatalog(buildModels(products));
+    window.dispatchEvent(new CustomEvent('heysmart:catalog-products', { detail: { products } }));
   } catch (err) {
     console.error('Catalog load error:', err);
     if (!models.length) showCatalog(buildModels(FALLBACK_PRODUCTS));
+    window.dispatchEvent(new Event('heysmart:catalog-products-error'));
   }
 }
 
