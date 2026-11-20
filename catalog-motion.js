@@ -144,6 +144,8 @@
   section.addEventListener('focusout', event => {
     if (!section.contains(event.relatedTarget)) { focused = false; syncTimer(); }
   });
+  root.addEventListener('heysmart:catalog-products', () => sceneLink(scenes[active], t()));
+  root.addEventListener('heysmart:catalog-products-error', () => sceneLink(scenes[active], t()));
   document.addEventListener('visibilitychange', syncTimer);
   reduceMotion.addEventListener?.('change', event => {
     if (event.matches) manualPaused = true;
