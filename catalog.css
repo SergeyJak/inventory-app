@@ -2520,3 +2520,17 @@ p {
   margin-bottom: 18px;
   color: #4b4e56;
 }
+
+/* Link to the country-aware RU/EN Europe shipping guide. */
+.shipping-guide-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  margin-top: 12px;
+  color: #175b9c;
+  font-weight: 760;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.shipping-guide-link:hover { color: #0e3d6c; }
+.shipping-guide-link:focus-visible { outline: 3px solid #3488ff; outline-offset: 3px; }
