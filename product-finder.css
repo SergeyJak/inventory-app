@@ -1,0 +1,185 @@
+.smart-finder {
+  padding: clamp(54px, 7vw, 88px) clamp(18px, 5vw, 72px);
+  background: linear-gradient(155deg, #f7f9fc 0%, #f0f4f9 100%);
+}
+.smart-finder-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.smart-finder-header {
+  max-width: 770px;
+  margin-bottom: 26px;
+}
+.smart-finder-header h2 {
+  margin: 8px 0 12px;
+  font-size: clamp(30px, 4.5vw, 54px);
+  line-height: 1.04;
+  letter-spacing: -.052em;
+}
+.smart-finder-header > p:last-child {
+  margin: 0;
+  max-width: 640px;
+  color: #525c69;
+  line-height: 1.55;
+}
+.smart-finder-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+}
+.smart-finder-form label {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  font-weight: 750;
+  color: #303540;
+}
+.smart-finder-form select {
+  width: 100%;
+  min-width: 0;
+  min-height: 54px;
+  padding: 0 40px 0 16px;
+  border: 1px solid #d8dfe8;
+  border-radius: 16px;
+  background: #fff;
+  color: #171a22;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.smart-finder-form button {
+  min-height: 54px;
+  padding: 0 24px;
+  border-radius: 16px;
+  background: #151820;
+  color: #fff;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.smart-finder-form :is(select, button):focus-visible,
+.finder-product-link:focus-visible,
+.smart-finder details summary:focus-visible {
+  outline: 3px solid #3488ff;
+  outline-offset: 3px;
+}
+.smart-finder-form button:hover,
+.finder-product-link:hover {
+  background: #353c4b;
+}
+.smart-finder-result:not(:empty) {
+  margin-top: 24px;
+}
+.smart-finder-result h3 {
+  font-size: 22px;
+  letter-spacing: -.03em;
+  margin: 0 0 14px;
+}
+.finder-matches {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.finder-match {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  padding: 22px;
+  border-radius: 22px;
+  background: #fff;
+  border: 1px solid #e0e4eb;
+}
+.finder-match.primary {
+  border-color: #8cbbf5;
+  box-shadow: 0 12px 32px rgba(31, 83, 153, .08);
+}
+.finder-match-caption {
+  font-size: 12px;
+  color: #687485;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.finder-match strong {
+  font-size: 23px;
+  letter-spacing: -.035em;
+}
+.finder-match > span:not(.finder-match-caption) {
+  color: #58616d;
+  line-height: 1.45;
+}
+.finder-match b {
+  margin-top: auto;
+  font-size: 20px;
+}
+.finder-product-link {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  margin-top: 5px;
+  border-radius: 14px;
+  background: #151820;
+  color: #fff;
+  font-weight: 750;
+}
+.smart-finder details {
+  margin-top: 22px;
+  border: 1px solid #d8dfe8;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .86);
+}
+.smart-finder details summary {
+  padding: 20px 24px;
+  font-weight: 820;
+  cursor: pointer;
+}
+.smart-finder-comparison {
+  padding: 0 20px 18px;
+  overflow-x: auto;
+}
+.finder-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  text-align: left;
+}
+.finder-table th,
+.finder-table td {
+  border-bottom: 1px solid #e9edf1;
+  padding: 14px 12px;
+  font-size: 14px;
+}
+.finder-table thead th {
+  color: #667080;
+  font-size: 12px;
+}
+.finder-table tbody th a {
+  color: #1763b3;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.finder-stock.yes {
+  color: #146345;
+  font-weight: 800;
+}
+.finder-stock.no {
+  color: #747b86;
+}
+.finder-note {
+  color: #667080;
+  font-size: 12px;
+}
+@media (max-width: 1000px) {
+  .smart-finder-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 650px) {
+  .smart-finder-form { grid-template-columns: 1fr; }
+  .smart-finder-form button { width: 100%; }
+  .finder-matches { grid-template-columns: 1fr; }
+  .smart-finder-comparison { padding-inline: 12px; }
+  .smart-finder details summary { padding: 18px 16px; }
+}
