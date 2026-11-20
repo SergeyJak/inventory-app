@@ -662,7 +662,7 @@ const CATALOG_SSR_TEXT = {
       living: {
         "kicker": "Alice in everyday life",
         "title": "One day. So many little possibilities.",
-        "intro": "Choose a moment to see how Alice could fit into your day. These are example commands, not a recording of the speaker.",
+        "intro": "Choose a moment to see how Alice could fit into your day. The voice commands are shown in Russian, Alice's primary language.",
         "commandLabel": "Example command",
         "tag": "Alice is close",
         "open": "View speaker",
@@ -676,7 +676,7 @@ const CATALOG_SSR_TEXT = {
             "label": "01 / 04 · Morning",
             "title": "A more relaxed start to your day",
             "description": "Timers, alarms and quick answers when your hands are busy with breakfast.",
-            "command": "“Alice, set a timer for seven minutes”",
+            "command": "«Алиса, поставь таймер на 7 минут»",
             "note": "Voice features require a configured speaker and an internet connection.",
             "imageAlt": "Blue Yandex Station Lite 2"
           },
@@ -685,7 +685,7 @@ const CATALOG_SSR_TEXT = {
             "label": "02 / 04 · Music",
             "title": "Set the mood with a few words",
             "description": "Choose what to listen to without interrupting your day.",
-            "command": "“Alice, play some music”",
+            "command": "«Алиса, включи музыку»",
             "note": "Music services may depend on the account region and subscription.",
             "imageAlt": "Gray Yandex Station Mini 3"
           },
@@ -694,7 +694,7 @@ const CATALOG_SSR_TEXT = {
             "label": "03 / 04 · Smart home",
             "title": "A home that responds to you",
             "description": "Control compatible lights and devices through voice routines.",
-            "command": "“Alice, turn on the lights”",
+            "command": "«Алиса, включи свет»",
             "note": "Smart home control requires compatible, configured devices.",
             "imageAlt": "Green Yandex Station Mini 3 Pro"
           },
@@ -703,7 +703,7 @@ const CATALOG_SSR_TEXT = {
             "label": "04 / 04 · On the go",
             "title": "Take familiar moments with you",
             "description": "A portable speaker for relaxing outdoors and travelling.",
-            "command": "“Alice, what's the weather today?”",
+            "command": "«Алиса, какая сегодня погода?»",
             "note": "Some voice functions need internet access when you travel.",
             "imageAlt": "Black Yandex Station Street"
           }
