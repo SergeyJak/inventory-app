@@ -716,7 +716,9 @@ function ui(locale) {
 }
 
 function catalogPath(locale) {
-  return locale === 'ru' ? '/ru' : '/';
+  if (locale === 'ru') return '/ru';
+  if (locale === 'en') return '/en';
+  return '/';
 }
 
 function pageShell({ locale = DEFAULT_LOCALE, title, description, canonical, hreflang = [], robots = 'index,follow', structuredData = [], body }) {
