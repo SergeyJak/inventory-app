@@ -29,7 +29,7 @@
   const DURATION = 7800;
   let active = 0;
   let visible = false;
-  let manualPaused = reduceMotion.matches;
+  let manualPaused = false;
   let hovered = false;
   let focused = false;
   let timer = null;
@@ -42,12 +42,18 @@
   };
   const t = () => root.catalogTranslations?.[locale()]?.sections?.living
     || root.catalogTranslations?.ru?.sections?.living || null;
+  // Keep the server-rendered scene and finder link if a cached dictionary predates this feature.
+  if (!t()) return;
+  const controls = section.querySelector('#living-controls');
+  controls.hidden = false;
+
   function stockStatus(modelId) {
     if (root.heysmartLiveProductsVerified !== true) return 'unknown';
     const offer = document.querySelector('[data-quick-model="' + modelId + '"] .quick-offer');
     return offer?.dataset.status === 'available' ? 'available' : 'unavailable';
   }
   function sceneLink(scene, translation) {
+    if (!translation) return;
     const available = stockStatus(scene.model) === 'available';
     link.href = available
       ? '/' + (locale() === 'en' ? 'en' : 'ru') + '/yandex-station-' + scene.slug
@@ -91,7 +97,7 @@
   function updateScene(index, { userInitiated = false, animate = true } = {}) {
     const translation = t();
     if (!translation) return;
-    section.querySelector('#living-controls').setAttribute('aria-label', translation.controls);
+    controls.setAttribute('aria-label', translation.controls);
     active = (index + scenes.length) % scenes.length;
     const scene = scenes[active];
     const words = translation.scenes[scene.id];
@@ -126,6 +132,7 @@
     }
     const playing = canPlay();
     section.classList.toggle('living-playing', playing);
+    pause.hidden = reduceMotion.matches;
     pause.textContent = manualPaused ? (t()?.resume || 'Play') : (t()?.pause || 'Pause');
     pause.setAttribute('aria-pressed', String(manualPaused));
     if (playing) timer = root.setTimeout(() => updateScene(active + 1), DURATION);
@@ -147,10 +154,7 @@
   root.addEventListener('heysmart:catalog-products', () => sceneLink(scenes[active], t()));
   root.addEventListener('heysmart:catalog-products-error', () => sceneLink(scenes[active], t()));
   document.addEventListener('visibilitychange', syncTimer);
-  reduceMotion.addEventListener?.('change', event => {
-    if (event.matches) manualPaused = true;
-    syncTimer();
-  });
+  reduceMotion.addEventListener?.('change', syncTimer);
   new MutationObserver(changes => {
     if (changes.some(change => change.attributeName === 'lang')) {
       updateScene(active, { animate: false });

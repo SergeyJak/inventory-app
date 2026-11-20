@@ -64,6 +64,29 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(page.locator('#living-scene-image')).toHaveAttribute('src', /mini-pro\/green\/01\.webp/);
   });
 
+  test('a cached dictionary without scenes leaves the stock finder link usable', async ({ page }) => {
+    await page.route('**/i18n.js?*', async route => {
+      const response = await route.fetch();
+      const withoutScenes = 'for (const lang of Object.values(window.catalogTranslations)) delete lang.sections.living;';
+      await route.fulfill({ response, body: await response.text() + '\n' + withoutScenes });
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => refreshCatalog());
+    await expect(page.locator('#living-controls')).toBeHidden();
+    await expect(page.locator('#living-scene-title')).toBeVisible();
+    await expect(page.locator('#living-scene-link')).toHaveAttribute('href', '#smart-finder');
+  });
+
+  test('pausing the scenes pauses the decorative animations', async ({ page }) => {
+    const pause = page.locator('#living-pause');
+    await pause.click();
+    await expect(pause).toHaveAttribute('aria-pressed', 'true');
+    await expect(pause).toHaveText('Продолжить');
+    await expect(page.locator('.living-orbit')).toHaveCSS('animation-play-state', 'paused');
+    await expect(page.locator('.living-wave i').first()).toHaveCSS('animation-play-state', 'paused');
+    await expect(page.locator('#living-scene-image')).toHaveCSS('animation-play-state', 'paused');
+  });
+
   test('living scenarios localize and support reduced motion', async ({ page }) => {
     await page.evaluate(() => { currentLang = 'en'; applyStaticTranslations(); });
     await expect(page.locator('#living-title')).toHaveText('One day. So many little possibilities.');
@@ -73,7 +96,9 @@ test.describe('HeySmart storefront safety net', () => {
 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#living-pause')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#living-pause')).toBeHidden();
+    await page.locator('[data-living-scene="home"]').click();
+    await expect(page.locator('.living-stage')).toHaveAttribute('data-scene', 'home');
     await expect(page.locator('#living-scenes')).not.toHaveClass(/living-playing/);
     await expect(page.locator('.quick-card').first()).toBeVisible();
   });

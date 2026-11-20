@@ -232,6 +232,15 @@
   font-weight: 850;
   box-shadow: 0 12px 30px rgba(17,17,30,.05);
 }
+.living-controls[hidden], .living-pause[hidden] {
+  display: none;
+}
+.living-scenes:not(.living-playing) .living-stage::before,
+.living-scenes:not(.living-playing) .living-orbit,
+.living-scenes:not(.living-playing) .living-art img,
+.living-scenes:not(.living-playing) .living-wave i {
+  animation-play-state: paused;
+}
 .living-controls {
   display: flex;
   flex-wrap: wrap;
