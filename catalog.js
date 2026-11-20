@@ -1178,12 +1178,16 @@ async function refreshCatalog() {
     const data = await res.json();
     if (!Array.isArray(data.products)) throw new Error('Invalid product response');
     const products = data.products;
+    window.heysmartLiveProducts = products;
+    window.heysmartLiveProductsVerified = true;
     quickProducts = products;
     syncQuickChooseCards();
     showCatalog(buildModels(products));
     window.dispatchEvent(new CustomEvent('heysmart:catalog-products', { detail: { products } }));
   } catch (err) {
     console.error('Catalog load error:', err);
+    window.heysmartLiveProducts = null;
+    window.heysmartLiveProductsVerified = false;
     if (!models.length) showCatalog(buildModels(FALLBACK_PRODUCTS));
     window.dispatchEvent(new Event('heysmart:catalog-products-error'));
   }
