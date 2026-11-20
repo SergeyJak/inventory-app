@@ -57,7 +57,10 @@
   }
   function paintImage(scene, animate) {
     const request = ++imageRequest;
-    if (image.getAttribute('src') === scene.image) return;
+    if (image.getAttribute('src') === scene.image) {
+      image.classList.remove('is-changing');
+      return;
+    }
     if (imageTransitionTimer !== null) {
       clearTimeout(imageTransitionTimer);
       imageTransitionTimer = null;
@@ -84,11 +87,11 @@
       image.src = scene.image;
     };
     next.src = scene.image;
-    if (next.complete && next.naturalWidth) next.onload();
   }
   function updateScene(index, { userInitiated = false, animate = true } = {}) {
     const translation = t();
     if (!translation) return;
+    section.querySelector('#living-controls').setAttribute('aria-label', translation.controls);
     active = (index + scenes.length) % scenes.length;
     const scene = scenes[active];
     const words = translation.scenes[scene.id];
