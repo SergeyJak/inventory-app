@@ -14,6 +14,16 @@ assert.equal(modelId(item('Лайт 2', 100)), 'light2');
 assert.equal(modelId(item('Street', 180)), 'street');
 assert.equal(modelId(item('Unknown speaker', 100)), null);
 
+for (const [label, expected] of [['Mini 3-Pro', 'miniPro'], ['Мини-3 Про', 'miniPro'], ['Mini-3', 'mini3']]) {
+  assert.equal(modelId(item(label, 150)), expected);
+}
+
+const fullStock = summarizeStock(['Mini 3', 'Light 2', 'Mini 3 Pro', 'Midi', 'Street'].map(name => item(name, 150)));
+for (const [room, expected] of [['small', 'light2'], ['medium', 'mini3'], ['large', 'midi']]) {
+  assert.equal(pickModels(fullStock, { purpose: 'everyday', room, budget: 'any' })[0].id, expected);
+}
+assert.deepEqual(pickModels(fullStock, { purpose: 'smart', room: 'outside' }), []);
+
 const available = summarizeStock([
   item('Мини 3', 90, false),
   item('Мини 3', 140),

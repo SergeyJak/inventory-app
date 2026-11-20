@@ -1129,6 +1129,26 @@ function applyUrlSelection() {
   activeAngle = 0;
 }
 
+function openCurrentModelHash() {
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const id = hash.get('model');
+  if (!id || (window.catalogInitialData?.route && window.catalogInitialData.route.modelId !== id)) return;
+  if (selectModel(models.findIndex(model => model.id === id), hash.get('color'))) {
+    showroom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+window.addEventListener('hashchange', openCurrentModelHash);
+// Following the same model link a second time does not fire hashchange.
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link = event.target.closest('a[href*="#model="]');
+  if (link?.href === window.location.href && !link.target) {
+    event.preventDefault();
+    openCurrentModelHash();
+  }
+});
+
 function showCatalog(nextModels) {
   const previousModelId = models[activeModel]?.id;
   const previousColorKey = models[activeModel]?.photos[activeColor]?.colorKey;

@@ -71,7 +71,9 @@
   };
 
   function modelId(product) {
-    const raw = [product && product.productType, product && product.label].filter(Boolean).join(' ').toLowerCase().replace(/ё/g, 'е');
+    const raw = [product?.productType, product?.label, product?.color].filter(Boolean).join(' ')
+      .normalize('NFC').toLowerCase().replace(/ё/g, 'е')
+      .replace(/[^a-zа-я0-9]+/g, ' ').trim();
     if (/мини\s*(?:3\s*)?про|mini\s*3\s*pro|mini\s*pro/.test(raw)) return 'miniPro';
     if (/мини\s*3|mini\s*3/.test(raw)) return 'mini3';
     if (/лайт\s*2|light\s*2|lite\s*2/.test(raw)) return 'light2';
@@ -94,14 +96,14 @@
     const room = Object.hasOwn(ROOMS, options.room) ? options.room : 'medium';
     const budget = Number(options.budget);
     const hasBudget = options.budget !== 'any' && options.budget !== undefined && Number.isFinite(budget) && budget > 0;
-    const allowed = PRIORITIES[purpose].filter(id => ROOMS[room].includes(id));
+    const purposes = PRIORITIES[purpose];
+    const rooms = ROOMS[room];
+    const generalUse = purpose === 'everyday' || purpose === 'gift';
+    const rank = id => generalUse ? rooms.indexOf(id) : rooms.indexOf(id) + purposes.indexOf(id);
     return (Array.isArray(stock) ? stock : [])
-      .filter(item => item.inStock && allowed.includes(item.id) && (!hasBudget || (item.price !== null && item.price <= budget)))
-      .sort((a, b) => {
-        const score = item => (PRIORITIES[purpose].length - PRIORITIES[purpose].indexOf(item.id)) * 20 +
-          (ROOMS[room].length - ROOMS[room].indexOf(item.id)) * 3;
-        return score(b) - score(a) || (a.price ?? Infinity) - (b.price ?? Infinity);
-      });
+      .filter(item => item.inStock && purposes.includes(item.id) && rooms.includes(item.id) &&
+        (!hasBudget || (item.price !== null && item.price <= budget)))
+      .sort((a, b) => rank(a.id) - rank(b.id) || purposes.indexOf(a.id) - purposes.indexOf(b.id));
   }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = { modelId, summarizeStock, pickModels };
