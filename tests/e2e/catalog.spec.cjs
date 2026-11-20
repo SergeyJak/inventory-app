@@ -69,7 +69,7 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(page.locator('#living-title')).toHaveText('One day. So many little possibilities.');
     await page.locator('[data-living-scene="travel"]').click();
     await expect(page.locator('#living-scene-title')).toContainText('Take familiar moments');
-    await expect(page.locator('#living-scene-link')).toHaveAttribute('href', '#smart-finder');
+    await expect(page.locator('#living-scene-link')).toHaveAttribute('href', '/en/yandex-station-street');
 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.reload({ waitUntil: 'domcontentloaded' });
