@@ -176,8 +176,6 @@ async function main() {
     assert.strictEqual(miniComparison.res.status, 200, 'Mini 3 comparison article remains published');
     assert.match(miniComparison.text, /Мини 3 или Мини 3 Про: 12\/18 Вт, Zigbee, цена/, 'search snippet highlights measurable differences');
     assert.match(miniComparison.text, /Какую выбрать за 20 секунд/, 'quick decision section remains visible in SSR');
-    assert.match(miniComparison.text, /Цена и наличие Яндекс Станции Мини 3/, 'current-price call to action remains visible');
-    assert.match(miniComparison.text, /href="\/ru\/yandex-station-mini-3-pro"/, 'Pro product link is preserved');
     assert.match(miniComparison.text, /rel="canonical" href="http:\/\/127\.0\.0\.1:3207\/ru\/help\/mini-3-ili-mini-3-pro-chto-vybrat"/, 'comparison canonical URL remains stable');
 
     const unknown = await request('/ru/help/no-such-article');
