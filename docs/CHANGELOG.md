@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-21: Mini 3 / Mini 3 Pro search CTR experiment
+
+* Based on Search Console's 607 impressions and 4 clicks in a 30-day window, refined the comparison article's title and description to emphasize concrete differences and a Riga purchase path.
+* Added a concise decision section and prominent links to current price/availability without introducing hard-coded inventory, redirects, or changing the canonical URL.
+* Monitor CTR and impressions after Google reprocesses the snippet; improvement is not guaranteed.
+
+
 ## 2026-11-21: Visible HeySmart brand and canonical Russian homepage
 
 * Show the HeySmart name in the public header for Russian, English and Latvian copy instead of the generic “smart speaker” label.

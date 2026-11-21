@@ -22,7 +22,8 @@ assert.deepStrictEqual(article.relatedProducts, ['mini3', 'miniPro']);
 assert.match(article.contentMarkdown, /12 Вт/);
 assert.match(article.contentMarkdown, /18 Вт/);
 assert.match(article.contentMarkdown, /Zigbee/);
-assert.match(article.contentMarkdown, /Matter/);
+assert.match(article.contentMarkdown, /^\| Matter over Wi-Fi \| Да \| Да \|$/m);
+assert.match(article.contentMarkdown, /^\| Zigbee \| Нет \| Да \|$/m);
 assert.match(article.contentMarkdown, /\/ru\/yandex-station-mini-3\)/);
 assert.match(article.contentMarkdown, /\/ru\/yandex-station-mini-3-pro\)/);
 assert.doesNotMatch(article.contentMarkdown, /^# /m, 'runtime content does not contain a second H1');
@@ -36,8 +37,16 @@ assert.match(html, /Yandex Station Mini 3 Pro/);
 assert.strictEqual((html.match(/<div class="faq-card"><h3>Что мощнее: Mini 3 или Mini 3 Pro\?<\/h3>/g) || []).length, 1, 'visible FAQ question renders once');
 assert.strictEqual((html.match(/"@type":"FAQPage"/g) || []).length, 1, 'FAQ structured data renders once');
 
+const decision = html.match(/<h2>Какую выбрать за 20 секунд<\/h2>([\s\S]*?)<h2>/);
+assert.ok(decision, 'Quick decision section is present');
+assert.match(decision[1], /<a\b[^>]* href="\/ru\/yandex-station-mini-3"[^>]*>Цена и наличие Яндекс Станции Мини 3<\/a>/);
+assert.match(decision[1], /<a\b[^>]* href="\/ru\/yandex-station-mini-3-pro"[^>]*>Цена и наличие Яндекс Станции Мини 3 Про<\/a>/);
+assert.ok(decision.index + decision[0].length <= html.indexOf('<table>'), 'Price links precede the comparison table');
+
 const sitemap = kb.renderSitemapXml('https://heysmart.lv');
-assert.match(sitemap, /https:\/\/heysmart\.lv\/ru\/help\/mini-3-ili-mini-3-pro-chto-vybrat/);
-assert.match(sitemap, /<lastmod>2026-09-06<\/lastmod>/);
+const urls = sitemap.match(/<url>[\s\S]*?<\/url>/g) || [];
+const comparisonUrl = urls.find(url => url.includes(`<loc>https://heysmart.lv/ru/help/${slug}</loc>`));
+assert.ok(comparisonUrl, 'Comparison article is in the sitemap');
+assert.match(comparisonUrl, /<lastmod>2026-11-21<\/lastmod>/);
 
 console.log('mini3-comparison tests passed');

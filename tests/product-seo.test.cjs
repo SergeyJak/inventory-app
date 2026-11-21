@@ -117,12 +117,12 @@ for (const [modelId, type] of [['mini3', 'Мини 3'], ['miniPro', 'Мини 3 
 
 console.log('Product SEO structured data checks passed');
 
-// Comparison snippet stays targeted to model differences and purchasing in Latvia.
+// Comparison snippet leads with measurable differences while preserving Riga intent in the description.
 const knowledgeBase = require('../knowledge-base');
 const comparison = knowledgeBase.ARTICLES.find(article => article.id === 'ru-mini3-vs-mini3-pro');
 assert.ok(comparison, 'Mini 3 comparison article exists');
 assert.match(comparison.seoTitle, /Мини 3.*Мини 3 Про/);
-assert.match(comparison.seoTitle, /Латвии/);
+assert.match(comparison.seoTitle, /12\/18 Вт, Zigbee/);
 assert.match(comparison.seoDescription, /12 и 18 Вт/);
 assert.match(comparison.seoDescription, /Риге/);
 assert.deepEqual(comparison.relatedProducts, ['mini3', 'miniPro']);
