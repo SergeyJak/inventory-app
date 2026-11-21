@@ -95,6 +95,25 @@ test.describe('HeySmart storefront safety net', () => {
     await expect(stage).not.toHaveAttribute('data-scene', pausedScene, { timeout: 12000 });
   });
 
+  test('choosing a scene keeps playback running unless the visitor paused it', async ({ page }) => {
+    const stage = page.locator('.living-stage');
+    const orbit = page.locator('.living-orbit');
+    const pause = page.locator('#living-pause');
+    const music = page.locator('[data-living-scene="music"]');
+
+    await music.click();
+    await expect(music).toBeFocused();
+    await expect(stage).toHaveAttribute('data-scene', 'music');
+    await expect(orbit).toHaveCSS('animation-play-state', 'running');
+    await expect(stage).toHaveAttribute('data-scene', 'home', { timeout: 12000 });
+
+    await pause.click();
+    await page.locator('[data-living-scene="travel"]').click();
+    await expect(stage).toHaveAttribute('data-scene', 'travel');
+    await expect(pause).toHaveAttribute('aria-pressed', 'true');
+    await expect(orbit).toHaveCSS('animation-play-state', 'paused');
+  });
+
   test('living scenarios localize and support reduced motion', async ({ page }) => {
     await page.evaluate(() => { currentLang = 'en'; applyStaticTranslations(); });
     await expect(page.locator('#living-title')).toHaveText('One day. So many little possibilities.');
