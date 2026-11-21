@@ -1144,11 +1144,9 @@ function sitemapUrls(origin = 'https://heysmart.lv') {
       lastmod: '2026-08-09',
     })));
   const urls = [
-    // Homepage SSR content updated with Europe shipping guides on 2026-11-20.
-    // Change these dates only when the corresponding page content actually changes.
-    { loc: `${origin}/`, lastmod: '2026-11-20' },
-    { loc: `${origin}/ru`, lastmod: '2026-11-20' },
-    { loc: `${origin}/en`, lastmod: '2026-11-20' },
+    // Single canonical Russian homepage; /ru remains accessible but is not indexed separately.
+    { loc: `${origin}/`, lastmod: '2026-11-21' },
+    { loc: `${origin}/en`, lastmod: '2026-11-21' },
     ...localesWithArticles.map(locale => ({ loc: `${origin}${helpPath(locale)}`, lastmod: '2026-08-09' })),
     ...categoryUrls,
     ...ARTICLES

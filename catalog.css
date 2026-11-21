@@ -2534,3 +2534,18 @@ p {
 }
 .shipping-guide-link:hover { color: #0e3d6c; }
 .shipping-guide-link:focus-visible { outline: 3px solid #3488ff; outline-offset: 3px; }
+
+
+/* A visible, concise homepage H1 clarifies what HeySmart sells in Riga.
+   Product pages keep their route-specific H1 screen-reader-only to avoid
+   duplicating the prominent model title. */
+.catalog-search-heading.homepage {
+  max-width: 490px;
+  margin: 0 0 16px;
+  color: #303239;
+  font-size: clamp(18px, 2.1vw, 25px);
+  font-weight: 760;
+  letter-spacing: -.03em;
+  line-height: 1.25;
+  text-wrap: balance;
+}

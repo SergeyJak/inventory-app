@@ -65,7 +65,7 @@ async function main() {
       } else {
         assert.ok(text.includes(`name="description" content="${copy.description}"`));
       }
-      assert.ok(text.includes(`<h1 class="sr-only">${copy.name}</h1>`));
+      assert.ok(text.includes(`<h1 class="catalog-search-heading sr-only">${copy.name}</h1>`));
       assert.ok(text.includes(`<h2 id="model-title">${copy.name}</h2>`));
 
       if (['light2', 'mini3', 'miniPro'].includes(model.id)) {
@@ -159,8 +159,8 @@ async function main() {
     assert.match(catalog.text, /<img class="quick-product"[^>]*alt="Яндекс Станция Мини 3 Про, умная колонка с Алисой"/);
     const enCatalog = await request('/en');
     assert.ok(enCatalog.text.includes('<title>Buy Yandex smart speakers with Alice in Riga, Latvia | HeySmart</title>'));
-    assert.ok(enCatalog.text.includes('<h1 class="sr-only">Buy Yandex smart speakers with Alice in Riga and Latvia</h1>'));
-    assert.ok(catalog.text.includes('<h1 class="sr-only">Купить колонку Алиса в Риге и Латвии</h1>'));
+    assert.ok(enCatalog.text.includes('<h1 class="catalog-search-heading homepage">Buy Yandex smart speakers with Alice in Riga and Latvia</h1>'));
+    assert.ok(catalog.text.includes('<h1 class="catalog-search-heading homepage">Купить колонку Алиса в Риге и Латвии</h1>'));
     for (const [locale, html] of [['ru', catalog.text], ['en', enCatalog.text]]) {
       const card = id => html.match(new RegExp(`<article[^>]*data-quick-model="${id}"[\\s\\S]*?<\\/article>`))[0];
       assert.match(card('light2'), /class="quick-price">100 €<\/span>/);
@@ -194,17 +194,24 @@ async function main() {
     }
     for (const locale of ['ru', 'en']) {
       const page = await request(`/${locale}`);
-      assert.ok(page.text.includes(`rel="canonical" href="https://heysmart.lv/${locale}"`));
+      assert.ok(page.text.includes(`rel="canonical" href="https://heysmart.lv/${locale === 'ru' ? '' : locale}"`));
       assert.ok(page.text.includes('"initial":{"model":{"id":"light2"'));
       assert.doesNotMatch(page.text, /"route":|"@type":"Product"/);
     }
     const root = await request('/');
     assert.match(root.text, /rel="canonical" href="https:\/\/heysmart.lv\/"/);
-    assert.ok(root.text.includes('hreflang="ru" href="https://heysmart.lv/ru"'));
+    assert.ok(root.text.includes('hreflang="ru" href="https://heysmart.lv/"'));
     assert.ok(root.text.includes('hreflang="en" href="https://heysmart.lv/en"'));
     assert.ok(root.text.includes('hreflang="x-default" href="https://heysmart.lv/"'));
-    assert.ok(root.text.includes('<h1 class="sr-only">Купить колонку Алиса в Риге и Латвии</h1>'));
-    assert.ok(sitemap.text.includes('<loc>https://heysmart.lv/</loc>\n    <lastmod>2026-11-20</lastmod>'));
+    assert.ok(root.text.includes('<h1 class="catalog-search-heading homepage">Купить колонку Алиса в Риге и Латвии</h1>'));
+    assert.ok(sitemap.text.includes('<loc>https://heysmart.lv/</loc>\n    <lastmod>2026-11-21</lastmod>'));
+    assert.ok(!sitemap.text.includes('<loc>https://heysmart.lv/ru</loc>'), 'noncanonical Russian homepage is not in the sitemap');
+    assert.ok(catalog.text.includes('class="site-header"'), 'header is present');
+    assert.ok(catalog.text.includes('<a href="/" data-i18n="nav.brand">HeySmart</a>'), 'homepage visibly identifies the brand');
+    assert.ok(enCatalog.text.includes('<a href="/" data-i18n="nav.brand">HeySmart</a>'), 'English homepage visibly identifies the brand');
+    assert.ok(catalog.text.includes('rel="canonical" href="https://heysmart.lv/"'), 'Russian homepage uses primary canonical');
+    assert.ok(catalog.text.includes('hreflang="ru" href="https://heysmart.lv/"'), 'Russian alternate points at canonical');
+    assert.doesNotMatch(catalog.text, /__CATALOG_H1_CLASS__/, 'H1 visibility placeholder resolves');
     assert.strictEqual((await request('/lv/yandex-station-lite-2')).res.status, 404);
     for (const asset of ['/catalog.css', '/catalog.js', '/i18n.js', '/assistant-engine.js', '/images/catalog/mini-pro/green/01.webp', '/images/catalog/light-2/blue/01.webp']) {
       assert.strictEqual((await request(asset)).res.status, 200, `nested catalog asset: ${asset}`);

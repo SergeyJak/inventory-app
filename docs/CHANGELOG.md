@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-21: Visible HeySmart brand and canonical Russian homepage
+
+* Show the HeySmart name in the public header for Russian, English and Latvian copy instead of the generic “smart speaker” label.
+* Surface the homepage’s existing Riga/Alice purchasing H1 visually in the hero without adding duplicate H1s to product pages.
+* Consolidate identical Russian homepage URLs `/` and `/ru` under canonical `/`, update homepage hreflang and remove `/ru` from the sitemap. `/ru` remains browsable.
+* No inventory, finance, product-pricing, account or checkout changes. Google ranking improvement is not guaranteed; monitor Latvian Search Console metrics and real Riga SERPs.
+
 ## 2026-11-21: Living catalogue scenarios
 
 * Added an animated, four-scene day-in-the-life storytelling section with real HeySmart product photos, multilingual example commands and stock-safe product links.
