@@ -38,6 +38,6 @@ assert.strictEqual((html.match(/"@type":"FAQPage"/g) || []).length, 1, 'FAQ stru
 
 const sitemap = kb.renderSitemapXml('https://heysmart.lv');
 assert.match(sitemap, /https:\/\/heysmart\.lv\/ru\/help\/mini-3-ili-mini-3-pro-chto-vybrat/);
-assert.match(sitemap, /<lastmod>2026-09-06<\/lastmod>/);
+assert.match(sitemap, /<lastmod>2026-11-21<\/lastmod>/);
 
 console.log('mini3-comparison tests passed');
