@@ -138,16 +138,18 @@
     if (playing) timer = root.setTimeout(() => updateScene(active + 1), DURATION);
   }
 
+  function clearInteractionPause() {
+    pausedByHover = false;
+    pausedByFocus = false;
+  }
+
   buttons.forEach((button, index) => button.addEventListener('click', () => {
+    clearInteractionPause();
     updateScene(index, { userInitiated: true });
   }));
   pause.addEventListener('click', () => {
     manualPaused = !manualPaused;
-    if (!manualPaused) {
-      // Resume immediately. A later pointer entry or focus change can pause again.
-      pausedByHover = false;
-      pausedByFocus = false;
-    }
+    if (!manualPaused) clearInteractionPause();
     syncTimer();
   });
   section.addEventListener('pointerenter', () => { pausedByHover = true; syncTimer(); });
