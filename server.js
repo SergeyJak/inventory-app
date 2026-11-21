@@ -653,7 +653,7 @@ const CATALOG_SSR_TEXT = {
       title: 'Buy Yandex smart speakers with Alice in Riga, Latvia | HeySmart',
       description: 'Compare Yandex Station Lite 2, Mini 3 and Mini 3 Pro in Riga, Latvia. Check prices and colours, arrange pickup or delivery, and get setup help.',
     },
-    nav: { brand: 'Smart speaker', consultation: 'Consultation', lang: 'Language' },
+    nav: { brand: 'HeySmart', consultation: 'Consultation', lang: 'Language' },
     common: { selectedModel: 'Selected model', aboutModel: 'About the model', moreAboutModel: 'More about this model', contact: 'Contact' },
     contact: { kicker: 'Contact', title: 'How would you like to contact us?' },
     assistant: { fab: 'Alice will help you choose', kicker: 'Assistant', title: 'I can help you choose a Station.', intro: 'Choose a scenario and I’ll suggest a suitable model from the current selection.' },
@@ -1178,9 +1178,10 @@ function localizedCatalogStructuredData(locale, canonicalUrl) {
 function catalogPageOptions(req) {
   const forcedLocale = req.path === '/ru' ? 'ru' : req.path === '/en' ? 'en' : '';
   const locale = forcedLocale || 'ru';
-  const canonicalUrl = forcedLocale ? `https://heysmart.lv/${forcedLocale}` : 'https://heysmart.lv/';
+  // / and /ru have the same Russian content: consolidate on /.
+  const canonicalUrl = forcedLocale === 'en' ? 'https://heysmart.lv/en' : 'https://heysmart.lv/';
   const hreflang = [
-    '<link rel="alternate" hreflang="ru" href="https://heysmart.lv/ru">',
+    '<link rel="alternate" hreflang="ru" href="https://heysmart.lv/">',
     '<link rel="alternate" hreflang="en" href="https://heysmart.lv/en">',
     '<link rel="alternate" hreflang="x-default" href="https://heysmart.lv/">',
   ].join('\n  ');
@@ -1189,7 +1190,7 @@ function catalogPageOptions(req) {
     forcedLocale,
     locale,
     hreflang,
-    structuredData: forcedLocale ? localizedCatalogStructuredData(locale, canonicalUrl) : null,
+    structuredData: forcedLocale === 'en' ? localizedCatalogStructuredData(locale, canonicalUrl) : null,
   };
 }
 
@@ -1339,6 +1340,7 @@ function renderCatalogSsrLocale(template, page, initial, products = null) {
     .replace(/__CATALOG_DESCRIPTION__/g, escapeHtml(page.copy?.description || text('meta.description')))
     .replace(/__CATALOG_OG_LOCALE__/g, locale === 'en' ? 'en_LV' : 'ru_LV')
     .replace(/__CATALOG_H1__/g, escapeHtml(page.copy?.name || heading))
+    .replace('__CATALOG_H1_CLASS__', page.model ? 'sr-only' : 'homepage')
     .replace('__CATALOG_LANGUAGE_LABEL__', escapeHtml(text('nav.lang')))
     .replace('__CATALOG_LANGUAGE_SWITCHER__', catalogLanguageSwitcher(page.forcedLocale, page.model?.slug))
     .replace('__CATALOG_HELP_LINK__', helpLink)
