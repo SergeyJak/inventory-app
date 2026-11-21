@@ -78,8 +78,8 @@ async function main() {
     assert.match(russianCatalog.text, /<html lang="ru">/, 'Russian catalog has a Russian document language');
     assert.match(russianCatalog.text, /<title>Купить колонку Алиса в Риге и Латвии \| HeySmart<\/title>/, 'Russian catalog has a Russian title');
     assert.match(russianCatalog.text, /<h1[^>]*>Купить колонку Алиса в Риге и Латвии<\/h1>/, 'Russian catalog has a Russian SSR H1');
-    assert.match(russianCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog self-canonicalizes');
-    assert.match(russianCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'Russian catalog exposes RU hreflang');
+    assert.match(russianCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/"/, 'Russian catalog consolidates its canonical onto root');
+    assert.match(russianCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/"/, 'Russian catalog points RU hreflang to the canonical root');
     assert.match(russianCatalog.text, /hreflang="en" href="https:\/\/heysmart\.lv\/en"/, 'Russian catalog exposes EN hreflang');
     assert.match(russianCatalog.text, /hreflang="x-default" href="https:\/\/heysmart\.lv\/"/, 'Russian catalog exposes root x-default hreflang');
     assert.doesNotMatch(russianCatalog.text, /hreflang="lv"/, 'Russian catalog does not expose Latvian hreflang');
@@ -88,8 +88,8 @@ async function main() {
     assert.match(russianCatalog.text, /<button class="lang-btn" type="button" data-lang="lv" aria-pressed="false">LV<\/button>/, 'Russian catalog offers Latvian only as a client-side action');
     const ruSchemas = extractJsonLd(russianCatalog.text);
     assert.strictEqual(ruSchemas.length, 1, 'Russian catalog has one structured data block');
-    assert.strictEqual(ruSchemas[0]['@graph'].some(item => item['@type'] === 'ItemList' || item['@type'] === 'Product'), false, 'Russian catalog does not claim query URLs are product pages');
-    assert.ok(ruSchemas[0]['@graph'].every(item => !item.url || item.url === 'https://heysmart.lv/ru'), 'Russian structured data URLs match the Russian canonical');
+    assert.strictEqual(ruSchemas[0]['@graph'].some(item => item['@type'] === 'Product'), false, 'Russian catalog does not claim query URLs are product pages');
+    assert.ok(ruSchemas[0]['@graph'].every(item => !item.url || item.url === 'https://heysmart.lv/'), 'Russian structured data URLs match the canonical root');
 
     const englishCatalog = await request('/en', catalogRequest);
     assert.strictEqual(englishCatalog.res.status, 200, 'English catalog returns 200');
@@ -102,7 +102,7 @@ async function main() {
     assert.doesNotMatch(englishCatalog.text, /Один день/, 'English SSR does not include Russian living heading');
     assert.match(englishCatalog.text, /Station Lite 2/, 'English catalog SSR includes English product content');
     assert.match(englishCatalog.text, /rel="canonical" href="https:\/\/heysmart\.lv\/en"/, 'English catalog self-canonicalizes');
-    assert.match(englishCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/ru"/, 'English catalog exposes RU hreflang');
+    assert.match(englishCatalog.text, /hreflang="ru" href="https:\/\/heysmart\.lv\/"/, 'English catalog exposes canonical RU hreflang');
     assert.match(englishCatalog.text, /hreflang="en" href="https:\/\/heysmart\.lv\/en"/, 'English catalog exposes EN hreflang');
     assert.match(englishCatalog.text, /hreflang="x-default" href="https:\/\/heysmart\.lv\/"/, 'English catalog exposes root x-default hreflang');
     assert.doesNotMatch(englishCatalog.text, /hreflang="lv"/, 'English catalog does not expose Latvian hreflang');
@@ -193,11 +193,10 @@ async function main() {
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/rabotaet-li-alisa-v-latvii/, 'sitemap includes published KB article');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/dostavka-yandex-stancii-po-evrope/, 'sitemap includes RU delivery guide');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/en\/help\/yandex-station-delivery-europe/, 'sitemap includes EN delivery guide');
-    assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru<\/loc>/, 'sitemap includes the Russian catalog URL');
+    assert.doesNotMatch(sitemap.text, /https:\/\/heysmart\.lv\/ru<\/loc>/, 'sitemap does not advertise the duplicate Russian catalog URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/en<\/loc>/, 'sitemap includes the English catalog URL');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/<\/loc>\s*<lastmod>2026-11-20<\/lastmod>/, 'root catalog lastmod matches the verified SSR content update');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/ru<\/loc>\s*<lastmod>2026-11-20<\/lastmod>/, 'Russian catalog lastmod matches the verified SSR content update');
-    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/en<\/loc>\s*<lastmod>2026-11-20<\/lastmod>/, 'English catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/<\/loc>\s*<lastmod>2026-11-21<\/lastmod>/, 'root catalog lastmod matches the verified SSR content update');
+    assert.match(sitemap.text, /<loc>https:\/\/heysmart\.lv\/en<\/loc>\s*<lastmod>2026-11-21<\/lastmod>/, 'English catalog lastmod matches the verified SSR content update');
     assert.doesNotMatch(sitemap.text, /https:\/\/heysmart\.lv\/lv(?:<|\/)/, 'sitemap does not include a Latvian commercial URL');
     assert.match(sitemap.text, /https:\/\/heysmart\.lv\/ru\/help\/category\/gid-pokupatelya/, 'sitemap includes KB category');
     assert.doesNotMatch(sitemap.text, /unpublished-kb-test/, 'sitemap excludes unpublished article');
